@@ -5,6 +5,7 @@
 #include <bitset>
 #include <map>
 #include <vector>
+#include <cstdint>
 
 /********************************************************************/
 /**************************    CONSTANTS    *************************/
@@ -115,7 +116,3 @@ vector<pair<uint32_t, unsigned int>> build_Kset(vector<pair<uint32_t, unsigned i
 
   return Kset;
 }
-
-
-
-

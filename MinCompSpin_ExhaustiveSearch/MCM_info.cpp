@@ -2,6 +2,7 @@
 #include <vector>
 #include <bitset>
 #include <fstream>
+#include <cstdint>
 
 #include "data.h"
 
@@ -159,6 +160,3 @@ void PrintInfo_All_SubComplete_Models(vector<pair<uint32_t, unsigned int>> Kset,
   }
   Partition_SC.clear();
 }
-
-
-

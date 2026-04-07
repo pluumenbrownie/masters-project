@@ -3,6 +3,7 @@
 #include <sstream>
 #include <list>
 #include <bitset>
+#include <cstdint>
 
 /********************************************************************/
 /**************************    CONSTANTS    *************************/
@@ -106,4 +107,3 @@ void PrintTerm_Basis(list<uint32_t> Basis_li)
     cout << "##\t " << i << " \t " << (*it) << " \t " << bitset<n>(*it) << endl; i++;
   } cout << "##" << endl;
 }
-

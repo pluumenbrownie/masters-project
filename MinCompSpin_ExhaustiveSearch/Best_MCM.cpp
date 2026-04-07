@@ -2,6 +2,7 @@
 #include <fstream>
 #include <bitset>
 #include <vector>
+#include <cstdint>
 
 #include "data.h"
 
@@ -604,6 +605,3 @@ map<uint32_t, uint32_t> MCM_AllRank_SmallerThan_r_nonOrdered(vector<pair<uint32_
 
   return Partition;
 }
-
-
-

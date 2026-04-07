@@ -4,6 +4,7 @@
 #include <list>
 #include <fstream>
 #include <vector>
+#include <cstdint>
 
 using namespace std;
 
@@ -326,4 +327,3 @@ void PrintFile_StateProbabilites_OriginalBasis(vector<pair<uint32_t, unsigned in
   }
   file_Pk.close();
 }
-

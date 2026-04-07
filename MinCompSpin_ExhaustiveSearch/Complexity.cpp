@@ -1,6 +1,7 @@
 #include <bitset>
 #include <cmath>       /* tgamma */
 #include <map>
+#include <cstdint>
 
 using namespace std;
 
@@ -45,4 +46,3 @@ double Complexity_MCM(map<uint32_t, uint32_t> Partition, unsigned int N, double 
 
   return (*C_param) + (*C_geom);
 }
-

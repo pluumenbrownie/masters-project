@@ -12,6 +12,7 @@
 #include <ctime> // for chrono
 #include <ratio> // for chrono
 #include <chrono> // for chrono
+#include <cstdint>
 
 using namespace std;
 using namespace std::chrono;
@@ -273,8 +274,3 @@ int main()
 
   return 0;
 }
-
-
-
-
-

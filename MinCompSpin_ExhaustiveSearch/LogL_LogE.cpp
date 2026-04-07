@@ -2,6 +2,7 @@
 #include <cmath>       /* tgamma */
 #include <map>
 #include <vector>
+#include <cstdint>
 
 using namespace std;
 
@@ -182,4 +183,3 @@ double LogL_MCM(vector<pair<uint32_t, unsigned int>> Kset, map<uint32_t, uint32_
     return LogL - ((double) (N * (n-rank))) * log(2.);
   //}
 }
-

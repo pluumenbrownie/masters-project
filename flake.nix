@@ -19,6 +19,7 @@
       nativeBuildInputs = with pkgs; [
         typst
         tinymist
+        libgcc
       ];
     };
 
