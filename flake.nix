@@ -1,28 +1,37 @@
 {
-  description = "Master project flake.";
+  description = "A devShell example";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
-    # old_nixpkgs.url = "github:nixos/nixpkgs/194c2aa446b2b059886bb68be15ef6736d5a8c31";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    rust-overlay.url = "github:oxalica/rust-overlay";
+    flake-utils.url = "github:numtide/flake-utils";
   };
 
   outputs = {
     nixpkgs,
-    # old_nixpkgs,
+    rust-overlay,
+    flake-utils,
     ...
-  }: let
-    system = "x86_64-linux";
-    pkgs = nixpkgs.legacyPackages.${system};
-    # oldpkgs = old_nixpkgs.legacyPackages.${system};
-  in {
-    devShells.${system}.default = pkgs.mkShell {
-      nativeBuildInputs = with pkgs; [
-        typst
-        tinymist
-        libgcc
-      ];
-    };
+  }:
+    flake-utils.lib.eachDefaultSystem (
+      system: let
+        overlays = [(import rust-overlay)];
+        pkgs = import nixpkgs {
+          inherit system overlays;
+        };
+      in {
+        devShells.default = with pkgs;
+          mkShell {
+            buildInputs = [
+              rust-bin.beta.latest.default
+              bacon
+            ];
 
-    doCheck = false;
-  };
+            shellHook = ''
+              alias ls=eza
+              alias find=fd
+            '';
+          };
+      }
+    );
 }
