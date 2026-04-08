@@ -23,7 +23,9 @@
         devShells.default = with pkgs;
           mkShell {
             buildInputs = [
-              rust-bin.beta.latest.default
+              (rust-bin.beta.latest.default.override {
+                extensions = ["rust-src"];
+              })
               bacon
             ];
 
