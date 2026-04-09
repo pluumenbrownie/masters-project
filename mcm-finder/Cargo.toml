@@ -4,3 +4,16 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+bit-vec = "0.9.1"
+bitvec = "1.0.1"
+cxx = "1.0.194"
+statrs = "0.18.0"
+
+[build-dependencies]
+cxx-build = "1.0.194"
+
+[dev-dependencies]
+approx = "0.5.1"
+pretty_assertions = "1.4.1"
+quickcheck = "1.1.0"
+quickcheck_macros = "1.2.0"
