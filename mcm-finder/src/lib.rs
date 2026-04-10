@@ -1,6 +1,28 @@
 use bit_vec::BitVec;
+use miette::{Diagnostic, NamedSource};
 use statrs::function::gamma::ln_gamma;
-use std::{f64::consts::PI, num::NonZeroU32};
+use std::{
+    collections::HashMap,
+    f64::consts::PI,
+    fs::File,
+    io::{BufRead, BufReader, Read, Seek},
+    num::NonZeroU32,
+    path::Path,
+};
+use thiserror::Error;
+
+#[derive(Debug, Diagnostic, Error)]
+pub enum MCMError {
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+    // #[error("Line has incorrect length")]
+    // WrongLength {
+    //     #[label("here")]
+    //     line: NamedSource<String>,
+    // },
+    #[error("Parsiong error")]
+    Parsing,
+}
 
 /// Calculates the geometric complexity of an Independent Complete Component.
 ///
@@ -91,5 +113,73 @@ impl MinimallyComplexModel {
         c_param + c_geom
     }
 
-    pub fn log_e(&self) -> f64 {}
+    // pub fn log_e(&self) -> f64 {}
+}
+
+#[derive(Debug)]
+pub struct Dataset {
+    data: HashMap<BitVec<usize>, usize>,
+}
+
+impl Dataset {
+    pub fn new(data: HashMap<BitVec<usize>, usize>) -> Dataset {
+        Dataset { data }
+    }
+
+    pub fn read(path: &Path) -> Result<Dataset, MCMError> {
+        let mut data = HashMap::new();
+        let mut buf_reader = BufReader::new(File::open(path)?);
+
+        let length = get_line_length(&mut buf_reader)?;
+        println!("{}", length);
+
+        for line in buf_reader.lines() {
+            let mut bools: Vec<bool> = vec![];
+            let line = line?;
+            println!("{:?}", line.as_bytes());
+
+            if line.len() != length {
+                return Err(MCMError::Parsing);
+            }
+            for char in line.chars() {
+                let b = match char {
+                    '1' => Ok(true),
+                    '0' => Ok(false),
+                    _ => Err(MCMError::Parsing),
+                }?;
+                bools.push(b);
+            }
+            let bitvec = BitVec::<usize>::from_iter(bools);
+            data.entry(bitvec).and_modify(|i| *i += 1).or_insert(1usize);
+        }
+
+        Ok(Dataset::new(data))
+    }
+}
+
+/// Get the length of the first data series.
+///
+/// # Example
+/// ```
+/// # use mcm_finder::get_line_length;
+/// # use std::{io::BufReader, path::Path, fs::File};
+/// let mut buf_reader = BufReader::new(File::open(
+///     Path::new("tests/data/SCOTUS_n9_N895_Data.dat")
+/// ).unwrap());
+/// let result = get_line_length(&mut buf_reader);
+///
+/// assert!(result.is_ok());
+/// assert_eq!(result.unwrap(), 9usize);
+/// ```
+pub fn get_line_length(buf_reader: &mut BufReader<File>) -> Result<usize, MCMError> {
+    let mut line = String::new();
+    buf_reader.read_line(&mut line)?;
+    buf_reader.rewind()?;
+    line.retain(|c| c == '0' || c == '1');
+
+    if line.is_ascii() {
+        Ok(line.len())
+    } else {
+        Err(MCMError::Parsing)
+    }
 }
