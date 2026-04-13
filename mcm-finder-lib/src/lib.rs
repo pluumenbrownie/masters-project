@@ -5,7 +5,7 @@ use std::{
     collections::HashMap,
     f64::consts::PI,
     fs::File,
-    io::{BufRead, BufReader, Read, Seek},
+    io::{BufReader, Read},
     num::NonZeroU32,
     path::Path,
 };
