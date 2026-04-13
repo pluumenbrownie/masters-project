@@ -1,5 +1,5 @@
 use bit_vec::BitVec;
-use miette::{Diagnostic, NamedSource};
+use miette::{Diagnostic, NamedSource, SourceSpan};
 use statrs::function::gamma::ln_gamma;
 use std::{
     collections::HashMap,
@@ -14,14 +14,41 @@ use thiserror::Error;
 #[derive(Debug, Diagnostic, Error)]
 pub enum MCMError {
     #[error("IO error: {0}")]
+    #[diagnostic(code(mcm_finder_lib::io_error))]
     Io(#[from] std::io::Error),
     // #[error("Line has incorrect length")]
     // WrongLength {
     //     #[label("here")]
     //     line: NamedSource<String>,
     // },
-    #[error("Parsiong error")]
-    Parsing,
+    #[error("Bad character error")]
+    #[diagnostic(
+        help("Data lines should only consist of 0 and 1, and should be of equal length."),
+        code("mcm-finder-lib::MCMError::BadCharacter")
+    )]
+    BadCharacter {
+        #[source_code]
+        src: NamedSource<String>,
+        #[label("Incorrect character")]
+        bad_line: SourceSpan,
+    },
+    #[error("Bad length error")]
+    #[diagnostic(
+        help("Data lines should have the same length."),
+        code("mcm-finder-lib::MCMError::BadLength")
+    )]
+    BadLength {
+        #[source_code]
+        src: NamedSource<String>,
+        #[label("Bad line")]
+        bad_line: SourceSpan,
+    },
+
+    #[error("{filename} is empty")]
+    #[diagnostic(help(
+        "Data lines should only consist of 0 and 1, and should be of equal length."
+    ))]
+    EmptyFile { filename: String },
 }
 
 /// Calculates the geometric complexity of an Independent Complete Component.
@@ -35,7 +62,7 @@ pub enum MCMError {
 ///
 /// # Example
 /// ```
-/// # use mcm_finder::geometric_complexity_icc;
+/// # use mcm_finder_lib::geometric_complexity_icc;
 /// # use std::num::NonZeroU32;
 /// let spin_variables = NonZeroU32::new(9).unwrap();
 /// assert_eq!(geometric_complexity_icc(spin_variables), -868.6612503409542);
@@ -50,7 +77,7 @@ pub fn geometric_complexity_icc(spin_variables: NonZeroU32) -> f64 {
 ///
 /// # Example
 /// ```
-/// # use mcm_finder::parameter_complexity_icc;
+/// # use mcm_finder_lib::parameter_complexity_icc;
 /// # use std::num::NonZeroU32;
 /// let spin_variables = NonZeroU32::new(9).unwrap();
 /// assert_eq!(parameter_complexity_icc(spin_variables, 5), -58.3662038406751);
@@ -77,7 +104,7 @@ pub fn complexity_mcm(partition: Vec<BitVec>, n: u32, c_param: &mut f64, c_geom:
 ///
 /// # Example
 /// ```
-/// # use mcm_finder::MinimallyComplexModel;
+/// # use mcm_finder_lib::MinimallyComplexModel;
 /// # use bit_vec::BitVec;
 /// let mcm = MinimallyComplexModel::new(
 ///     vec![
@@ -128,58 +155,60 @@ impl Dataset {
 
     pub fn read(path: &Path) -> Result<Dataset, MCMError> {
         let mut data = HashMap::new();
+        let filename = path.file_name().unwrap().to_str().unwrap().to_owned();
         let mut buf_reader = BufReader::new(File::open(path)?);
 
-        let length = get_line_length(&mut buf_reader)?;
-        println!("{}", length);
+        // reading the entire file to a string
+        let file = {
+            let mut file = String::new();
+            buf_reader.read_to_string(&mut file)?;
+            file
+        };
 
-        for line in buf_reader.lines() {
-            let mut bools: Vec<bool> = vec![];
-            let line = line?;
-            println!("{:?}", line.as_bytes());
+        let mut line_length = 0usize;
+        let mut bool_array: Vec<bool> = vec![];
 
-            if line.len() != length {
-                return Err(MCMError::Parsing);
+        for (nr, byte) in file.bytes().enumerate() {
+            // validate character is valid ascii
+            if !byte.is_ascii() {
+                Err(MCMError::BadCharacter {
+                    src: NamedSource::new(&filename, file.clone()),
+                    bad_line: nr.into(),
+                })?
+            };
+            // count ones and zeroes
+            match byte {
+                b'0' => bool_array.push(false),
+                b'1' => bool_array.push(true),
+                b'\r' | b'\n' if !bool_array.is_empty() => {
+                    // check the line length
+                    if line_length == 0 {
+                        line_length = bool_array.len();
+                    } else if bool_array.len() != line_length {
+                        Err(MCMError::BadLength {
+                            src: NamedSource::new(&filename, file.clone()),
+                            bad_line: (nr - bool_array.len(), bool_array.len()).into(),
+                        })?
+                    }
+
+                    // add the datapoints to the hashmap
+                    let bitvec = BitVec::<usize>::from_iter(bool_array.drain(..));
+                    data.entry(bitvec).and_modify(|i| *i += 1).or_insert(1usize);
+                    debug_assert!(bool_array.is_empty());
+                }
+                b'\r' | b'\n' => {}
+                // wrong character case
+                _ => Err(MCMError::BadCharacter {
+                    src: NamedSource::new(&filename, file.clone()),
+                    bad_line: nr.into(),
+                })?,
             }
-            for char in line.chars() {
-                let b = match char {
-                    '1' => Ok(true),
-                    '0' => Ok(false),
-                    _ => Err(MCMError::Parsing),
-                }?;
-                bools.push(b);
-            }
-            let bitvec = BitVec::<usize>::from_iter(bools);
-            data.entry(bitvec).and_modify(|i| *i += 1).or_insert(1usize);
         }
 
         Ok(Dataset::new(data))
     }
-}
 
-/// Get the length of the first data series.
-///
-/// # Example
-/// ```
-/// # use mcm_finder::get_line_length;
-/// # use std::{io::BufReader, path::Path, fs::File};
-/// let mut buf_reader = BufReader::new(File::open(
-///     Path::new("tests/data/SCOTUS_n9_N895_Data.dat")
-/// ).unwrap());
-/// let result = get_line_length(&mut buf_reader);
-///
-/// assert!(result.is_ok());
-/// assert_eq!(result.unwrap(), 9usize);
-/// ```
-pub fn get_line_length(buf_reader: &mut BufReader<File>) -> Result<usize, MCMError> {
-    let mut line = String::new();
-    buf_reader.read_line(&mut line)?;
-    buf_reader.rewind()?;
-    line.retain(|c| c == '0' || c == '1');
-
-    if line.is_ascii() {
-        Ok(line.len())
-    } else {
-        Err(MCMError::Parsing)
+    pub fn get(&self, bitvector: BitVec<usize>) -> Option<usize> {
+        self.data.get(&bitvector).copied()
     }
 }

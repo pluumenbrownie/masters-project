@@ -1,5 +1,5 @@
 use bit_vec::BitVec;
-use mcm_finder::MinimallyComplexModel;
+use mcm_finder_lib::MinimallyComplexModel;
 
 #[test]
 fn mcm() {

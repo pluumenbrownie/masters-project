@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 use approx::assert_relative_eq;
-use mcm_finder::{geometric_complexity_icc, parameter_complexity_icc};
+use mcm_finder_lib::{geometric_complexity_icc, parameter_complexity_icc};
 use quickcheck_macros::quickcheck;
 
 use crate::ffi::{GeomComplexity_ICC, ParamComplexity_ICC};
@@ -39,7 +39,7 @@ fn par_compl() {
 #[cxx::bridge]
 mod ffi {
     unsafe extern "C++" {
-        include!("mcm-finder/cpp_functions/Complexity.cpp");
+        include!("mcm-finder-lib/cpp_functions/Complexity.cpp");
 
         fn GeomComplexity_ICC(m: u32) -> f64;
 
