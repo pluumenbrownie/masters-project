@@ -1,13 +1,13 @@
-use bit_vec::BitVec;
+use fixedbitset::FixedBitSet;
 use mcm_finder_lib::MinimallyComplexModel;
 
 #[test]
 fn mcm() {
     let mcm = MinimallyComplexModel::new(
         vec![
-            BitVec::from_bytes(&[0b11011100, 0b0]),
-            BitVec::from_bytes(&[0b00100011, 0b0]),
-            BitVec::from_bytes(&[0b00000000, 0b1]),
+            FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
+            FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+            FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
         ],
         9,
     );

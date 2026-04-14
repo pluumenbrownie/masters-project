@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bit-vec = "0.9.1"
 bitvec = "1.0.1"
 cxx = "1.0.194"
+fixedbitset = "0.5.7"
 miette = { version = "7.6.0", features = ["fancy"] }
 statrs = "0.18.0"
 thiserror = "2.0.18"

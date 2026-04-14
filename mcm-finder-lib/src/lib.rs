@@ -1,4 +1,4 @@
-use bit_vec::BitVec;
+use fixedbitset::FixedBitSet;
 use miette::{Diagnostic, NamedSource, SourceSpan};
 use statrs::function::gamma::ln_gamma;
 use std::{
@@ -49,6 +49,13 @@ pub enum MCMError {
         "Data lines should only consist of 0 and 1, and should be of equal length."
     ))]
     EmptyFile { filename: String },
+
+    #[error("New basis overlaps with existing basis")]
+    #[diagnostic(
+        help("Elements should be in only one basis."),
+        code("mcm-finder-lib::MCMError::BadLength")
+    )]
+    OverlappingBasis,
 }
 
 /// Calculates the geometric complexity of an Independent Complete Component.
@@ -88,12 +95,17 @@ pub fn parameter_complexity_icc(spin_variables: NonZeroU32, n: u32) -> f64 {
     K * (((n as f64) / 2f64) / PI).ln() / 2.0
 }
 
-pub fn complexity_mcm(partition: Vec<BitVec>, n: u32, c_param: &mut f64, c_geom: &mut f64) -> f64 {
+pub fn complexity_mcm(
+    partition: Vec<FixedBitSet>,
+    n: u32,
+    c_param: &mut f64,
+    c_geom: &mut f64,
+) -> f64 {
     *c_param = 0.0;
     *c_geom = 0.0;
 
     for part in partition.iter() {
-        let spin_variables = NonZeroU32::try_from(part.count_ones() as u32).unwrap();
+        let spin_variables = NonZeroU32::try_from(part.count_ones(..) as u32).unwrap();
         *c_param += parameter_complexity_icc(spin_variables, n)
     }
 
@@ -105,12 +117,12 @@ pub fn complexity_mcm(partition: Vec<BitVec>, n: u32, c_param: &mut f64, c_geom:
 /// # Example
 /// ```
 /// # use mcm_finder_lib::MinimallyComplexModel;
-/// # use bit_vec::BitVec;
+/// # use fixedbitset::FixedBitSet;
 /// let mcm = MinimallyComplexModel::new(
 ///     vec![
-///         BitVec::from_bytes(&[0b11011100, 0b0]),
-///         BitVec::from_bytes(&[0b00100011, 0b0]),
-///         BitVec::from_bytes(&[0b00000000, 0b1]),
+///         FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
+///         FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+///         FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
 ///     ],
 ///     9,
 /// );
@@ -119,11 +131,11 @@ pub fn complexity_mcm(partition: Vec<BitVec>, n: u32, c_param: &mut f64, c_geom:
 #[derive(Debug)]
 pub struct MinimallyComplexModel {
     size: u32,
-    basis: Vec<BitVec>,
+    basis: Vec<FixedBitSet>,
 }
 
 impl MinimallyComplexModel {
-    pub fn new(basis: Vec<BitVec>, size: u32) -> MinimallyComplexModel {
+    pub fn new(basis: Vec<FixedBitSet>, size: u32) -> MinimallyComplexModel {
         MinimallyComplexModel { size, basis }
     }
 
@@ -132,7 +144,7 @@ impl MinimallyComplexModel {
         let mut c_geom = 0.0f64;
 
         for part in self.basis.iter() {
-            let spin_variables = NonZeroU32::try_from(part.count_ones() as u32).unwrap();
+            let spin_variables = NonZeroU32::try_from(part.count_ones(..) as u32).unwrap();
             c_param += parameter_complexity_icc(spin_variables, self.size);
             c_geom += geometric_complexity_icc(spin_variables);
         }
@@ -145,15 +157,15 @@ impl MinimallyComplexModel {
 
 #[derive(Debug)]
 pub struct Dataset {
-    data: HashMap<BitVec<usize>, usize>,
+    data: HashMap<FixedBitSet, usize>,
 }
 
 impl Dataset {
-    pub fn new(data: HashMap<BitVec<usize>, usize>) -> Dataset {
+    pub fn new(data: HashMap<FixedBitSet, usize>) -> Dataset {
         Dataset { data }
     }
 
-    pub fn read(path: &Path) -> Result<Dataset, MCMError> {
+    pub fn read_from_file(path: &Path) -> Result<Dataset, MCMError> {
         let mut data = HashMap::new();
         let filename = path.file_name().unwrap().to_str().unwrap().to_owned();
         let mut buf_reader = BufReader::new(File::open(path)?);
@@ -170,29 +182,20 @@ impl Dataset {
 
         for (nr, byte) in file.bytes().enumerate() {
             // validate character is valid ascii
-            if !byte.is_ascii() {
-                Err(MCMError::BadCharacter {
-                    src: NamedSource::new(&filename, file.clone()),
-                    bad_line: nr.into(),
-                })?
-            };
+            verify_ascii(&filename, &file, nr, byte)?;
             // count ones and zeroes
             match byte {
                 b'0' => bool_array.push(false),
                 b'1' => bool_array.push(true),
                 b'\r' | b'\n' if !bool_array.is_empty() => {
                     // check the line length
-                    if line_length == 0 {
-                        line_length = bool_array.len();
-                    } else if bool_array.len() != line_length {
-                        Err(MCMError::BadLength {
-                            src: NamedSource::new(&filename, file.clone()),
-                            bad_line: (nr - bool_array.len(), bool_array.len()).into(),
-                        })?
-                    }
+                    line_length_tracker(&filename, &file, &mut line_length, &bool_array, nr)?;
 
                     // add the datapoints to the hashmap
-                    let bitvec = BitVec::<usize>::from_iter(bool_array.drain(..));
+                    let mut bitvec = FixedBitSet::with_capacity(bool_array.len());
+                    for (nr, bit) in bool_array.drain(..).enumerate() {
+                        bitvec.set(nr, bit);
+                    }
                     data.entry(bitvec).and_modify(|i| *i += 1).or_insert(1usize);
                     debug_assert!(bool_array.is_empty());
                 }
@@ -208,7 +211,102 @@ impl Dataset {
         Ok(Dataset::new(data))
     }
 
-    pub fn get(&self, bitvector: BitVec<usize>) -> Option<usize> {
-        self.data.get(&bitvector).copied()
+    pub fn get(&self, configuration: FixedBitSet) -> Option<usize> {
+        self.data.get(&configuration).copied()
     }
+}
+
+#[derive(Debug, Default)]
+struct BasisSet {
+    basis_vectors: Vec<FixedBitSet>,
+}
+
+impl BasisSet {
+    pub fn new(vectors: Vec<FixedBitSet>) -> BasisSet {
+        BasisSet {
+            basis_vectors: vectors,
+        }
+    }
+
+    pub fn add(&mut self, basis: FixedBitSet) -> Result<(), MCMError> {
+        if self.basis_vectors.iter().any(|b| !b.is_disjoint(&basis)) {
+            return Err(MCMError::OverlappingBasis);
+        }
+        self.basis_vectors.push(basis);
+        Ok(())
+    }
+
+    pub fn read_from_file(path: &Path) -> Result<BasisSet, MCMError> {
+        let mut vectors: Vec<FixedBitSet> = vec![];
+        let filename = path.file_name().unwrap().to_str().unwrap().to_owned();
+        let mut buf_reader = BufReader::new(File::open(path)?);
+
+        // reading the entire file to a string
+        let file = {
+            let mut file = String::new();
+            buf_reader.read_to_string(&mut file)?;
+            file
+        };
+
+        let mut line_length = 0usize;
+        let mut bool_array: Vec<bool> = vec![];
+
+        for (nr, byte) in file.bytes().enumerate() {
+            // validate character is valid ascii
+            verify_ascii(&filename, &file, nr, byte)?;
+            // count ones and zeroes
+            match byte {
+                b'0' => bool_array.push(false),
+                b'1' => bool_array.push(true),
+                b'\r' | b'\n' if !bool_array.is_empty() => {
+                    // check the line length
+                    line_length_tracker(&filename, &file, &mut line_length, &bool_array, nr)?;
+
+                    // add the datapoints to the vector
+                    let mut bitvec = FixedBitSet::with_capacity(bool_array.len());
+                    for (nr, bit) in bool_array.drain(..).enumerate() {
+                        bitvec.set(nr, bit);
+                    }
+                    vectors.push(bitvec);
+                    debug_assert!(bool_array.is_empty());
+                }
+                b'\r' | b'\n' => {}
+                // wrong character case
+                _ => Err(MCMError::BadCharacter {
+                    src: NamedSource::new(&filename, file.clone()),
+                    bad_line: nr.into(),
+                })?,
+            }
+        }
+
+        Ok(BasisSet::new(vectors))
+    }
+}
+
+fn line_length_tracker(
+    filename: &str,
+    file: &str,
+    line_length: &mut usize,
+    bool_array: &[bool],
+    nr: usize,
+) -> Result<(), MCMError> {
+    if *line_length == 0 {
+        *line_length = bool_array.len();
+    } else if bool_array.len() != *line_length {
+        Err(MCMError::BadLength {
+            src: NamedSource::new(filename, file.to_owned()),
+            bad_line: (nr - bool_array.len(), bool_array.len()).into(),
+        })?
+    };
+    Ok(())
+}
+
+fn verify_ascii(filename: &str, file: &str, char_nr: usize, byte: u8) -> Result<(), MCMError> {
+    if !byte.is_ascii() {
+        Err(MCMError::BadCharacter {
+            src: NamedSource::new(filename, file.to_owned()),
+            bad_line: char_nr.into(),
+        })?
+    };
+    Ok(())
 }
