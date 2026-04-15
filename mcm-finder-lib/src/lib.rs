@@ -157,7 +157,7 @@ impl MinimallyComplexModel {
 
 #[derive(Debug)]
 pub struct Dataset {
-    data: HashMap<FixedBitSet, usize>,
+    pub data: HashMap<FixedBitSet, usize>,
 }
 
 impl Dataset {
@@ -217,7 +217,7 @@ impl Dataset {
 }
 
 #[derive(Debug, Default)]
-struct BasisSet {
+pub struct BasisSet {
     basis_vectors: Vec<FixedBitSet>,
 }
 
@@ -281,6 +281,31 @@ impl BasisSet {
 
         Ok(BasisSet::new(vectors))
     }
+
+    pub fn create_kset(&self, dataset: Dataset) -> KSet {
+        let new_vectors: Vec<(FixedBitSet, usize)> = dataset
+            .data
+            .iter()
+            .map(|(i, &n)| self.transform_mu_basis(i, n))
+            .collect();
+        // transformed mu vectors are not guaranteed to be unique, so we want to
+        // add them together without loosing information
+        let mut hashmap = HashMap::new();
+        for (o, n) in new_vectors {
+            hashmap.entry(o).and_modify(|v| *v += n).or_insert(n);
+        }
+        KSet { data: hashmap }
+    }
+
+    fn transform_mu_basis(&self, i: &FixedBitSet, n: usize) -> (FixedBitSet, usize) {
+        let mut o = FixedBitSet::with_capacity(self.basis_vectors.len());
+        for (nr, b) in self.basis_vectors.iter().enumerate() {
+            if (i & b).count_ones(..) % 2 == 1 {
+                o.insert(nr);
+            }
+        }
+        (o, n)
+    }
 }
 
 fn line_length_tracker(
@@ -290,6 +315,7 @@ fn line_length_tracker(
     bool_array: &[bool],
     nr: usize,
 ) -> Result<(), MCMError> {
+    // set the line length if it hasn't been set yet
     if *line_length == 0 {
         *line_length = bool_array.len();
     } else if bool_array.len() != *line_length {
@@ -309,4 +335,9 @@ fn verify_ascii(filename: &str, file: &str, char_nr: usize, byte: u8) -> Result<
         })?
     };
     Ok(())
+}
+
+#[derive(Debug)]
+pub struct KSet {
+    pub data: HashMap<FixedBitSet, usize>,
 }

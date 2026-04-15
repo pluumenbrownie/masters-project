@@ -27,6 +27,7 @@
                 extensions = ["rust-src"];
               })
               bacon
+              gcc
             ];
 
             shellHook = ''
