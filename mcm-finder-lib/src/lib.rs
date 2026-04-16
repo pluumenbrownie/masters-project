@@ -158,15 +158,17 @@ impl MinimallyComplexModel {
 #[derive(Debug)]
 pub struct Dataset {
     pub data: HashMap<FixedBitSet, usize>,
+    pub datapoints: usize,
 }
 
 impl Dataset {
-    pub fn new(data: HashMap<FixedBitSet, usize>) -> Dataset {
-        Dataset { data }
+    pub fn new(data: HashMap<FixedBitSet, usize>, datapoints: usize) -> Dataset {
+        Dataset { data, datapoints }
     }
 
     pub fn read_from_file(path: &Path) -> Result<Dataset, MCMError> {
         let mut data = HashMap::new();
+        let mut datapoints = 0usize;
         let filename = path.file_name().unwrap().to_str().unwrap().to_owned();
         let mut buf_reader = BufReader::new(File::open(path)?);
 
@@ -198,6 +200,8 @@ impl Dataset {
                     }
                     data.entry(bitvec).and_modify(|i| *i += 1).or_insert(1usize);
                     debug_assert!(bool_array.is_empty());
+
+                    datapoints += 1;
                 }
                 b'\r' | b'\n' => {}
                 // wrong character case
@@ -208,7 +212,7 @@ impl Dataset {
             }
         }
 
-        Ok(Dataset::new(data))
+        Ok(Dataset::new(data, datapoints))
     }
 
     pub fn get(&self, configuration: FixedBitSet) -> Option<usize> {
@@ -294,7 +298,10 @@ impl BasisSet {
         for (o, n) in new_vectors {
             hashmap.entry(o).and_modify(|v| *v += n).or_insert(n);
         }
-        KSet { data: hashmap }
+        KSet {
+            data: hashmap,
+            datapoints: dataset.datapoints,
+        }
     }
 
     fn transform_mu_basis(&self, i: &FixedBitSet, n: usize) -> (FixedBitSet, usize) {
@@ -340,4 +347,5 @@ fn verify_ascii(filename: &str, file: &str, char_nr: usize, byte: u8) -> Result<
 #[derive(Debug)]
 pub struct KSet {
     pub data: HashMap<FixedBitSet, usize>,
+    pub datapoints: usize,
 }
