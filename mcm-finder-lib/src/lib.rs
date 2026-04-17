@@ -2,7 +2,7 @@ use fixedbitset::FixedBitSet;
 use miette::{Diagnostic, NamedSource, SourceSpan};
 use statrs::function::gamma::ln_gamma;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, hash_map::IntoIter},
     f64::consts::PI,
     fs::File,
     io::{BufReader, Read},
@@ -89,7 +89,7 @@ pub fn geometric_complexity_icc(spin_variables: NonZeroU32) -> f64 {
 /// let spin_variables = NonZeroU32::new(9).unwrap();
 /// assert_eq!(parameter_complexity_icc(spin_variables, 5), -58.3662038406751);
 /// ```
-pub fn parameter_complexity_icc(spin_variables: NonZeroU32, n: u32) -> f64 {
+pub fn parameter_complexity_icc(spin_variables: NonZeroU32, n: usize) -> f64 {
     let spin_variables = u32::from(spin_variables);
     let K = 2f64.powi(spin_variables as i32) - 1.0;
     K * (((n as f64) / 2f64) / PI).ln() / 2.0
@@ -97,7 +97,7 @@ pub fn parameter_complexity_icc(spin_variables: NonZeroU32, n: u32) -> f64 {
 
 pub fn complexity_mcm(
     partition: Vec<FixedBitSet>,
-    n: u32,
+    n: usize,
     c_param: &mut f64,
     c_geom: &mut f64,
 ) -> f64 {
@@ -124,35 +124,59 @@ pub fn complexity_mcm(
 ///         FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
 ///         FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
 ///     ],
-///     9,
 /// );
+/// assert_eq!(mcm.rank(), 9);
 /// assert_eq!(mcm.complexity_mcm(), 1.3555732128424305);
 /// ```
 #[derive(Debug)]
 pub struct MinimallyComplexModel {
-    size: u32,
-    basis: Vec<FixedBitSet>,
+    partition: Vec<FixedBitSet>,
 }
 
 impl MinimallyComplexModel {
-    pub fn new(basis: Vec<FixedBitSet>, size: u32) -> MinimallyComplexModel {
-        MinimallyComplexModel { size, basis }
+    pub fn new(partition: Vec<FixedBitSet>) -> MinimallyComplexModel {
+        MinimallyComplexModel { partition }
+    }
+
+    /// This is only true if all variables are used
+    pub fn rank(&self) -> usize {
+        self.partition[0].len()
     }
 
     pub fn complexity_mcm(&self) -> f64 {
         let mut c_param = 0.0f64;
         let mut c_geom = 0.0f64;
 
-        for part in self.basis.iter() {
+        for part in self.partition.iter() {
             let spin_variables = NonZeroU32::try_from(part.count_ones(..) as u32).unwrap();
-            c_param += parameter_complexity_icc(spin_variables, self.size);
+            c_param += parameter_complexity_icc(spin_variables, self.rank());
             c_geom += geometric_complexity_icc(spin_variables);
         }
 
         c_param + c_geom
     }
 
-    // pub fn log_e(&self) -> f64 {}
+    /// Calculate the logarithm of the basis
+    pub fn log_e(&self, dataset: &Dataset) -> f64 {
+        let log_e: f64 = self
+            .partition
+            .iter()
+            .map(|p| {
+                let gamma_factor = ln_gamma(2.0f64.powi(p.count_ones(..).try_into().unwrap()))
+                    - ln_gamma(
+                        dataset.datapoints as f64
+                            + 2.0f64.powi(p.count_ones(..).try_into().unwrap()),
+                    );
+                gamma_factor
+                    * dataset
+                        .partition(p)
+                        .iter()
+                        .map(|(_, &k)| ln_gamma(k as f64 + 0.5) - ln_gamma(0.5))
+                        .sum::<f64>()
+            })
+            .sum();
+        log_e
+    }
 }
 
 #[derive(Debug)]
@@ -217,6 +241,34 @@ impl Dataset {
 
     pub fn get(&self, configuration: FixedBitSet) -> Option<usize> {
         self.data.get(&configuration).copied()
+    }
+
+    pub fn partition(&self, partition: &FixedBitSet) -> Dataset {
+        let new_vectors: Vec<(FixedBitSet, usize)> =
+            self.iter().map(|(i, &n)| (i & partition, n)).collect();
+        // transformed mu vectors are not guaranteed to be unique, so we want to
+        // add them together without loosing information
+        let mut partitioned_map = HashMap::new();
+        for (o, n) in new_vectors {
+            partitioned_map
+                .entry(o)
+                .and_modify(|v| *v += n)
+                .or_insert(n);
+        }
+        Dataset::new(partitioned_map, self.datapoints)
+    }
+
+    pub fn iter(&self) -> std::collections::hash_map::Iter<'_, FixedBitSet, usize> {
+        self.data.iter()
+    }
+}
+
+impl IntoIterator for Dataset {
+    type Item = (FixedBitSet, usize);
+    type IntoIter = IntoIter<FixedBitSet, usize>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.data.into_iter()
     }
 }
 

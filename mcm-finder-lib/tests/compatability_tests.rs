@@ -185,12 +185,14 @@ fn convert_to_mu_basis() {
             .iter()
             .map(|(i, _)| (FixedBitSet::with_capacity_and_blocks(9, [*i]), 1usize))
             .collect(),
+        test_data.len(),
     );
     let correct_dataset = Dataset::new(
         test_data
             .iter()
             .map(|(_, o)| (FixedBitSet::with_capacity_and_blocks(9, [*o]), 1usize))
             .collect(),
+        test_data.len(),
     );
     let result_dataset = basis.create_kset(dataset);
     assert_eq!(result_dataset.data, correct_dataset.data);
