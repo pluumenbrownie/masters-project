@@ -1,5 +1,5 @@
 use fixedbitset::FixedBitSet;
-use mcm_finder_lib::MinimallyComplexModel;
+use mcm_finder_lib::mcm::MinimallyComplexModel;
 use pretty_assertions::assert_eq;
 
 #[test]

@@ -1,9 +1,7 @@
 use std::num::NonZeroU32;
 
 use approx::assert_relative_eq;
-use mcm_finder_lib::{
-    geometric_complexity_icc, parameter_complexity_icc,
-};
+use mcm_finder_lib::{mcm::geometric_complexity_icc, mcm::parameter_complexity_icc};
 
 use crate::ffi::{GeomComplexity_ICC, ParamComplexity_ICC};
 

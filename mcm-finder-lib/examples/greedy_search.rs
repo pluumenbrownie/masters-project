@@ -2,7 +2,7 @@ use std::path::Path;
 
 use fixedbitset::FixedBitSet;
 use kdam::tqdm;
-use mcm_finder_lib::*;
+use mcm_finder_lib::{mcm::MinimallyComplexModel, *};
 
 fn main() {
     let dataset = dataset::Dataset::read_from_file(Path::new(
