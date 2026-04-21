@@ -5,7 +5,7 @@ use kdam::tqdm;
 use mcm_finder_lib::*;
 
 fn main() {
-    let dataset = Dataset::read_from_file(Path::new(
+    let dataset = dataset::Dataset::read_from_file(Path::new(
         "mcm-finder-lib/tests/data/SCOTUS_n9_N895_Data.dat",
     ))
     .unwrap();

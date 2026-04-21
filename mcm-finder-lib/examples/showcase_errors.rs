@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use mcm_finder_lib::Dataset;
+use mcm_finder_lib::dataset::Dataset;
 use miette::{ErrReport, Result};
 
 fn main() -> Result<()> {
