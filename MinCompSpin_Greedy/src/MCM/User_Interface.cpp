@@ -117,27 +117,28 @@ void HELP_message()
 /****************** STRUCTURE INFO Read Arguments *****************************/
 /******************************************************************************/
 // IMPORTANT: same structure must be defined in the file "library.hpp"
+// MORE IMPORTANT: that doen't actually work on my machine.  i commented it out here
 
-struct RunOptions
-{
-    bool change_basis = false;  // by default: Search in the original basis 
-    bool print_checkpoint = true;   // by default: print all the checkpoints
+// struct RunOptions
+// {
+//     bool change_basis = false;  // by default: Search in the original basis 
+//     bool print_checkpoint = true;   // by default: print all the checkpoints
     
-    // by default: stop Greedy merging when LogE starts decreasing 
-    bool greedy_full_merging = false; // if TRUE: keep on merging until everything is merged; save best MCM along the greedy path
+//     // by default: stop Greedy merging when LogE starts decreasing 
+//     bool greedy_full_merging = false; // if TRUE: keep on merging until everything is merged; save best MCM along the greedy path
 
-    // MODE GREEDY:
-    // by default in greedy merging mode:
+//     // MODE GREEDY:
+//     // by default in greedy merging mode:
 
-    // MODE SAMPLING:
-    // if sampling = true, then in sampling mode
-    bool sampling = false;
-    unsigned int Nsample = 1000; // default value
-    std::string MCM_file = "";
+//     // MODE SAMPLING:
+//     // if sampling = true, then in sampling mode
+//     bool sampling = false;
+//     unsigned int Nsample = 1000; // default value
+//     std::string MCM_file = "";
 
-    // MODE COMPUTE PROBABILITIES:
-    bool proba = false;
-};
+//     // MODE COMPUTE PROBABILITIES:
+//     bool proba = false;
+// };
 
 /******************************************************************************/
 /************************** Read Arguments ************************************/
@@ -271,4 +272,3 @@ int Read_argument(int argc, char *argv[], string *datafilename, unsigned int *n,
 
     return 1; 
 }
-

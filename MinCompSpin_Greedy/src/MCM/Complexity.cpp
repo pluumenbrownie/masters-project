@@ -1,4 +1,5 @@
 #include <cmath>       /* tgamma */
+#include <cstdint>
 #include <map>
 
 //#define _USE_MATH_DEFINES
@@ -48,4 +49,3 @@ double Complexity_MCM(std::map<unsigned int, __int128_t> Partition, unsigned int
 
   return (*C_param) + (*C_geom);
 }
-

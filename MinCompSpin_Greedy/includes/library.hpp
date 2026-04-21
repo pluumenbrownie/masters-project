@@ -191,4 +191,3 @@ std::string filename_remove_extension(std::string filename);  // defined in tool
 /******************************************************************************/
 
 //list<Interaction> write_interactions(double J, string file);
-

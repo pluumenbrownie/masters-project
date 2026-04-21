@@ -1,6 +1,7 @@
 #include <string>
 #include <map>
 #include <algorithm> // for std::reverse()
+#include <cstdint>
 
 /******************************************************************************/
 /***************************   Constant variables   ***************************/
@@ -98,5 +99,3 @@ std::pair<bool, unsigned int> check_partition(std::map<unsigned int, __int128_t>
 
   return std::make_pair((Bitset_count(sum) == rank), rank); 
 }
-
-
