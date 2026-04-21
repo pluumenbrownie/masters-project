@@ -129,7 +129,7 @@ pub fn complexity_mcm(
 /// assert_eq!(mcm.rank(), 9);
 /// assert_eq!(mcm.complexity_mcm(), 1.3555732128424305);
 /// ```
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MinimallyComplexModel {
     partition: Vec<FixedBitSet>,
 }
@@ -185,6 +185,32 @@ impl MinimallyComplexModel {
     /// ```
     pub fn variables(&self) -> usize {
         self.partition[0].len()
+    }
+
+    /// Merge the first basis into the second bases, and return a new MCM.
+    ///
+    /// # Examples
+    /// ```
+    /// # use mcm_finder_lib::MinimallyComplexModel;
+    /// # use fixedbitset::FixedBitSet;
+    /// let mcm = MinimallyComplexModel::new(vec![
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
+    /// ]);
+    /// let result_mcm = MinimallyComplexModel::new(vec![
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111001]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+    /// ]);
+    /// assert_eq!(mcm.merge(2, 0), result_mcm);
+    /// ```
+    pub fn merge(&self, basis: usize, into: usize) -> MinimallyComplexModel {
+        let mut partition = self.partition.clone();
+
+        partition[into] |= &self.partition[basis];
+        partition.remove(basis);
+
+        MinimallyComplexModel { partition }
     }
 
     pub fn complexity_mcm(&self) -> f64 {
