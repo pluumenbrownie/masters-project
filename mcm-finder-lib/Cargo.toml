@@ -7,6 +7,7 @@ edition = "2024"
 bitvec = "1.0.1"
 cxx = "1.0.194"
 fixedbitset = "0.5.7"
+kdam = "0.6.4"
 miette = { version = "7.6.0", features = ["fancy"] }
 statrs = "0.18.0"
 thiserror = "2.0.18"

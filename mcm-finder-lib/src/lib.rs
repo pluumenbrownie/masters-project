@@ -3,7 +3,8 @@ use miette::{Diagnostic, NamedSource, SourceSpan};
 use statrs::function::gamma::ln_gamma;
 use std::{
     collections::{HashMap, hash_map::IntoIter},
-    f64::consts::PI,
+    f64::consts::{LN_2, PI},
+    fmt::Display,
     fs::File,
     io::{BufReader, Read},
     num::NonZeroU32,
@@ -138,8 +139,51 @@ impl MinimallyComplexModel {
         MinimallyComplexModel { partition }
     }
 
-    /// This is only true if all variables are used
+    /// Returns the rank of this MCM. Can be lower than `self.variables()` if not
+    /// all variables are included in the model.
+    ///
+    /// # Examples
+    /// ```
+    /// # use mcm_finder_lib::MinimallyComplexModel;
+    /// # use fixedbitset::FixedBitSet;
+    /// let mcm = MinimallyComplexModel::new(vec![
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
+    /// ]);
+    /// assert_eq!(mcm.rank(), 9);
+    /// ```
+    /// Now if we remove the first variable from this model:
+    /// ```
+    /// # use mcm_finder_lib::MinimallyComplexModel;
+    /// # use fixedbitset::FixedBitSet;
+    /// let smaller_mcm = MinimallyComplexModel::new(vec![
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b010111000]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
+    /// ]);
+    /// assert_eq!(smaller_mcm.rank(), 8);```
     pub fn rank(&self) -> usize {
+        self.partition
+            .iter()
+            .fold(FixedBitSet::with_capacity(self.variables()), |a, b| &a | b)
+            .count_ones(..)
+    }
+
+    /// Returns the amount of variables in this MCM.
+    ///
+    /// # Examples
+    /// ```
+    /// # use mcm_finder_lib::MinimallyComplexModel;
+    /// # use fixedbitset::FixedBitSet;
+    /// let mcm = MinimallyComplexModel::new(vec![
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
+    /// ]);
+    /// assert_eq!(mcm.variables(), 9);
+    /// ```
+    pub fn variables(&self) -> usize {
         self.partition[0].len()
     }
 
@@ -158,24 +202,38 @@ impl MinimallyComplexModel {
 
     /// Calculate the logarithm of the basis
     pub fn log_e(&self, dataset: &Dataset) -> f64 {
-        let log_e: f64 = self
+        let mut log_e = 0f64;
+
+        for part in self.partition.iter() {
+            let rank_subset: i32 = part.count_ones(..).try_into().unwrap();
+
+            let gamma_factor = ln_gamma(2.0f64.powi(rank_subset - 1))
+                - ln_gamma(dataset.datapoints as f64 + 2.0f64.powi(rank_subset - 1));
+
+            let sum_of_partitions = dataset
+                .partition(part)
+                .iter()
+                .map(|(_, &k)| ln_gamma(k as f64 + 0.5) - ln_gamma(0.5))
+                .sum::<f64>();
+
+            log_e += gamma_factor;
+            log_e += sum_of_partitions;
+        }
+
+        let front_constant: f64 =
+            (dataset.datapoints * (self.variables() - self.rank())) as f64 * LN_2;
+        log_e - front_constant
+    }
+}
+
+impl Display for MinimallyComplexModel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let partition_string: String = self
             .partition
             .iter()
-            .map(|p| {
-                let gamma_factor = ln_gamma(2.0f64.powi(p.count_ones(..).try_into().unwrap()))
-                    - ln_gamma(
-                        dataset.datapoints as f64
-                            + 2.0f64.powi(p.count_ones(..).try_into().unwrap()),
-                    );
-                gamma_factor
-                    * dataset
-                        .partition(p)
-                        .iter()
-                        .map(|(_, &k)| ln_gamma(k as f64 + 0.5) - ln_gamma(0.5))
-                        .sum::<f64>()
-            })
-            .sum();
-        log_e
+            .flat_map(|p| format!("\n{p}").chars().collect::<Vec<_>>())
+            .collect();
+        write!(f, "MCM with vectors: {}", partition_string)
     }
 }
 
