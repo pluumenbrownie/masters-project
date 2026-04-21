@@ -1,8 +1,6 @@
-use std::path::Path;
-
-use fixedbitset::FixedBitSet;
 use kdam::tqdm;
 use mcm_finder_lib::{mcm::MinimallyComplexModel, *};
+use std::{num::NonZero, path::Path};
 
 fn main() {
     let dataset = dataset::Dataset::read_from_file(Path::new(
@@ -10,17 +8,7 @@ fn main() {
     ))
     .unwrap();
 
-    let mut best_mcm = MinimallyComplexModel::new(vec![
-        FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
-        FixedBitSet::with_capacity_and_blocks(9, [0b000000010]),
-        FixedBitSet::with_capacity_and_blocks(9, [0b000000100]),
-        FixedBitSet::with_capacity_and_blocks(9, [0b000001000]),
-        FixedBitSet::with_capacity_and_blocks(9, [0b000010000]),
-        FixedBitSet::with_capacity_and_blocks(9, [0b000100000]),
-        FixedBitSet::with_capacity_and_blocks(9, [0b001000000]),
-        FixedBitSet::with_capacity_and_blocks(9, [0b010000000]),
-        FixedBitSet::with_capacity_and_blocks(9, [0b100000000]),
-    ]);
+    let mut best_mcm = MinimallyComplexModel::trivial(NonZero::new(9).unwrap());
 
     // let mut best_mcm: MinimallyComplexModel = current.clone();
     let mut best_log_e = best_mcm.log_e(&dataset);

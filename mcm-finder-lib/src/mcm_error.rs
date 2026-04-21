@@ -9,7 +9,7 @@ pub enum MCMError {
     #[error("Bad character error")]
     #[diagnostic(
         help("Data lines should only consist of 0 and 1, and should be of equal length."),
-        code("mcm-finder-lib::MCMError::BadCharacter")
+        code("Datasetmcm-finder-lib::mcm_error::MCMError::BadCharacter")
     )]
     BadCharacter {
         #[source_code]
@@ -20,7 +20,7 @@ pub enum MCMError {
     #[error("Bad length error")]
     #[diagnostic(
         help("Data lines should have the same length."),
-        code("mcm-finder-lib::MCMError::BadLength")
+        code("Datasetmcm-finder-lib::mcm_error::MCMError::BadLength")
     )]
     BadLength {
         #[source_code]
@@ -38,7 +38,11 @@ pub enum MCMError {
     #[error("New basis overlaps with existing basis")]
     #[diagnostic(
         help("Elements should be in only one basis."),
-        code("mcm-finder-lib::MCMError::BadLength")
+        code("Datasetmcm-finder-lib::mcm_error::MCMError::BadLength")
     )]
     OverlappingBasis,
+
+    #[error("Cannot create MCM from this variable.")]
+    #[diagnostic(code("Datasetmcm-finder-lib::mcm_error::MCMError::From"))]
+    FromIccs,
 }

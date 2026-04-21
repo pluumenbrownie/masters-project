@@ -43,7 +43,7 @@ fn generate_all_mcms(number: usize) -> Vec<MinimallyComplexModel> {
             for (nr, &i) in v.iter().enumerate() {
                 partitions[i].set(nr, true);
             }
-            MinimallyComplexModel::new(partitions)
+            MinimallyComplexModel::from_iccs(partitions).unwrap()
         })
         .collect()
 }

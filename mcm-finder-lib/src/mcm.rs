@@ -6,7 +6,7 @@ use std::{
     fmt::Display,
     fs::File,
     io::{BufReader, Read},
-    num::NonZeroU32,
+    num::{NonZeroU32, NonZeroUsize},
     path::Path,
 };
 
@@ -58,23 +58,132 @@ pub fn parameter_complexity_icc(spin_variables: NonZeroU32, n: usize) -> f64 {
 /// ```
 /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
 /// # use fixedbitset::FixedBitSet;
-/// let mcm = MinimallyComplexModel::new(
+/// let mcm = MinimallyComplexModel::from_iccs(
 ///     vec![
 ///         FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
 ///         FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
 ///         FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
 ///     ],
-/// );
+/// ).unwrap();
 /// assert_eq!(mcm.rank(), 9);
 /// assert_eq!(mcm.complexity_mcm(), 1.3555732128424305);
 /// ```
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MinimallyComplexModel {
     pub(crate) partition: Vec<FixedBitSet>,
 }
 
 impl MinimallyComplexModel {
-    pub fn new(partition: Vec<FixedBitSet>) -> MinimallyComplexModel {
+    /// Create a new MCM with sorted ICCs.
+    fn new(partition: Vec<FixedBitSet>) -> MinimallyComplexModel {
+        let mut partition = partition;
+        partition.sort();
+        MinimallyComplexModel { partition }
+    }
+
+    /// Returns `true` if ICCs in array do not overlap anywhere. The ICCs do not
+    /// have to include all of the variables.
+    ///
+    /// # Examples
+    /// ```
+    /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
+    /// # use fixedbitset::FixedBitSet;
+    /// let mut partition = vec!(
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
+    /// );
+    /// assert!(MinimallyComplexModel::verify_iccs(&partition));
+    /// partition[1].set(0, true);
+    /// assert!(!MinimallyComplexModel::verify_iccs(&partition));
+    /// ```
+    pub fn verify_iccs(partition: &[FixedBitSet]) -> bool {
+        for (nr, one) in partition.iter().enumerate() {
+            for two in &partition[(nr + 1)..] {
+                if !(one & two).is_clear() {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    /// Returns the trivial MCM with each variable in a different partition. Note that
+    /// ICCs in an MCM will be sorted so may have a different order from how they were
+    /// inserted.
+    ///
+    /// # Examples
+    /// ```
+    /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
+    /// # use fixedbitset::FixedBitSet;
+    /// let mut partition = vec!(
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
+    /// );
+    /// let mcm = MinimallyComplexModel::from_iccs(partition).unwrap();
+    /// assert_eq!(mcm.rank(), 9);
+    /// assert_eq!(mcm.count_icc(), 3);
+    /// ```
+    pub fn from_iccs(partition: Vec<FixedBitSet>) -> Result<MinimallyComplexModel, MCMError> {
+        if MinimallyComplexModel::verify_iccs(&partition) {
+            let mut partition = partition;
+            partition.sort();
+            return Ok(MinimallyComplexModel { partition });
+        }
+        Err(MCMError::FromIccs)
+    }
+
+    /// Returns an MCM with a single partition.
+    ///
+    /// # Examples
+    /// ```
+    /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
+    /// # use std::num::NonZero;
+    /// let mcm = MinimallyComplexModel::full(NonZero::new(100).unwrap());
+    /// assert_eq!(mcm.rank(), 100);
+    /// assert_eq!(mcm.count_icc(), 1);
+    /// ```
+    pub fn full(variables: NonZeroUsize) -> MinimallyComplexModel {
+        let mut partition = FixedBitSet::with_capacity(variables.into());
+        partition.set_range(.., true);
+        MinimallyComplexModel {
+            partition: vec![partition],
+        }
+    }
+
+    /// Returns the trivial MCM with each variable in a different partition.
+    ///
+    /// # Examples
+    /// ```
+    /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
+    /// # use std::num::NonZero;
+    /// let mcm = MinimallyComplexModel::trivial(NonZero::new(500).unwrap());
+    /// assert_eq!(mcm.rank(), 500);
+    /// assert_eq!(mcm.count_icc(), 500);
+    /// ```
+    pub fn trivial(variables: NonZeroUsize) -> MinimallyComplexModel {
+        let variables: usize = variables.into();
+        let mut partition = Vec::with_capacity(variables);
+        let vector_length = variables.div_ceil(usize::BITS as usize);
+        let mut part_content = vec![0usize; vector_length];
+        let mut counter = 0usize;
+
+        for n in 0..vector_length {
+            part_content[n] = 1;
+            for _ in 0..usize::BITS {
+                partition.push(FixedBitSet::with_capacity_and_blocks(
+                    variables,
+                    part_content.clone(),
+                ));
+                part_content[n] <<= 1;
+
+                counter += 1;
+                if counter == variables {
+                    break;
+                }
+            }
+        }
         MinimallyComplexModel { partition }
     }
 
@@ -85,23 +194,24 @@ impl MinimallyComplexModel {
     /// ```
     /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
     /// # use fixedbitset::FixedBitSet;
-    /// let mcm = MinimallyComplexModel::new(vec![
+    /// let mcm = MinimallyComplexModel::from_iccs(vec![
     ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
     ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
     ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
-    /// ]);
+    /// ]).unwrap();
     /// assert_eq!(mcm.rank(), 9);
     /// ```
     /// Now if we remove the first variable from this model:
     /// ```
     /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
     /// # use fixedbitset::FixedBitSet;
-    /// let smaller_mcm = MinimallyComplexModel::new(vec![
+    /// let smaller_mcm = MinimallyComplexModel::from_iccs(vec![
     ///     FixedBitSet::with_capacity_and_blocks(9, [0b010111000]),
     ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
     ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
-    /// ]);
-    /// assert_eq!(smaller_mcm.rank(), 8);```
+    /// ]).unwrap();
+    /// assert_eq!(smaller_mcm.rank(), 8);
+    /// ```
     pub fn rank(&self) -> usize {
         self.partition
             .iter()
@@ -115,11 +225,11 @@ impl MinimallyComplexModel {
     /// ```
     /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
     /// # use fixedbitset::FixedBitSet;
-    /// let mcm = MinimallyComplexModel::new(vec![
+    /// let mcm = MinimallyComplexModel::from_iccs(vec![
     ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
     ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
     ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
-    /// ]);
+    /// ]).unwrap();
     /// assert_eq!(mcm.variables(), 9);
     /// ```
     pub fn variables(&self) -> usize {
@@ -132,15 +242,15 @@ impl MinimallyComplexModel {
     /// ```
     /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
     /// # use fixedbitset::FixedBitSet;
-    /// let mcm = MinimallyComplexModel::new(vec![
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+    /// let mcm = MinimallyComplexModel::from_iccs(vec![
     ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
-    /// ]);
-    /// let result_mcm = MinimallyComplexModel::new(vec![
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111001]),
     ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
-    /// ]);
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
+    /// ]).unwrap();
+    /// let result_mcm = MinimallyComplexModel::from_iccs(vec![
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111001]),
+    /// ]).unwrap();
     /// assert_eq!(mcm.merge(2, 0), result_mcm);
     /// ```
     pub fn merge(&self, basis: usize, into: usize) -> MinimallyComplexModel {
@@ -149,7 +259,20 @@ impl MinimallyComplexModel {
         partition[into] |= &self.partition[basis];
         partition.remove(basis);
 
-        MinimallyComplexModel { partition }
+        MinimallyComplexModel::new(partition)
+    }
+
+    /// Returns the amount of ICCs present in this model.
+    ///
+    /// # Example
+    /// ```
+    /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
+    /// # use std::num::NonZero;
+    /// let mcm = MinimallyComplexModel::trivial(NonZero::new(5).unwrap());
+    /// assert_eq!(mcm.count_icc(), 5);
+    /// ```
+    pub fn count_icc(&self) -> usize {
+        self.partition.len()
     }
 
     pub fn complexity_mcm(&self) -> f64 {
@@ -237,7 +360,7 @@ impl MinimallyComplexModel {
             }
         }
 
-        Ok(MinimallyComplexModel::new(vectors))
+        Ok(MinimallyComplexModel { partition: vectors })
     }
 }
 
