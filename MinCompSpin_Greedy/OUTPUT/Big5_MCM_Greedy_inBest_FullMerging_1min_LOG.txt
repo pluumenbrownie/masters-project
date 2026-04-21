@@ -1,0 +1,198 @@
+
+*******************************************************************************************
+************************************  CONFIGURATION:  *************************************
+*******************************************************************************************
+--->> Create the "OUTPUT" Folder (if needed) 
+
+--->> Input files are in the input directory: "INPUT/"
+
+Dataset to read: Big5PT.sorted with n = 50 variables
+
+OPTIONS: 
+	 Change Basis:                  Yes
+	 New Basis in:                  Big5PT.sorted_BestBasis_Binary.dat
+	 Print checkpoints:             Yes
+	 Run Greedy until FULLY merged: Yes
+
+*******************************************************************************************
+***********************************  READ THE DATA:  **************************************
+*******************************************************************************************
+Read the dataset: INPUT/Big5PT.sorted
+Number of variables to read: n = 50
+
+###### Datafile has been read successfully:
+	 Number of datapoints: N = 1013558
+	 Number of different observed states = 989522
+
+*******************************************************************************************
+******************************  CHOICE OF THE BASIS:  *************************************
+*******************************************************************************************
+Read the Basis file: INPUT/Big5PT.sorted_BestBasis_Binary.dat
+Number of variables to read: n = 50
+
+###### Basis file has been read successfully:
+## Number of basis operators = 50
+##
+##	 sig_1   	 00000000000000000000000000000000100000000000000000
+##	 sig_2   	 00000000000000000000000100000000000000000000000000
+##	 sig_3   	 00000000000000000000000000000000000000010000000000
+##	 sig_4   	 00000000000000000000010000000000000000000000000000
+##	 sig_5   	 00000000000000000000010000100000000000000000000000
+##	 sig_6   	 00000000000000000000000000000000000010000000000000
+##	 sig_7   	 00000000000000000000000000010000000000000000000000
+##	 sig_8   	 00000000000010000000000000000000000000000000000000
+##	 sig_9   	 00000000000000000000000010100000000000000000000000
+##	 sig_10  	 00000000000000000000000101000000000000000000000000
+##	 sig_11  	 00000000000000000000000000000000000000000010010000
+##	 sig_12  	 00000000000000000000001000000000000000000000000000
+##	 sig_13  	 00000000000000000000000000000000000000000000000010
+##	 sig_14  	 00000000000000000000100000000000000000000000000000
+##	 sig_15  	 00000000000000000000000000000000000000000000100001
+##	 sig_16  	 00000000001010000000000000000000000000000000000000
+##	 sig_17  	 00000000000000000000000000000000000000000000010000
+##	 sig_18  	 00000000000000000000000000000000000000000101000000
+##	 sig_19  	 00010000010000000000000000000000000000000000000000
+##	 sig_20  	 00000000000000000000000100001000000000000000000000
+##	 sig_21  	 00000000010000000000000000000000000000000000000000
+##	 sig_22  	 10000010000000000000000000000000000000000000000000
+##	 sig_23  	 00000000000000000000000000000000000000001000000100
+##	 sig_24  	 00000000000000000000000000000010100000000000000000
+##	 sig_25  	 00000000000000010010000000000000000000000000000000
+##	 sig_26  	 10010000000000000000000000000000000000000000000000
+##	 sig_27  	 00000000000000000000000000000000000000000000010001
+##	 sig_28  	 00000001000000000000000000000000000000000000000000
+##	 sig_29  	 00000000000000010100000000000000000000000000000000
+##	 sig_30  	 00000000000000000000000000000000000000000000001000
+##	 sig_31  	 00000000000000000101000000000000000000000000000000
+##	 sig_32  	 00000000000001000000000000000000000000000000000000
+##	 sig_33  	 00000000000000000000000000000000010000000000000000
+##	 sig_34  	 00000000000000000000000000000010000000100000000000
+##	 sig_35  	 00101000000000000000000000000000000000000000000000
+##	 sig_36  	 00001010000000000000000000000000000000000000000000
+##	 sig_37  	 01010000000000000000000000000000000000000000000000
+##	 sig_38  	 00000001100000000000000000000000000000000000000000
+##	 sig_39  	 00000000000000000000000000000000000000000100001000
+##	 sig_40  	 01000100000000000000000000000000000000000000000000
+##	 sig_41  	 00000000001100000000000000000000000000000000000000
+##	 sig_42  	 00000000001000001000000000000000000000000000000000
+##	 sig_43  	 00000000000000000100000000000000000000000000000000
+##	 sig_44  	 00000000000000000000000000000001000100000000000000
+##	 sig_45  	 00000000000000000000000000000001010000000000000000
+##	 sig_46  	 00000000000000000000000000000000000000001000001000
+##	 sig_47  	 00000000001000100000000000000000000000000000000000
+##	 sig_48  	 00000000000000000000000000000001001000000000000000
+##	 sig_49  	 00100000000000000000000000000100000000000000000000
+##	 sig_50  	 00000000000000000000000000000000000101000000000000
+##
+
+*******************************************************************************************
+**********************  TRANSFORM the DATA in the CHOSEN BASIS   **************************
+**********************************   Build Kset:   ****************************************
+*******************************************************************************************
+
+--->> Build Kset...
+
+Order of the variables in the New basis:
+	 sig_1 = corresponds to the lowest bit, i.e. the RIGHTmost bit
+	 sig_n = corresponds to the highest bit, i.e. the LEFTmost bit
+
+###### Datafile has been converted successfully:
+	 Number of datapoints: N = 1013558
+	 Number of different observed states in the new basis = 989522
+
+*******************************************************************************************
+*****************************  HIERARCHICAL GREEDY MERGING:  ******************************
+**********************************  in the NEW BASIS  *************************************
+*******************************************************************************************
+######### START GREEDY SEARCH #########
+###### Start timer...
+
+The procedure starts from an independent model with r = 50 ICCs, each of size 1
+
+**** Performing a full merging procedure until fully merged model: print merging path ****
+	 **** Filling in the rxr-triangular Matrix ****
+
+	 **** Start Merging ****
+   Start: 		 Nb of communities = 50	 LogE = -27405621.40 = -39.01 bits/datapoint
+   Iteration 1   done: 	 Nb of communities = 49 	 LogE = -27354908.53 = -38.94 bits/dpt	 D(LogE) = 50712.87 	 Merged ICCs 3 & 4 into 3 (delete 4)
+   Iteration 2   done: 	 Nb of communities = 48 	 LogE = -27301580.89 = -38.86 bits/dpt	 D(LogE) = 53327.64 	 Merged ICCs 1 & 3 into 1 (delete 3)
+   Iteration 3   done: 	 Nb of communities = 47 	 LogE = -27230744.88 = -38.76 bits/dpt	 D(LogE) = 70836.00 	 Merged ICCs 1 & 8 into 1 (delete 8)
+   Iteration 4   done: 	 Nb of communities = 46 	 LogE = -27166182.55 = -38.67 bits/dpt	 D(LogE) = 64562.34 	 Merged ICCs 1 & 6 into 1 (delete 6)
+   Iteration 5   done: 	 Nb of communities = 45 	 LogE = -27113177.47 = -38.59 bits/dpt	 D(LogE) = 53005.08 	 Merged ICCs 1 & 9 into 1 (delete 9)
+   Iteration 6   done: 	 Nb of communities = 44 	 LogE = -27065350.02 = -38.52 bits/dpt	 D(LogE) = 47827.45 	 Merged ICCs 1 & 13 into 1 (delete 13)
+   Iteration 7   done: 	 Nb of communities = 43 	 LogE = -27023169.33 = -38.46 bits/dpt	 D(LogE) = 42180.68 	 Merged ICCs 20 & 27 into 20 (delete 27)
+   Iteration 8   done: 	 Nb of communities = 42 	 LogE = -26981097.46 = -38.40 bits/dpt	 D(LogE) = 42071.87 	 Merged ICCs 18 & 20 into 18 (delete 20)
+   Iteration 9   done: 	 Nb of communities = 41 	 LogE = -26901321.70 = -38.29 bits/dpt	 D(LogE) = 79775.76 	 Merged ICCs 18 & 25 into 18 (delete 25)
+   Iteration 10  done: 	 Nb of communities = 40 	 LogE = -26839062.66 = -38.20 bits/dpt	 D(LogE) = 62259.05 	 Merged ICCs 18 & 21 into 18 (delete 21)
+   Iteration 11  done: 	 Nb of communities = 39 	 LogE = -26767310.75 = -38.10 bits/dpt	 D(LogE) = 71751.91 	 Merged ICCs 18 & 35 into 18 (delete 35)
+   Iteration 12  done: 	 Nb of communities = 38 	 LogE = -26689048.00 = -37.99 bits/dpt	 D(LogE) = 78262.75 	 Merged ICCs 18 & 36 into 18 (delete 36)
+   Iteration 13  done: 	 Nb of communities = 37 	 LogE = -26607539.09 = -37.87 bits/dpt	 D(LogE) = 81508.91 	 Merged ICCs 18 & 39 into 18 (delete 39)
+   Iteration 14  done: 	 Nb of communities = 36 	 LogE = -26532122.91 = -37.77 bits/dpt	 D(LogE) = 75416.19 	 Merged ICCs 18 & 37 into 18 (delete 37)
+   Iteration 15  done: 	 Nb of communities = 35 	 LogE = -26462233.20 = -37.67 bits/dpt	 D(LogE) = 69889.70 	 Merged ICCs 18 & 34 into 18 (delete 34)
+   Iteration 16  done: 	 Nb of communities = 34 	 LogE = -26424686.02 = -37.61 bits/dpt	 D(LogE) = 37547.18 	 Merged ICCs 18 & 48 into 18 (delete 48)
+   Iteration 17  done: 	 Nb of communities = 33 	 LogE = -26389841.71 = -37.56 bits/dpt	 D(LogE) = 34844.31 	 Merged ICCs 1 & 19 into 1 (delete 19)
+   Iteration 18  done: 	 Nb of communities = 32 	 LogE = -26354844.15 = -37.51 bits/dpt	 D(LogE) = 34997.56 	 Merged ICCs 1 & 11 into 1 (delete 11)
+   Iteration 19  done: 	 Nb of communities = 31 	 LogE = -26321282.14 = -37.47 bits/dpt	 D(LogE) = 33562.01 	 Merged ICCs 10 & 26 into 10 (delete 26)
+   Iteration 20  done: 	 Nb of communities = 30 	 LogE = -26291460.06 = -37.42 bits/dpt	 D(LogE) = 29822.08 	 Merged ICCs 32 & 42 into 32 (delete 42)
+   Iteration 21  done: 	 Nb of communities = 29 	 LogE = -26257399.49 = -37.37 bits/dpt	 D(LogE) = 34060.58 	 Merged ICCs 30 & 32 into 30 (delete 32)
+   Iteration 22  done: 	 Nb of communities = 28 	 LogE = -26227346.30 = -37.33 bits/dpt	 D(LogE) = 30053.18 	 Merged ICCs 30 & 41 into 30 (delete 41)
+   Iteration 23  done: 	 Nb of communities = 27 	 LogE = -26162233.19 = -37.24 bits/dpt	 D(LogE) = 65113.12 	 Merged ICCs 15 & 30 into 15 (delete 30)
+   Iteration 24  done: 	 Nb of communities = 26 	 LogE = -26074488.67 = -37.11 bits/dpt	 D(LogE) = 87744.52 	 Merged ICCs 7 & 15 into 7 (delete 15)
+   Iteration 25  done: 	 Nb of communities = 25 	 LogE = -26007700.75 = -37.02 bits/dpt	 D(LogE) = 66787.92 	 Merged ICCs 7 & 28 into 7 (delete 28)
+   Iteration 26  done: 	 Nb of communities = 24 	 LogE = -25954618.21 = -36.94 bits/dpt	 D(LogE) = 53082.54 	 Merged ICCs 7 & 31 into 7 (delete 31)
+   Iteration 27  done: 	 Nb of communities = 23 	 LogE = -25907718.07 = -36.88 bits/dpt	 D(LogE) = 46900.15 	 Merged ICCs 7 & 24 into 7 (delete 24)
+   Iteration 28  done: 	 Nb of communities = 22 	 LogE = -25860597.16 = -36.81 bits/dpt	 D(LogE) = 47120.91 	 Merged ICCs 7 & 46 into 7 (delete 46)
+   Iteration 29  done: 	 Nb of communities = 21 	 LogE = -25820255.55 = -36.75 bits/dpt	 D(LogE) = 40341.61 	 Merged ICCs 7 & 40 into 7 (delete 40)
+   Iteration 30  done: 	 Nb of communities = 20 	 LogE = -25794188.36 = -36.72 bits/dpt	 D(LogE) = 26067.19 	 Merged ICCs 10 & 16 into 10 (delete 16)
+   Iteration 31  done: 	 Nb of communities = 19 	 LogE = -25761122.47 = -36.67 bits/dpt	 D(LogE) = 33065.88 	 Merged ICCs 10 & 18 into 10 (delete 18)
+   Iteration 32  done: 	 Nb of communities = 18 	 LogE = -25735858.80 = -36.63 bits/dpt	 D(LogE) = 25263.68 	 Merged ICCs 29 & 38 into 29 (delete 38)
+   Iteration 33  done: 	 Nb of communities = 17 	 LogE = -25698564.63 = -36.58 bits/dpt	 D(LogE) = 37294.16 	 Merged ICCs 17 & 29 into 17 (delete 29)
+   Iteration 34  done: 	 Nb of communities = 16 	 LogE = -25669515.14 = -36.54 bits/dpt	 D(LogE) = 29049.49 	 Merged ICCs 17 & 45 into 17 (delete 45)
+   Iteration 35  done: 	 Nb of communities = 15 	 LogE = -25624016.97 = -36.47 bits/dpt	 D(LogE) = 45498.17 	 Merged ICCs 17 & 22 into 17 (delete 22)
+   Iteration 36  done: 	 Nb of communities = 14 	 LogE = -25587615.82 = -36.42 bits/dpt	 D(LogE) = 36401.15 	 Merged ICCs 12 & 17 into 12 (delete 17)
+   Iteration 37  done: 	 Nb of communities = 13 	 LogE = -25564805.47 = -36.39 bits/dpt	 D(LogE) = 22810.36 	 Merged ICCs 7 & 23 into 7 (delete 23)
+   Iteration 38  done: 	 Nb of communities = 12 	 LogE = -25527372.94 = -36.34 bits/dpt	 D(LogE) = 37432.52 	 Merged ICCs 0 & 7 into 0 (delete 7)
+   Iteration 39  done: 	 Nb of communities = 11 	 LogE = -25496213.14 = -36.29 bits/dpt	 D(LogE) = 31159.81 	 Merged ICCs 0 & 5 into 0 (delete 5)
+   Iteration 40  done: 	 Nb of communities = 10 	 LogE = -25464259.61 = -36.25 bits/dpt	 D(LogE) = 31953.52 	 Merged ICCs 0 & 33 into 0 (delete 33)
+   Iteration 41  done: 	 Nb of communities = 9  	 LogE = -25444813.64 = -36.22 bits/dpt	 D(LogE) = 19445.97 	 Merged ICCs 43 & 47 into 43 (delete 47)
+   Iteration 42  done: 	 Nb of communities = 8  	 LogE = -25430859.11 = -36.20 bits/dpt	 D(LogE) = 13954.53 	 Merged ICCs 43 & 49 into 43 (delete 49)
+   Iteration 43  done: 	 Nb of communities = 7  	 LogE = -25407964.09 = -36.17 bits/dpt	 D(LogE) = 22895.02 	 Merged ICCs 43 & 44 into 43 (delete 44)
+   Iteration 44  done: 	 Nb of communities = 6  	 LogE = -25391180.89 = -36.14 bits/dpt	 D(LogE) = 16783.20 	 Merged ICCs 12 & 43 into 12 (delete 43)
+   Iteration 45  done: 	 Nb of communities = 5  	 LogE = -25379858.60 = -36.13 bits/dpt	 D(LogE) = 11322.29 	 Merged ICCs 2 & 12 into 2 (delete 12)
+   Iteration 46  done: 	 Nb of communities = 4  	 LogE = -25375861.41 = -36.12 bits/dpt	 D(LogE) = 3997.19 	 Merged ICCs 2 & 14 into 2 (delete 14)
+   Iteration 47  done: 	 Nb of communities = 3  	 LogE = -26336377.89 = -37.49 bits/dpt	 D(LogE) = -960516.49 	 Merged ICCs 1 & 2 into 1 (delete 2)
+   Iteration 48  done: 	 Nb of communities = 2  	 LogE = -30638487.33 = -43.61 bits/dpt	 D(LogE) = -4302109.44 	 Merged ICCs 0 & 10 into 0 (delete 10)
+   Iteration 49  done: 	 Nb of communities = 1  	 LogE = -35062228.00 = -49.91 bits/dpt	 D(LogE) = -4423740.67 	 Merged ICCs 0 & 1 into 0 (delete 1)
+	 **** Greedy Merging Finished ****
+
+###### Run time : 77.281s = 1.28802 min
+#######################################
+
+######### ENTROPY OF THE DATA #########
+S = 19.8483 bits. Range: [0, 50]
+
+#########  GREEDY: BEST MCM FOUND:   #########
+ICC 1: 	 00010001110000001111010001100000001000000010100001	 Community size: 15
+ICC 2: 	 00000000000000000000000000000010000010101101011010	 Community size: 9
+ICC 3: 	 10101110000100000000100000010000100101000000000100	 Community size: 12
+ICC 4: 	 01000000001011110000001110001101010000010000000000	 Community size: 14
+
+Log-Evidence(MCM)       : -2.53759e+07	 = -36.1199 bits per datapoint 	
+Max-Log-Likelihood(MCM) : -2.5241e+07	 = -35.9279 bits per datapoint 	
+
+Average community size  : 12.5 variables per community 	
+
+
+*******************************************************************************************
+***************************  Decomposition of Log-E   *************************************
+*******************************   over each ICC   *****************************************
+*******************************************************************************************
+Complete model: 11111111111111111111111111111111111111111111111111	  LogE(CM) = -35062228.000	 = -49.907 bits per datapoint
+
+ICC 1  : 	 00010001110000001111010001100000001000000010100001	 LogE(ICC) = -7651213.901	 = -10.891 bits per datapoint 	
+ICC 2  : 	 00000000000000000000000000000010000010101101011010	 LogE(ICC) = -3657295.834	 = -5.206 bits per datapoint 	
+ICC 3  : 	 10101110000100000000100000010000100101000000000100	 LogE(ICC) = -6705341.410	 = -9.544 bits per datapoint 	
+ICC 4  : 	 01000000001011110000001110001101010000010000000000	 LogE(ICC) = -7362010.261	 = -10.479 bits per datapoint 	
+
+Log-Evidence(MCM) = -25375861.406	 = -36.120 bits per datapoint 	
+       85.97 real        72.09 user        13.06 sys
