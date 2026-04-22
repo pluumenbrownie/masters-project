@@ -1,22 +1,40 @@
 use fixedbitset::FixedBitSet;
 use miette::NamedSource;
+use statrs::function::gamma::ln_gamma;
 use std::{
-    collections::{HashMap, hash_map::IntoIter},
+    collections::HashMap,
     fs::File,
     io::{BufReader, Read},
+    num::{NonZeroU8, NonZeroUsize},
     path::Path,
+    vec::IntoIter,
 };
 
 use crate::mcm_error::MCMError;
 
+struct Branch {
+    value: NonZeroUsize,
+    next: Vec<Amalia>,
+}
+
+enum Amalia {
+    None,
+    Value(NonZeroU8),
+    Branch(Branch),
+}
+
+fn amalia() -> Amalia {
+    Amalia::None
+}
+
 #[derive(Debug)]
 pub struct Dataset {
-    pub data: HashMap<FixedBitSet, usize>,
-    pub datapoints: usize,
+    data: Vec<(FixedBitSet, usize)>,
+    datapoints: usize,
 }
 
 impl Dataset {
-    pub fn new(data: HashMap<FixedBitSet, usize>, datapoints: usize) -> Dataset {
+    pub fn new(data: Vec<(FixedBitSet, usize)>, datapoints: usize) -> Dataset {
         Dataset { data, datapoints }
     }
 
@@ -66,36 +84,87 @@ impl Dataset {
             }
         }
 
-        Ok(Dataset::new(data, datapoints))
+        Ok(Dataset::new(data.into_iter().collect(), datapoints))
     }
 
-    pub fn get(&self, configuration: FixedBitSet) -> Option<usize> {
-        self.data.get(&configuration).copied()
+    pub fn variables(&self) -> usize {
+        self.data.iter().map(|d| d.0.len()).next().unwrap()
     }
 
+    pub fn datapoints(&self) -> usize {
+        self.datapoints
+    }
+
+    /// Returns the amount of bins (unique datapoints) in this dataset.
+    pub fn bins(&self) -> usize {
+        self.data.len()
+    }
+
+    pub fn get(&self, configuration: &FixedBitSet) -> Option<usize> {
+        self.data
+            .iter()
+            .find_map(|(d, n)| if d == configuration { Some(n) } else { None })
+            .copied()
+    }
+
+    /// Return the histogram of data for the given ICC.
     pub fn partition(&self, partition: &FixedBitSet) -> Dataset {
-        let new_vectors: Vec<(FixedBitSet, usize)> =
-            self.iter().map(|(i, &n)| (i & partition, n)).collect();
-        // transformed mu vectors are not guaranteed to be unique, so we want to
+        let new_vectors = self.iter().map(|(i, n)| (i & partition, *n));
+        // transformed vectors are not guaranteed to be unique, so we want to
         // add them together without loosing information
-        let mut partitioned_map = HashMap::new();
+        let mut partitioned_map: Vec<(FixedBitSet, usize)> = Vec::new();
         for (o, n) in new_vectors {
-            partitioned_map
-                .entry(o)
-                .and_modify(|v| *v += n)
-                .or_insert(n);
+            let exists = partitioned_map.binary_search_by(|(b, _)| b.cmp(&o));
+            match exists {
+                Ok(i) => partitioned_map[i].1 += n,
+                Err(i) => {
+                    if i == partitioned_map.len() {
+                        partitioned_map.push((o, n));
+                    } else {
+                        partitioned_map.insert(i, (o, n));
+                    }
+                }
+            }
         }
-        Dataset::new(partitioned_map, self.datapoints)
+        Dataset::new(partitioned_map.into_iter().collect(), self.datapoints)
     }
 
-    pub fn iter(&self) -> std::collections::hash_map::Iter<'_, FixedBitSet, usize> {
+    pub fn log_e(&self) -> f64 {
+        self.iter()
+            .map(|(_, k)| ln_gamma(*k as f64 + 0.5) - ln_gamma(0.5))
+            .sum::<f64>()
+    }
+
+    // pub fn partition_log_e(&self, icc: &FixedBitSet) -> f64 {
+
+    // }
+
+    // pub fn partition(&self, partition: &FixedBitSet) -> Dataset {
+    //     let new_vectors = self.iter().map(|(i, n)| (i & partition, *n));
+    //     // transformed vectors are not guaranteed to be unique, so we want to
+    //     // add them together without loosing information
+    //     let mut partitioned_map = Vec::new();
+    //     for (o, n) in new_vectors {
+    //         let point = partitioned_map.partition_point(|(x, _)| *x < o);
+    //         if point == partitioned_map.len() {
+    //             partitioned_map.push((o, n));
+    //         } else if partitioned_map[point].0 == o {
+    //             partitioned_map[point].1 += n;
+    //         } else {
+    //             partitioned_map.insert(point, (o, n));
+    //         }
+    //     }
+    //     Dataset::new(partitioned_map.into_iter().collect(), self.datapoints)
+    // }
+
+    pub fn iter(&self) -> std::slice::Iter<'_, (FixedBitSet, usize)> {
         self.data.iter()
     }
 }
 
 impl IntoIterator for Dataset {
     type Item = (FixedBitSet, usize);
-    type IntoIter = IntoIter<FixedBitSet, usize>;
+    type IntoIter = IntoIter<(FixedBitSet, usize)>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.data.into_iter()

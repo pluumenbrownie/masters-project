@@ -23,11 +23,13 @@
         devShells.default = with pkgs;
           mkShell {
             buildInputs = [
-              (rust-bin.beta.latest.default.override {
+              (rust-bin.stable.latest.default.override {
                 extensions = ["rust-src"];
               })
               bacon
               gcc
+              cargo-flamegraph
+              gnuplot
             ];
 
             shellHook = ''

@@ -15,7 +15,7 @@ fn main() {
     let mut best_log_e = f64::NEG_INFINITY;
 
     for mcm in tqdm!(mcms.into_iter()) {
-        let log_e = mcm.log_e(&dataset);
+        let log_e = mcm.log_e(&dataset, &mut None);
         if log_e > best_log_e {
             best_log_e = log_e;
             best_mcm = Some(mcm);

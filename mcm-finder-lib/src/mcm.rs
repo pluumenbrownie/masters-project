@@ -2,6 +2,7 @@ use fixedbitset::FixedBitSet;
 use miette::NamedSource;
 use statrs::function::gamma::ln_gamma;
 use std::{
+    collections::HashMap,
     f64::consts::{LN_2, PI},
     fmt::Display,
     fs::File,
@@ -293,27 +294,33 @@ impl MinimallyComplexModel {
     /// log⁡E=-(n-r)ln2 + ∑_{P∈P}\[(ln⁡Γ(2ᴾ⁻¹)−ln⁡Γ(n+2ᴾ⁻¹))+∑_{x∈data}(P)(ln⁡Γ(kx+0.5)−ln⁡Γ(0.5))\]
     ///
     /// Hope that clears things up.
-    pub fn log_e(&self, dataset: &Dataset) -> f64 {
+    pub fn log_e(
+        &self,
+        dataset: &Dataset,
+        log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
+    ) -> f64 {
         let mut log_e = 0f64;
 
         for part in self.partition.iter() {
             let rank_subset: i32 = part.count_ones(..).try_into().unwrap();
 
             let gamma_factor = ln_gamma(2.0f64.powi(rank_subset - 1))
-                - ln_gamma(dataset.datapoints as f64 + 2.0f64.powi(rank_subset - 1));
+                - ln_gamma(dataset.datapoints() as f64 + 2.0f64.powi(rank_subset - 1));
 
-            let sum_of_partitions = dataset
-                .partition(part)
-                .iter()
-                .map(|(_, &k)| ln_gamma(k as f64 + 0.5) - ln_gamma(0.5))
-                .sum::<f64>();
+            let sum_of_partitions = if let Some(cache) = log_e_cache {
+                *cache
+                    .entry(part.clone())
+                    .or_insert_with(|| dataset.partition(part).log_e())
+            } else {
+                dataset.partition(part).log_e()
+            };
 
             log_e += gamma_factor;
             log_e += sum_of_partitions;
         }
 
         let front_constant: f64 =
-            (dataset.datapoints * (self.variables() - self.rank())) as f64 * LN_2;
+            (dataset.datapoints() * (self.variables() - self.rank())) as f64 * LN_2;
         log_e - front_constant
     }
 

@@ -12,11 +12,11 @@ fn read_data() {
     let unwrapped_dataset = dataset.unwrap();
 
     assert_eq!(
-        unwrapped_dataset.get(FixedBitSet::with_capacity_and_blocks(9, vec![0b111111111])),
+        unwrapped_dataset.get(&FixedBitSet::with_capacity_and_blocks(9, vec![0b111111111])),
         Some(221)
     );
     assert_eq!(
-        unwrapped_dataset.get(FixedBitSet::with_capacity_and_blocks(9, vec![0])),
+        unwrapped_dataset.get(&FixedBitSet::with_capacity_and_blocks(9, vec![0])),
         Some(174)
     );
 }
