@@ -12,7 +12,7 @@ use std::{
 };
 
 use crate::{
-    dataset::{Dataset, line_length_tracker, verify_ascii},
+    dataset::{Dataset, LogE, line_length_tracker, verify_ascii},
     mcm_error::MCMError,
 };
 
@@ -294,9 +294,9 @@ impl MinimallyComplexModel {
     /// log⁡E=-(n-r)ln2 + ∑_{P∈P}\[(ln⁡Γ(2ᴾ⁻¹)−ln⁡Γ(n+2ᴾ⁻¹))+∑_{x∈data}(P)(ln⁡Γ(kx+0.5)−ln⁡Γ(0.5))\]
     ///
     /// Hope that clears things up.
-    pub fn log_e(
+    pub fn log_e<T: Dataset>(
         &self,
-        dataset: &Dataset,
+        dataset: &T,
         log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
     ) -> f64 {
         let mut log_e = 0f64;
@@ -310,9 +310,9 @@ impl MinimallyComplexModel {
             let sum_of_partitions = if let Some(cache) = log_e_cache {
                 *cache
                     .entry(part.clone())
-                    .or_insert_with(|| dataset.partition(part).log_e())
+                    .or_insert_with(|| dataset.transform_to_icc(part).log_e())
             } else {
-                dataset.partition(part).log_e()
+                dataset.transform_to_icc(part).log_e()
             };
 
             log_e += gamma_factor;
@@ -373,11 +373,12 @@ impl MinimallyComplexModel {
 
 impl Display for MinimallyComplexModel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let partition_string: String = self
+        let mut partition_string: String = self
             .partition
             .iter()
-            .flat_map(|p| format!("\n{p}").chars().collect::<Vec<_>>())
+            .flat_map(|p| format!("{p}\n").chars().collect::<Vec<_>>())
             .collect();
-        write!(f, "MCM with vectors: {}", partition_string)
+        partition_string.pop();
+        write!(f, "{}", partition_string)
     }
 }

@@ -1,11 +1,11 @@
 use std::path::Path;
 
 use fixedbitset::FixedBitSet;
-use mcm_finder_lib::dataset::Dataset;
+use mcm_finder_lib::dataset::VecDataset;
 
 #[test]
 fn read_data() {
-    let dataset = Dataset::read_from_file(Path::new("./tests/data/SCOTUS_n9_N895_Data.dat"));
+    let dataset = VecDataset::read_from_file(Path::new("./tests/data/SCOTUS_n9_N895_Data.dat"));
     println!("{:?}", dataset);
     assert!(dataset.is_ok());
 
@@ -23,21 +23,22 @@ fn read_data() {
 
 #[test]
 fn read_bad_data() {
-    let dataset = Dataset::read_from_file(Path::new("./tests/data/SCOTUS_n9_N11_bad_data.dat"));
+    let dataset = VecDataset::read_from_file(Path::new("./tests/data/SCOTUS_n9_N11_bad_data.dat"));
     println!("{:?}", dataset);
     assert!(dataset.is_err())
 }
 
 #[test]
 fn read_bad_length() {
-    let dataset = Dataset::read_from_file(Path::new("./tests/data/SCOTUS_n9_N11_bad_length.dat"));
+    let dataset =
+        VecDataset::read_from_file(Path::new("./tests/data/SCOTUS_n9_N11_bad_length.dat"));
     println!("{:?}", dataset);
     assert!(dataset.is_err())
 }
 
 #[test]
 fn read_nonascii() {
-    let dataset = Dataset::read_from_file(Path::new("./tests/data/SCOTUS_n9_N11_nonascii.dat"));
+    let dataset = VecDataset::read_from_file(Path::new("./tests/data/SCOTUS_n9_N11_nonascii.dat"));
     println!("{:?}", dataset);
     assert!(dataset.is_err())
 }

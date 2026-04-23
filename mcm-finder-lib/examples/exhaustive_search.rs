@@ -1,68 +1,15 @@
 use std::path::Path;
 
-use fixedbitset::FixedBitSet;
-use kdam::tqdm;
-use mcm_finder_lib::{mcm::MinimallyComplexModel, *};
+use mcm_finder_lib::{ExhaustiveSearcher, Solver};
+use miette::Result;
 
-fn main() {
-    let dataset = dataset::Dataset::read_from_file(Path::new(
-        "mcm-finder-lib/tests/data/SCOTUS_n9_N895_Data.dat",
-    ))
-    .unwrap();
+fn main() -> Result<()> {
+    let filepath = Path::new("mcm-finder-lib/tests/data/SCOTUS_n9_N895_Data.dat");
 
-    let mcms = generate_all_mcms(9);
-    let mut best_mcm: Option<MinimallyComplexModel> = None;
-    let mut best_log_e = f64::NEG_INFINITY;
-
-    for mcm in tqdm!(mcms.into_iter()) {
-        let log_e = mcm.log_e(&dataset, &mut None);
-        if log_e > best_log_e {
-            best_log_e = log_e;
-            best_mcm = Some(mcm);
-        }
-    }
-
-    let mcm = best_mcm.unwrap();
-    println!("Best MCM with log E {}", best_log_e);
-    println!("{}", mcm);
-}
-
-fn generate_all_mcms(number: usize) -> Vec<MinimallyComplexModel> {
-    let mut output: Vec<Vec<usize>> = vec![];
-    let mut current = vec![0usize; number];
-
-    add_to(&mut current, 0, &mut output);
-
-    output
-        .into_iter()
-        .map(|v| {
-            let mut partitions = vec![
-                FixedBitSet::with_capacity_and_blocks(9, [0b000000000]);
-                *v.iter().max().unwrap() + 1
-            ];
-            for (nr, &i) in v.iter().enumerate() {
-                partitions[i].set(nr, true);
-            }
-            MinimallyComplexModel::from_iccs(partitions).unwrap()
-        })
-        .collect()
-}
-
-fn add_to(current: &mut Vec<usize>, index: usize, output: &mut Vec<Vec<usize>>) {
-    loop {
-        if index < current.len() - 1 {
-            add_to(current, index + 1, output);
-        }
-        if index == current.len() - 1 {
-            output.push(current.clone());
-        }
-        if index == 0 || current[..index].iter().all(|n| *n < current[index]) {
-            break;
-        } else {
-            current[index] += 1;
-            current.splice(index + 1.., vec![0usize; current.len() - index - 1]);
-        }
-    }
+    let solver = ExhaustiveSearcher::from_file(filepath);
+    let result = solver?.solve();
+    println!("{result}");
+    Ok(())
 }
 
 // fn permutations(number: usize) -> Vec<Vec<usize>> {

@@ -1,17 +1,17 @@
 use std::path::Path;
 
 use fixedbitset::FixedBitSet;
-use mcm_finder_lib::dataset::Dataset;
+use mcm_finder_lib::dataset::{Dataset, VecDataset};
 use pretty_assertions::assert_eq;
 
 #[test]
 fn partition() {
     let dataset =
-        Dataset::read_from_file(Path::new("./tests/data/SCOTUS_n9_N895_Data.dat")).unwrap();
+        VecDataset::read_from_file(Path::new("./tests/data/SCOTUS_n9_N895_Data.dat")).unwrap();
 
     let icc = FixedBitSet::with_capacity_and_blocks(9, [0b001011101]);
 
-    let partitioned_dataset = dataset.partition(&icc);
+    let partitioned_dataset = dataset.transform_to_icc(&icc);
 
     assert_eq!(partitioned_dataset.datapoints(), dataset.datapoints());
     assert_eq!(
@@ -43,3 +43,24 @@ fn partition() {
         .sum();
     assert_eq!(Some(test_total), partitioned_dataset.get(&icc))
 }
+
+// #[test]
+// fn tree_dataset() {
+//     let tree =
+//         TreeDataset::read_from_file(Path::new("./tests/data/SCOTUS_n9_N895_Data.dat")).unwrap();
+
+//     let vecdataset =
+//         VecDataset::read_from_file(Path::new("./tests/data/SCOTUS_n9_N895_Data.dat")).unwrap();
+
+//     // println!("{:?}", tree);
+
+//     // tree.add_bitvector(FixedBitSet::with_capacity_and_blocks(9, [0b010000000]));
+//     // tree.add_bitvector(FixedBitSet::with_capacity_and_blocks(9, [0b011000000]));
+
+//     println!("variables");
+//     assert_eq!(tree.variables(), vecdataset.variables());
+//     println!("datapoints");
+//     assert_eq!(tree.datapoints(), vecdataset.datapoints());
+//     println!("bins");
+//     assert_eq!(tree.bins(), vecdataset.bins());
+// }

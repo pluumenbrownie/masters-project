@@ -5,40 +5,43 @@ use std::{
     collections::HashMap,
     fs::File,
     io::{BufReader, Read},
-    num::{NonZeroU8, NonZeroUsize},
     path::Path,
     vec::IntoIter,
 };
 
 use crate::mcm_error::MCMError;
 
-struct Branch {
-    value: NonZeroUsize,
-    next: Vec<Amalia>,
+pub trait Dataset {
+    /// Returns the amount of datapoints in this dataset.
+    fn datapoints(&self) -> usize;
+
+    /// Returns the amount of variables in each datapoint.
+    fn variables(&self) -> usize;
+
+    /// Returns the amount of bins (unique datapoints) in this dataset.
+    fn bins(&self) -> usize;
+
+    /// Return the histogram of data for the given ICC.
+    fn transform_to_icc(&self, icc: &FixedBitSet) -> impl LogE;
 }
 
-enum Amalia {
-    None,
-    Value(NonZeroU8),
-    Branch(Branch),
-}
-
-fn amalia() -> Amalia {
-    Amalia::None
+pub trait LogE {
+    /// Compute the logarithmic evidence for this dataset.
+    fn log_e(&self) -> f64;
 }
 
 #[derive(Debug)]
-pub struct Dataset {
+pub struct VecDataset {
     data: Vec<(FixedBitSet, usize)>,
     datapoints: usize,
 }
 
-impl Dataset {
-    pub fn new(data: Vec<(FixedBitSet, usize)>, datapoints: usize) -> Dataset {
-        Dataset { data, datapoints }
+impl VecDataset {
+    pub fn new(data: Vec<(FixedBitSet, usize)>, datapoints: usize) -> VecDataset {
+        VecDataset { data, datapoints }
     }
 
-    pub fn read_from_file(path: &Path) -> Result<Dataset, MCMError> {
+    pub fn read_from_file(path: &Path) -> Result<VecDataset, MCMError> {
         let mut data = HashMap::new();
         let mut datapoints = 0usize;
         let filename = path.file_name().unwrap().to_str().unwrap().to_owned();
@@ -84,20 +87,7 @@ impl Dataset {
             }
         }
 
-        Ok(Dataset::new(data.into_iter().collect(), datapoints))
-    }
-
-    pub fn variables(&self) -> usize {
-        self.data.iter().map(|d| d.0.len()).next().unwrap()
-    }
-
-    pub fn datapoints(&self) -> usize {
-        self.datapoints
-    }
-
-    /// Returns the amount of bins (unique datapoints) in this dataset.
-    pub fn bins(&self) -> usize {
-        self.data.len()
+        Ok(VecDataset::new(data.into_iter().collect(), datapoints))
     }
 
     pub fn get(&self, configuration: &FixedBitSet) -> Option<usize> {
@@ -107,8 +97,27 @@ impl Dataset {
             .copied()
     }
 
+    pub fn iter(&self) -> std::slice::Iter<'_, (FixedBitSet, usize)> {
+        self.data.iter()
+    }
+}
+
+impl Dataset for VecDataset {
+    fn variables(&self) -> usize {
+        self.data.iter().map(|d| d.0.len()).next().unwrap()
+    }
+
+    fn datapoints(&self) -> usize {
+        self.datapoints
+    }
+
+    /// Returns the amount of bins (unique datapoints) in this dataset.
+    fn bins(&self) -> usize {
+        self.data.len()
+    }
+
     /// Return the histogram of data for the given ICC.
-    pub fn partition(&self, partition: &FixedBitSet) -> Dataset {
+    fn transform_to_icc(&self, partition: &FixedBitSet) -> VecDataset {
         let new_vectors = self.iter().map(|(i, n)| (i & partition, *n));
         // transformed vectors are not guaranteed to be unique, so we want to
         // add them together without loosing information
@@ -126,43 +135,19 @@ impl Dataset {
                 }
             }
         }
-        Dataset::new(partitioned_map.into_iter().collect(), self.datapoints)
+        VecDataset::new(partitioned_map.into_iter().collect(), self.datapoints)
     }
+}
 
-    pub fn log_e(&self) -> f64 {
+impl LogE for VecDataset {
+    fn log_e(&self) -> f64 {
         self.iter()
             .map(|(_, k)| ln_gamma(*k as f64 + 0.5) - ln_gamma(0.5))
             .sum::<f64>()
     }
-
-    // pub fn partition_log_e(&self, icc: &FixedBitSet) -> f64 {
-
-    // }
-
-    // pub fn partition(&self, partition: &FixedBitSet) -> Dataset {
-    //     let new_vectors = self.iter().map(|(i, n)| (i & partition, *n));
-    //     // transformed vectors are not guaranteed to be unique, so we want to
-    //     // add them together without loosing information
-    //     let mut partitioned_map = Vec::new();
-    //     for (o, n) in new_vectors {
-    //         let point = partitioned_map.partition_point(|(x, _)| *x < o);
-    //         if point == partitioned_map.len() {
-    //             partitioned_map.push((o, n));
-    //         } else if partitioned_map[point].0 == o {
-    //             partitioned_map[point].1 += n;
-    //         } else {
-    //             partitioned_map.insert(point, (o, n));
-    //         }
-    //     }
-    //     Dataset::new(partitioned_map.into_iter().collect(), self.datapoints)
-    // }
-
-    pub fn iter(&self) -> std::slice::Iter<'_, (FixedBitSet, usize)> {
-        self.data.iter()
-    }
 }
 
-impl IntoIterator for Dataset {
+impl IntoIterator for VecDataset {
     type Item = (FixedBitSet, usize);
     type IntoIter = IntoIter<(FixedBitSet, usize)>;
 
@@ -170,6 +155,127 @@ impl IntoIterator for Dataset {
         self.data.into_iter()
     }
 }
+
+// #[derive(Debug, Clone)]
+// pub struct TreeDataset {
+//     datapoints: usize,
+//     branches: Vec<Option<TreeDataset>>,
+// }
+
+// impl TreeDataset {
+//     pub fn read_from_file(path: &Path) -> Result<TreeDataset, MCMError> {
+//         let mut tree: Option<TreeDataset> = None;
+//         let mut datapoints = 0usize;
+//         let filename = path.file_name().unwrap().to_str().unwrap().to_owned();
+//         let mut buf_reader = BufReader::new(File::open(path)?);
+
+//         // reading the entire file to a string
+//         let file = {
+//             let mut file = String::new();
+//             buf_reader.read_to_string(&mut file)?;
+//             file
+//         };
+
+//         let mut line_length = 0usize;
+//         let mut bool_array: Vec<bool> = vec![];
+
+//         for (nr, byte) in file.bytes().enumerate() {
+//             // validate character is valid ascii
+//             verify_ascii(&filename, &file, nr, byte)?;
+//             // count ones and zeroes
+//             match byte {
+//                 b'0' => bool_array.push(false),
+//                 b'1' => bool_array.push(true),
+//                 b'\r' | b'\n' if !bool_array.is_empty() => {
+//                     // check the line length
+//                     line_length_tracker(&filename, &file, &mut line_length, &bool_array, nr)?;
+
+//                     // add the datapoints to the hashmap
+//                     let mut bitvec = FixedBitSet::with_capacity(bool_array.len());
+//                     for (nr, bit) in bool_array.drain(..).enumerate() {
+//                         bitvec.set(nr, bit);
+//                     }
+//                     tree.get_or_insert(TreeDataset::new(line_length))
+//                         .add_bitvector(bitvec);
+//                     // data.entry(bitvec).and_modify(|i| *i += 1).or_insert(1usize);
+//                     debug_assert!(bool_array.is_empty());
+
+//                     datapoints += 1;
+//                 }
+//                 b'\r' | b'\n' => {}
+//                 // wrong character case
+//                 _ => Err(MCMError::BadCharacter {
+//                     src: NamedSource::new(&filename, file.clone()),
+//                     bad_line: nr.into(),
+//                 })?,
+//             }
+//         }
+
+//         Ok(tree.unwrap())
+//     }
+
+//     /// Add a datapoint to this dataset.
+//     pub fn add_bitvector(&mut self, datapoint: FixedBitSet) {
+//         self.add(datapoint.into_ones().rev().collect());
+//     }
+
+//     /// Add a datapoint to this dataset in vector form. Vector must be sorted in
+//     /// decrementing order.
+//     pub fn add(&mut self, datapoint: Vec<usize>) {
+//         let mut datapoint = datapoint;
+//         self.datapoints += 1;
+//         if let Some(nr) = datapoint.pop() {
+//             if self.branches[nr].is_none() {
+//                 self.branches[nr] = Some(TreeDataset::new(self.variables() - nr - 1));
+//             }
+//             self.branches[nr]
+//                 .as_mut()
+//                 .unwrap()
+//                 .add(datapoint.iter_mut().map(|p| *p - nr - 1).collect());
+//             // match self.branches[nr] {
+//             //     None => self.branches[nr] = Some(TreeDataset::one(self.variables() - nr)),
+//             //     Some(branch) => branch.add(datapoint),
+//             // }
+//         }
+//     }
+
+//     pub fn new(variables: usize) -> TreeDataset {
+//         TreeDataset {
+//             datapoints: 0,
+//             branches: vec![None; variables],
+//         }
+//     }
+// }
+
+// impl Dataset for TreeDataset {
+//     fn datapoints(&self) -> usize {
+//         self.datapoints
+//     }
+
+//     fn bins(&self) -> usize {
+//         if self.branches.is_empty() {
+//             1
+//         } else {
+//             1 + self
+//                 .branches
+//                 .iter()
+//                 .map(|b| match b {
+//                     None => 0,
+//                     Some(t) => t.bins(),
+//                 })
+//                 .sum::<usize>()
+//         }
+//     }
+
+//     fn variables(&self) -> usize {
+//         self.branches.len()
+//     }
+
+//     fn transform_to_icc(&self, icc: &FixedBitSet) -> impl LogE {
+//         todo!();
+//         VecDataset::new(vec![], 0)
+//     }
+// }
 
 pub(crate) fn line_length_tracker(
     filename: &str,
