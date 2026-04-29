@@ -2,6 +2,7 @@ use std::{collections::HashMap, fmt::Display, marker::Sized, num::NonZero, path:
 
 use fixedbitset::FixedBitSet;
 use kdam::{BarExt, tqdm};
+use rand::RngExt;
 
 use crate::{
     dataset::{Dataset, VecDataset},
@@ -14,9 +15,9 @@ mod mcm_error;
 
 #[derive(Debug, Clone)]
 pub struct SolverReport {
-    mcm: MinimallyComplexModel,
-    log_e: f64,
-    other_stuff: HashMap<String, String>,
+    pub mcm: MinimallyComplexModel,
+    pub log_e: f64,
+    pub other_stuff: HashMap<String, String>,
 }
 
 impl SolverReport {
@@ -190,6 +191,125 @@ impl Solver for GreedySearcher {
             }
         }
 
+        SolverReport::new(best_mcm, best_log_e, HashMap::new())
+    }
+}
+
+#[derive(Debug, Default)]
+pub enum AnnealingStarter {
+    Single,
+    #[default]
+    Trivial,
+}
+#[derive(Debug)]
+struct AnnealingTemperature {
+    start: f64,
+    end: f64,
+    decrease_per_step: f64,
+}
+
+impl Default for AnnealingTemperature {
+    fn default() -> Self {
+        AnnealingTemperature {
+            start: 500.0,
+            end: 5.0,
+            decrease_per_step: 0.1,
+        }
+    }
+}
+impl AnnealingTemperature {
+    fn steps(&self) -> usize {
+        let steps = (self.end / self.start).log2() / (1.0 - self.decrease_per_step).log2();
+        steps.ceil() as usize
+    }
+}
+
+pub struct SimulatedAnnealingSearcher {
+    dataset: VecDataset,
+    starter: AnnealingStarter,
+    temperature: AnnealingTemperature,
+}
+
+impl SimulatedAnnealingSearcher {
+    pub fn set_starter(mut self, starter: AnnealingStarter) -> Self {
+        self.starter = starter;
+        self
+    }
+
+    pub fn set_temperature(mut self, start: f64, end: f64, decrease_per_step: f64) -> Self {
+        assert!(end > 0.0, "End temperature should be greater than zero.");
+        assert!(
+            start > end,
+            "Starting temperature should be greater than end temperature."
+        );
+        assert!(
+            decrease_per_step > 0.0 || decrease_per_step < 1.0,
+            "Decrease should be number between zero and one."
+        );
+        self.temperature = AnnealingTemperature {
+            start,
+            end,
+            decrease_per_step,
+        };
+        self
+    }
+}
+
+impl Solver for SimulatedAnnealingSearcher {
+    fn from_file(filepath: &Path) -> Result<Self, MCMError>
+    where
+        Self: Sized,
+    {
+        Ok(SimulatedAnnealingSearcher {
+            dataset: VecDataset::read_from_file(filepath)?,
+            starter: AnnealingStarter::default(),
+            temperature: AnnealingTemperature::default(),
+        })
+    }
+
+    fn solve(&self) -> SolverReport {
+        let mut current = match self.starter {
+            AnnealingStarter::Single => {
+                MinimallyComplexModel::full(NonZero::new(self.dataset.variables()).unwrap())
+            }
+            AnnealingStarter::Trivial => {
+                MinimallyComplexModel::trivial(NonZero::new(self.dataset.variables()).unwrap())
+            }
+        };
+
+        let mut rng = rand::rng();
+        let mut log_e_cache = Some(HashMap::new());
+
+        let mut best_mcm = current.clone();
+        let mut best_log_e = current.log_e(&self.dataset, &mut log_e_cache);
+
+        let mut temp = self.temperature.start;
+        let steps = self.temperature.steps();
+        let mut progress = tqdm!(total = steps);
+
+        while temp > self.temperature.end {
+            let candidate = current.mutate(&mut rng);
+            // println!("{candidate}");
+            let candidate_log_e = candidate.log_e(&self.dataset, &mut log_e_cache);
+            let current_log_e = current.log_e(&self.dataset, &mut log_e_cache);
+
+            if candidate_log_e.total_cmp(&best_log_e).is_gt() {
+                best_mcm = candidate.clone();
+                best_log_e = candidate.log_e(&self.dataset, &mut log_e_cache);
+            }
+            if candidate_log_e.total_cmp(&current_log_e).is_gt()
+                || rng.random_bool(((candidate_log_e - current_log_e) / temp).exp())
+            {
+                current = candidate;
+            }
+
+            temp -= temp * self.temperature.decrease_per_step;
+            progress.set_description(format!(
+                "T={:.3}/{} - {:.1}",
+                temp, self.temperature.end, best_log_e
+            ));
+            let _ = progress.update(1);
+        }
         SolverReport::new(best_mcm, best_log_e, HashMap::new())
     }
 }

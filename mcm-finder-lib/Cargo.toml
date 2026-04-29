@@ -9,6 +9,7 @@ cxx = "1.0.194"
 fixedbitset = "0.5.7"
 kdam = { version = "0.6.4", features = ["gradient", "spinner", "unicode"] }
 miette = { version = "7.6.0", features = ["fancy"] }
+rand = { version = "0.10.1", features = [] }
 statrs = "0.18.0"
 thiserror = "2.0.18"
 

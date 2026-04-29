@@ -116,24 +116,39 @@ impl Dataset for VecDataset {
         self.data.len()
     }
 
+    // /// Return the histogram of data for the given ICC.
+    // fn transform_to_icc(&self, partition: &FixedBitSet) -> VecDataset {
+    //     let new_vectors = self.iter().map(|(i, n)| (i & partition, *n));
+    //     // transformed vectors are not guaranteed to be unique, so we want to
+    //     // add them together without loosing information
+    //     let mut partitioned_map: Vec<(FixedBitSet, usize)> = Vec::new();
+    //     for (o, n) in new_vectors {
+    //         let exists = partitioned_map.binary_search_by(|(b, _)| b.cmp(&o));
+    //         match exists {
+    //             Ok(i) => partitioned_map[i].1 += n,
+    //             Err(i) => {
+    //                 if i == partitioned_map.len() {
+    //                     partitioned_map.push((o, n));
+    //                 } else {
+    //                     partitioned_map.insert(i, (o, n));
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     VecDataset::new(partitioned_map.into_iter().collect(), self.datapoints)
+    // }
+
     /// Return the histogram of data for the given ICC.
     fn transform_to_icc(&self, partition: &FixedBitSet) -> VecDataset {
         let new_vectors = self.iter().map(|(i, n)| (i & partition, *n));
         // transformed vectors are not guaranteed to be unique, so we want to
         // add them together without loosing information
-        let mut partitioned_map: Vec<(FixedBitSet, usize)> = Vec::new();
+        let mut partitioned_map: HashMap<FixedBitSet, usize> = HashMap::new();
         for (o, n) in new_vectors {
-            let exists = partitioned_map.binary_search_by(|(b, _)| b.cmp(&o));
-            match exists {
-                Ok(i) => partitioned_map[i].1 += n,
-                Err(i) => {
-                    if i == partitioned_map.len() {
-                        partitioned_map.push((o, n));
-                    } else {
-                        partitioned_map.insert(i, (o, n));
-                    }
-                }
-            }
+            partitioned_map
+                .entry(o)
+                .and_modify(|v| *v += n)
+                .or_insert(n);
         }
         VecDataset::new(partitioned_map.into_iter().collect(), self.datapoints)
     }

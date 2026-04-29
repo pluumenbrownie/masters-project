@@ -1,5 +1,9 @@
 use fixedbitset::FixedBitSet;
 use miette::NamedSource;
+use rand::{
+    RngExt,
+    seq::{IndexedRandom, IteratorRandom},
+};
 use statrs::function::gamma::ln_gamma;
 use std::{
     collections::HashMap,
@@ -15,6 +19,23 @@ use crate::{
     dataset::{Dataset, LogE, line_length_tracker, verify_ascii},
     mcm_error::MCMError,
 };
+
+#[derive(Debug, Clone, Copy)]
+enum MutationType {
+    Split,
+    Merge,
+    Swap,
+}
+
+impl MutationType {
+    /// Returns a random arm of this enum. `weight` gives the probability of
+    /// returning `MutationType::Split`.
+    fn rand(rng: &mut rand::rngs::ThreadRng) -> MutationType {
+        *[MutationType::Merge, MutationType::Split, MutationType::Swap]
+            .choose(rng)
+            .unwrap()
+    }
+}
 
 /// Calculates the geometric complexity of an Independent Complete Component.
 ///
@@ -34,8 +55,8 @@ use crate::{
 /// ```
 pub fn geometric_complexity_icc(spin_variables: NonZeroU32) -> f64 {
     let spin_variables = u32::from(spin_variables);
-    let pow: f64 = dbg!(2f64.powi((spin_variables - 1) as i32));
-    dbg!(PI.ln() * pow) - dbg!(ln_gamma(pow))
+    let pow: f64 = 2f64.powi((spin_variables - 1) as i32);
+    (PI.ln() * pow) - ln_gamma(pow)
 }
 
 /// Calculates the parameter complexity of an Independent Complete Component.
@@ -129,6 +150,10 @@ impl MinimallyComplexModel {
     pub fn from_iccs(partition: Vec<FixedBitSet>) -> Result<MinimallyComplexModel, MCMError> {
         if MinimallyComplexModel::verify_iccs(&partition) {
             let mut partition = partition;
+            partition = partition
+                .into_iter()
+                .filter(|icc| icc.count_ones(..) > 0)
+                .collect();
             partition.sort();
             return Ok(MinimallyComplexModel { partition });
         }
@@ -263,6 +288,62 @@ impl MinimallyComplexModel {
         MinimallyComplexModel::new(partition)
     }
 
+    /// Split the marked variables from the basis ICC into a new ICC, and return a new MCM.
+    ///
+    /// # Examples
+    /// ```
+    /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
+    /// # use fixedbitset::FixedBitSet;
+    /// let mcm = MinimallyComplexModel::from_iccs(vec![
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111001]),
+    /// ]).unwrap();
+    /// let result_mcm = MinimallyComplexModel::from_iccs(vec![
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000010001]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110101000]),
+    /// ]).unwrap();
+    /// let mark = FixedBitSet::with_capacity_and_blocks(9, [0b001010001]);
+    /// assert_eq!(mcm.split(1, mark), result_mcm);
+    /// ```
+    pub fn split(&self, basis: usize, split: FixedBitSet) -> MinimallyComplexModel {
+        let mut mask = split;
+        let mut iccs = self.partition.clone();
+        let new_icc = &iccs[basis] & &mask;
+
+        mask.toggle_range(..);
+        iccs[basis] &= mask;
+
+        iccs.push(new_icc);
+
+        MinimallyComplexModel::from_iccs(iccs).unwrap()
+    }
+
+    /// Swaps the given variable from the basis ICC into the destination ICC
+    ///
+    /// # Examples
+    /// ```
+    /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
+    /// # use fixedbitset::FixedBitSet;
+    /// let mcm = MinimallyComplexModel::from_iccs(vec![
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111001]),
+    /// ]).unwrap();
+    /// let result_mcm = MinimallyComplexModel::from_iccs(vec![
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001010110]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110101001]),
+    /// ]).unwrap();
+    /// assert_eq!(mcm.swap(1, 0, 4), result_mcm);
+    /// ```
+    pub fn swap(&self, basis: usize, destination: usize, choice: usize) -> MinimallyComplexModel {
+        let mut iccs = self.partition.clone();
+
+        iccs[basis].toggle(choice);
+        iccs[destination].toggle(choice);
+
+        MinimallyComplexModel::from_iccs(iccs).unwrap()
+    }
+
     /// Returns the amount of ICCs present in this model.
     ///
     /// # Example
@@ -287,6 +368,85 @@ impl MinimallyComplexModel {
         }
 
         c_param + c_geom
+    }
+
+    /// Returns the amount of ICCs in the model with more than one variable.
+    ///
+    /// # Example
+    /// ```
+    /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
+    /// # use std::num::NonZero;
+    /// let mcm = MinimallyComplexModel::trivial(NonZero::new(5).unwrap());
+    /// assert_eq!(mcm.merge(2, 3).count_nontrivial_icc(), 1);
+    /// ```
+    pub fn count_nontrivial_icc(&self) -> usize {
+        self.partition
+            .iter()
+            .filter(|icc| icc.count_ones(..) > 1)
+            .count()
+    }
+
+    /// Returns a new MCM with a random ICC mutation
+    pub fn mutate(&self, rng: &mut rand::rngs::ThreadRng) -> MinimallyComplexModel {
+        let mut_type = if self.count_icc() == 1 {
+            MutationType::Split
+        } else if self.count_nontrivial_icc() == 0 {
+            MutationType::Merge
+        } else {
+            MutationType::rand(rng)
+        };
+
+        match mut_type {
+            MutationType::Merge => {
+                let targets = (0..self.count_icc()).sample(rng, 2);
+                self.merge(targets[0], targets[1])
+            }
+            MutationType::Split => {
+                let candidates: Vec<usize> = self
+                    .partition
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(nr, icc)| {
+                        if icc.count_ones(..) > 1 {
+                            Some(nr)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                let basis = candidates.choose(rng).unwrap();
+                let mut random_data: Vec<u64> = vec![0; self.variables().div_ceil(32)];
+                rng.fill(&mut random_data);
+
+                let split = FixedBitSet::with_capacity_and_blocks(
+                    self.variables(),
+                    random_data.into_iter().map(|n| n as usize),
+                );
+                self.split(*basis, split)
+            }
+            MutationType::Swap => {
+                let basis_candidates: Vec<usize> = self
+                    .partition
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(nr, icc)| {
+                        if icc.count_ones(..) > 1 {
+                            Some(nr)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                let basis = *basis_candidates.choose(rng).unwrap();
+                let destination = (0usize..self.count_icc())
+                    .filter(|n| *n != basis)
+                    .choose(rng)
+                    .unwrap();
+                let choice = self.partition[basis].ones().choose(rng).unwrap();
+
+                self.swap(basis, destination, choice)
+            }
+        }
     }
 
     /// Calculate the logarithm of the evidence of this MCM, via the equation
