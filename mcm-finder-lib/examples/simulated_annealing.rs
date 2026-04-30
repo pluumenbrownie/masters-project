@@ -1,7 +1,10 @@
-use miette::Result;
 use std::path::Path;
 
-use mcm_finder_lib::{AnnealingStarter, AnnealingTemperature, SimulatedAnnealingSearcher, Solver};
+use miette::Result;
+
+use mcm_finder_lib::solvers::{
+    AnnealingStarter, AnnealingTemperature, SimulatedAnnealingSearcher, Solver,
+};
 
 fn main() -> Result<()> {
     // let filepath = Path::new("mcm-finder-lib/tests/data/SCOTUS_n9_N895_Data.dat");

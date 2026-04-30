@@ -1,7 +1,8 @@
-use miette::Result;
 use std::path::Path;
 
-use mcm_finder_lib::{GreedySearcher, Solver};
+use miette::Result;
+
+use mcm_finder_lib::solvers::{GreedySearcher, Solver};
 
 fn main() -> Result<()> {
     // let dataset = Dataset::read_from_file(Path::new(
