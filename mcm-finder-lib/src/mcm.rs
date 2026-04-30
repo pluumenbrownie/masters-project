@@ -97,10 +97,24 @@ pub struct MinimallyComplexModel {
 
 impl MinimallyComplexModel {
     /// Create a new MCM with sorted ICCs.
-    fn new(partition: Vec<FixedBitSet>) -> MinimallyComplexModel {
-        let mut partition = partition;
-        partition.sort();
+    fn new_unsorted(partition: Vec<FixedBitSet>) -> MinimallyComplexModel {
         MinimallyComplexModel { partition }
+    }
+
+    /// Create a new MCM with sorted ICCs.
+    fn new(partition: Vec<FixedBitSet>) -> MinimallyComplexModel {
+        let mut mcm = MinimallyComplexModel::new_unsorted(partition);
+        mcm.sort_first_bit();
+        mcm
+    }
+
+    /// Returns an MCM from the given ICCs, with empty ICCs removed. Note that
+    /// ICCs in an MCM will be sorted so may have a different order from how they were
+    /// inserted.
+    fn new_remove_empty(partition: Vec<FixedBitSet>) -> MinimallyComplexModel {
+        let mut partition = partition;
+        partition.retain(|icc| icc.count_ones(..) > 0);
+        MinimallyComplexModel::new(partition)
     }
 
     /// Returns `true` if ICCs in array do not overlap anywhere. The ICCs do not
@@ -130,9 +144,21 @@ impl MinimallyComplexModel {
         true
     }
 
-    /// Returns the trivial MCM with each variable in a different partition. Note that
-    /// ICCs in an MCM will be sorted so may have a different order from how they were
-    /// inserted.
+    /// Sorts the ICCs in the MCM so that they look sorted by the first bit in
+    /// the ICC when displayed.
+    fn sort_first_bit(&mut self) {
+        self.partition.sort_by(|a, b| {
+            let a = a.as_slice().iter().map(|n| n.reverse_bits());
+            let b = b.as_slice().iter().map(|n| n.reverse_bits());
+            a.cmp(b).reverse()
+        });
+    }
+
+    /// Create a new MCM from the given list of ICCs.
+    ///
+    /// This function returns `Ok(MinimallyComplexModel)` when the supplied ICCs
+    /// have no overlap. Note that ICCs in an MCM will be sorted so may have a
+    /// different order from how they were inserted.
     ///
     /// # Examples
     /// ```
@@ -149,10 +175,7 @@ impl MinimallyComplexModel {
     /// ```
     pub fn from_iccs(partition: Vec<FixedBitSet>) -> Result<MinimallyComplexModel, MCMError> {
         if MinimallyComplexModel::verify_iccs(&partition) {
-            let mut partition = partition;
-            partition.retain(|icc| icc.count_ones(..) > 0);
-            partition.sort();
-            return Ok(MinimallyComplexModel { partition });
+            return Ok(MinimallyComplexModel::new_remove_empty(partition));
         }
         Err(MCMError::FromIccs)
     }
@@ -292,16 +315,16 @@ impl MinimallyComplexModel {
     /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
     /// # use fixedbitset::FixedBitSet;
     /// let mcm = MinimallyComplexModel::from_iccs(vec![
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
     ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111001]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
     /// ]).unwrap();
     /// let result_mcm = MinimallyComplexModel::from_iccs(vec![
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000010001]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
     ///     FixedBitSet::with_capacity_and_blocks(9, [0b110101000]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000010001]),
     /// ]).unwrap();
     /// let mark = FixedBitSet::with_capacity_and_blocks(9, [0b001010001]);
-    /// assert_eq!(mcm.split(1, mark), result_mcm);
+    /// assert_eq!(mcm.split(0, mark), result_mcm);
     /// ```
     pub fn split(&self, basis: usize, split: FixedBitSet) -> MinimallyComplexModel {
         let mut mask = split;
@@ -313,7 +336,7 @@ impl MinimallyComplexModel {
 
         iccs.push(new_icc);
 
-        MinimallyComplexModel::from_iccs(iccs).unwrap()
+        MinimallyComplexModel::new_remove_empty(iccs)
     }
 
     /// Swaps the given variable from the basis ICC into the destination ICC
@@ -338,7 +361,7 @@ impl MinimallyComplexModel {
         iccs[basis].toggle(choice);
         iccs[destination].toggle(choice);
 
-        MinimallyComplexModel::from_iccs(iccs).unwrap()
+        MinimallyComplexModel::new_remove_empty(iccs)
     }
 
     /// Returns the amount of ICCs present in this model.
@@ -458,8 +481,6 @@ impl MinimallyComplexModel {
     ) -> f64 {
         let mut log_e = 0f64;
 
-        let mut total_gamma_factor = 0f64;
-
         for part in self.partition.iter() {
             let rank_subset: i32 = part.count_ones(..).try_into().unwrap();
 
@@ -474,7 +495,6 @@ impl MinimallyComplexModel {
             };
 
             log_e += gamma_factor;
-            total_gamma_factor += gamma_factor;
             log_e += sum_of_partitions;
         }
 
