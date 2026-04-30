@@ -166,7 +166,6 @@ impl Solver for GreedySearcher {
             progress.set_description(format!("{parts_left} steps left"));
             for basis in 1..=parts_left {
                 for into in 0..basis {
-                    // generation.push(best_mcm.merge(basis, into));
                     let candidate = old_best.merge(basis, into);
                     if candidate
                         .log_e(&self.dataset, &mut log_e_cache)
@@ -180,13 +179,7 @@ impl Solver for GreedySearcher {
                     let _ = progress.update(1);
                 }
             }
-            // let candidate = generation
-            //     .iter()
-            //     .max_by(|&a, &b| a.log_e(&dataset).total_cmp(&b.log_e(&dataset)))
-            //     .unwrap();
-            // if new >= old
             if !new_best {
-                let _ = progress.update_to(length);
                 break;
             }
         }
@@ -202,10 +195,11 @@ pub enum AnnealingStarter {
     Trivial,
 }
 #[derive(Debug)]
-struct AnnealingTemperature {
+pub struct AnnealingTemperature {
     start: f64,
     end: f64,
     decrease_per_step: f64,
+    next_temp: Option<Box<AnnealingTemperature>>,
 }
 
 impl Default for AnnealingTemperature {
@@ -214,13 +208,132 @@ impl Default for AnnealingTemperature {
             start: 500.0,
             end: 5.0,
             decrease_per_step: 0.1,
+            next_temp: None,
         }
     }
 }
 impl AnnealingTemperature {
-    fn steps(&self) -> usize {
+    /// Create a new temperature curve for use in simulated annealing. The temperature
+    /// will start at `start` and then be decayed exponentially by removing
+    /// `temp * decrease_per_step` each step, until `temp < end`.
+    ///
+    /// The curve can be extended with an additional curve with different `end` and
+    /// `decrease_per_step` values with the `then()` method.
+    ///
+    /// # Examples
+    /// ```
+    /// # use mcm_finder_lib::AnnealingTemperature;
+    /// let temp_curve = AnnealingTemperature::new(10_000.0, 5.0, 0.0003).then(0.001, 0.00001);
+    /// ```
+    pub fn new(start: f64, end: f64, decrease_per_step: f64) -> AnnealingTemperature {
+        assert!(end > 0.0, "End temperature should be greater than zero.");
+        assert!(
+            start > end,
+            "Starting temperature should be greater than end temperature."
+        );
+        assert!(
+            decrease_per_step > 0.0 || decrease_per_step < 1.0,
+            "Decrease should be number between zero and one."
+        );
+        AnnealingTemperature {
+            start,
+            end,
+            decrease_per_step,
+            next_temp: None,
+        }
+    }
+
+    pub fn steps(&self) -> usize {
         let steps = (self.end / self.start).log2() / (1.0 - self.decrease_per_step).log2();
-        steps.ceil() as usize
+        match &self.next_temp {
+            Some(t) => steps.ceil() as usize + t.steps(),
+            None => steps.ceil() as usize,
+        }
+    }
+
+    fn set_next_none(&mut self, next_value: AnnealingTemperature) {
+        match &mut self.next_temp {
+            Some(at) => at.set_next_none(next_value),
+            None => self.next_temp = Some(Box::new(next_value)),
+        };
+    }
+
+    fn get_last_end(&self) -> f64 {
+        match &self.next_temp {
+            Some(at) => at.get_last_end(),
+            None => self.end,
+        }
+    }
+
+    /// Extend this temperature curve with an additional curve with different `end` and
+    /// `decrease_per_step` values.
+    ///
+    /// # Examples
+    /// ```
+    /// # use mcm_finder_lib::AnnealingTemperature;
+    /// let temp_curve = AnnealingTemperature::new(10_000.0, 5.0, 0.0003).then(0.001, 0.00001);
+    /// ```
+    pub fn then(mut self, end: f64, decrease_per_step: f64) -> Self {
+        let last_end = self.get_last_end();
+        self.set_next_none(AnnealingTemperature::new(last_end, end, decrease_per_step));
+        self
+    }
+
+    /// Returns iterator over the temperature values for this curve.
+    pub fn create_iter(&self) -> AnnealTempIter {
+        let mut iterator = AnnealTempIter::new(self.start, self.end, self.decrease_per_step, None);
+        iterator.next_temp = self.next_temp.as_ref().map(|t| Box::new(t.create_iter()));
+        iterator
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AnnealTempIter {
+    temp: f64,
+    end: f64,
+    decrease_per_step: f64,
+    next_temp: Option<Box<AnnealTempIter>>,
+}
+
+impl AnnealTempIter {
+    fn new(
+        temp: f64,
+        end: f64,
+        decrease_per_step: f64,
+        next_temp: Option<Box<AnnealTempIter>>,
+    ) -> AnnealTempIter {
+        AnnealTempIter {
+            temp,
+            end,
+            decrease_per_step,
+            next_temp,
+        }
+    }
+
+    pub fn get_current_target(&self) -> &f64 {
+        &self.end
+    }
+}
+
+impl Iterator for AnnealTempIter {
+    type Item = (f64, f64);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let output = if self.temp.total_cmp(&self.end).is_ge() {
+            Some((self.temp, self.end))
+        } else {
+            match &self.next_temp {
+                Some(t) => {
+                    self.end = t.end;
+                    self.decrease_per_step = t.decrease_per_step;
+                    self.next_temp = t.next_temp.clone();
+                    Some((self.temp, self.end))
+                }
+                None => None,
+            }
+        };
+        self.temp -= self.temp * self.decrease_per_step;
+        output
     }
 }
 
@@ -236,21 +349,8 @@ impl SimulatedAnnealingSearcher {
         self
     }
 
-    pub fn set_temperature(mut self, start: f64, end: f64, decrease_per_step: f64) -> Self {
-        assert!(end > 0.0, "End temperature should be greater than zero.");
-        assert!(
-            start > end,
-            "Starting temperature should be greater than end temperature."
-        );
-        assert!(
-            decrease_per_step > 0.0 || decrease_per_step < 1.0,
-            "Decrease should be number between zero and one."
-        );
-        self.temperature = AnnealingTemperature {
-            start,
-            end,
-            decrease_per_step,
-        };
+    pub fn set_temperature(mut self, temperature: AnnealingTemperature) -> Self {
+        self.temperature = temperature;
         self
     }
 }
@@ -283,13 +383,13 @@ impl Solver for SimulatedAnnealingSearcher {
         let mut best_mcm = current.clone();
         let mut best_log_e = current.log_e(&self.dataset, &mut log_e_cache);
 
-        let mut temp = self.temperature.start;
+        // let mut temp = self.temperature.start;
         let steps = self.temperature.steps();
         let mut progress = tqdm!(total = steps);
 
-        while temp > self.temperature.end {
+        // while temp > self.temperature.end {
+        for (temp, end) in self.temperature.create_iter() {
             let candidate = current.mutate(&mut rng);
-            // println!("{candidate}");
             let candidate_log_e = candidate.log_e(&self.dataset, &mut log_e_cache);
             let current_log_e = current.log_e(&self.dataset, &mut log_e_cache);
 
@@ -303,11 +403,7 @@ impl Solver for SimulatedAnnealingSearcher {
                 current = candidate;
             }
 
-            temp -= temp * self.temperature.decrease_per_step;
-            progress.set_description(format!(
-                "T={:.3}/{} - {:.1}",
-                temp, self.temperature.end, best_log_e
-            ));
+            progress.set_description(format!("T={:.3}/{} - {:.1}", temp, end, best_log_e));
             let _ = progress.update(1);
         }
         SolverReport::new(best_mcm, best_log_e, HashMap::new())
