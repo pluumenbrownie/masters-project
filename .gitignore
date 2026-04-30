@@ -6,3 +6,4 @@ target/*
 perf.data*
 flamegraph.svg
 *.log
+reports/

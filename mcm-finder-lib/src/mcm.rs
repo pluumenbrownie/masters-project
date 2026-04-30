@@ -150,10 +150,7 @@ impl MinimallyComplexModel {
     pub fn from_iccs(partition: Vec<FixedBitSet>) -> Result<MinimallyComplexModel, MCMError> {
         if MinimallyComplexModel::verify_iccs(&partition) {
             let mut partition = partition;
-            partition = partition
-                .into_iter()
-                .filter(|icc| icc.count_ones(..) > 0)
-                .collect();
+            partition.retain(|icc| icc.count_ones(..) > 0);
             partition.sort();
             return Ok(MinimallyComplexModel { partition });
         }
@@ -461,11 +458,12 @@ impl MinimallyComplexModel {
     ) -> f64 {
         let mut log_e = 0f64;
 
+        let mut total_gamma_factor = 0f64;
+
         for part in self.partition.iter() {
             let rank_subset: i32 = part.count_ones(..).try_into().unwrap();
 
-            let gamma_factor = ln_gamma(2.0f64.powi(rank_subset - 1))
-                - ln_gamma(dataset.datapoints() as f64 + 2.0f64.powi(rank_subset - 1));
+            let gamma_factor = gamma_factor(dataset, rank_subset);
 
             let sum_of_partitions = if let Some(cache) = log_e_cache {
                 *cache
@@ -476,6 +474,7 @@ impl MinimallyComplexModel {
             };
 
             log_e += gamma_factor;
+            total_gamma_factor += gamma_factor;
             log_e += sum_of_partitions;
         }
 
@@ -528,6 +527,16 @@ impl MinimallyComplexModel {
         }
 
         Ok(MinimallyComplexModel { partition: vectors })
+    }
+}
+
+fn gamma_factor<T: Dataset>(dataset: &T, rank_subset: i32) -> f64 {
+    let points = dataset.datapoints() as f64;
+    if rank_subset > 25 {
+        (-points * ((rank_subset - 1) as f64) * LN_2)
+            - (points * (points - 1.0)) / (2.0f64.powi(rank_subset))
+    } else {
+        ln_gamma(2.0f64.powi(rank_subset - 1)) - ln_gamma(points + 2.0f64.powi(rank_subset - 1))
     }
 }
 

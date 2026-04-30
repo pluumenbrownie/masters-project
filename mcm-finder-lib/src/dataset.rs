@@ -157,7 +157,7 @@ impl Dataset for VecDataset {
 impl LogE for VecDataset {
     fn log_e(&self) -> f64 {
         self.iter()
-            .map(|(_, k)| ln_gamma(*k as f64 + 0.5) - ln_gamma(0.5))
+            .map(|(_, k)| ln_gamma((*k) as f64 + 0.5) - ln_gamma(0.5))
             .sum::<f64>()
     }
 }
