@@ -1,3 +1,5 @@
+//! This module contains the main MinimallyComplexModel type.
+
 use fixedbitset::FixedBitSet;
 use miette::NamedSource;
 use rand::{

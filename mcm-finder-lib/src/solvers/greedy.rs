@@ -11,6 +11,16 @@ use crate::{
 
 pub struct GreedySearcher {
     pub(crate) dataset: VecDataset,
+    continue_after_minimum: bool,
+}
+
+impl GreedySearcher {
+    /// Toggle whether the greedy algorithm should stop searching when a step does not
+    /// generate a new minimum (default) or should finish all steps.
+    pub fn continue_after_minimum(mut self) -> Self {
+        self.continue_after_minimum = true;
+        self
+    }
 }
 
 impl Solver for GreedySearcher {
@@ -20,12 +30,14 @@ impl Solver for GreedySearcher {
     {
         Ok(GreedySearcher {
             dataset: VecDataset::read_from_file(filepath)?,
+            continue_after_minimum: false,
         })
     }
 
     fn solve(&self) -> SolverReport {
         let mut best_mcm =
             MinimallyComplexModel::trivial(NonZero::new(self.dataset.variables()).unwrap());
+        let mut gen_best = best_mcm.clone();
 
         // let mut best_mcm: MinimallyComplexModel = current.clone();
         let mut log_e_cache = Some(HashMap::new());
@@ -43,15 +55,26 @@ impl Solver for GreedySearcher {
         // we merge one partition each round
         let mut progress = tqdm!(total = length);
         for parts_left in (0usize..self.dataset.variables()).rev() {
+            let old_best = gen_best.clone();
             let mut new_best = false;
-            let old_best = best_mcm.clone();
             progress.set_description(format!("{parts_left} steps left"));
             for basis in 1..=parts_left {
                 for into in 0..basis {
                     let candidate = old_best.merge(basis, into);
+
+                    // update current best
                     if candidate
                         .log_e(&self.dataset, &mut log_e_cache)
-                        .total_cmp(&best_log_e)
+                        .total_cmp(&gen_best.log_e(&self.dataset, &mut log_e_cache))
+                        .is_ge()
+                    {
+                        gen_best = candidate.clone();
+                    }
+
+                    // update global best
+                    if candidate
+                        .log_e(&self.dataset, &mut log_e_cache)
+                        .total_cmp(&best_mcm.log_e(&self.dataset, &mut log_e_cache))
                         .is_ge()
                     {
                         best_mcm = candidate.clone();
@@ -61,7 +84,7 @@ impl Solver for GreedySearcher {
                     let _ = progress.update(1);
                 }
             }
-            if !new_best {
+            if !new_best & !self.continue_after_minimum {
                 break;
             }
         }

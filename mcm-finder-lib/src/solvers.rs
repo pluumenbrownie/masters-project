@@ -1,3 +1,5 @@
+//! This module contains all of the solvers and relevant traits in this library.
+
 mod annealing;
 mod exhaustive;
 mod greedy;

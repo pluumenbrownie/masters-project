@@ -1,3 +1,6 @@
+//! This module contains the different kinds of datasets and relevant traits in
+//! this library.
+
 use fixedbitset::FixedBitSet;
 use miette::NamedSource;
 use statrs::function::gamma::ln_gamma;
