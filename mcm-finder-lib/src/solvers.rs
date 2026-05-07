@@ -5,6 +5,7 @@ mod exhaustive;
 mod greedy;
 mod solvers_base;
 
+pub use annealing::anneal_temps::*;
 pub use annealing::*;
 pub use exhaustive::*;
 pub use greedy::*;
