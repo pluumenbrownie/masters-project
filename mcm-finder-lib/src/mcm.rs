@@ -30,12 +30,17 @@ enum MutationType {
 }
 
 impl MutationType {
-    /// Returns a random arm of this enum. `weight` gives the probability of
-    /// returning `MutationType::Split`.
-    fn rand(rng: &mut rand::rngs::ThreadRng) -> MutationType {
-        *[MutationType::Merge, MutationType::Split, MutationType::Swap]
-            .choose(rng)
-            .unwrap()
+    /// Returns a random arm of this enum. `merge_prob` gives the probability of
+    /// returning `MutationType::Merge`.
+    fn rand(rng: &mut rand::rngs::ThreadRng, merge_prob: f64) -> MutationType {
+        [
+            (MutationType::Merge, merge_prob),
+            (MutationType::Split, 1.0 - merge_prob / 2.0),
+            (MutationType::Swap, 1.0 - merge_prob / 2.0),
+        ]
+        .choose_weighted(rng, |item| item.1)
+        .map(|t| t.0)
+        .unwrap()
     }
 }
 
@@ -94,7 +99,7 @@ pub fn parameter_complexity_icc(spin_variables: NonZeroU32, n: usize) -> f64 {
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MinimallyComplexModel {
-    pub(crate) partition: Vec<FixedBitSet>,
+    partition: Vec<FixedBitSet>,
 }
 
 impl MinimallyComplexModel {
@@ -341,6 +346,36 @@ impl MinimallyComplexModel {
         MinimallyComplexModel::new_remove_empty(iccs)
     }
 
+    /// Split the marked variables from the basis ICC into a new ICC, and return a new MCM.
+    ///
+    /// # Examples
+    /// ```
+    /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
+    /// # use fixedbitset::FixedBitSet;
+    /// let mcm = MinimallyComplexModel::from_iccs(vec![
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111001]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+    /// ]).unwrap();
+    /// let result_mcm = MinimallyComplexModel::from_iccs(vec![
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
+    /// ]).unwrap();
+    /// println!("{}", mcm.split_one(0, 0));
+    /// assert_eq!(mcm.split_one(0, 0), result_mcm);
+    /// ```
+    pub fn split_one(&self, basis: usize, choice: usize) -> MinimallyComplexModel {
+        let mut iccs = self.partition.clone();
+        let mut new_icc = FixedBitSet::with_capacity_and_blocks(iccs[0].len(), [0b0]);
+
+        new_icc.set(choice, iccs[basis][choice]);
+        iccs[basis].remove(choice);
+
+        iccs.push(new_icc);
+
+        MinimallyComplexModel::new_remove_empty(iccs)
+    }
+
     /// Swaps the given variable from the basis ICC into the destination ICC
     ///
     /// # Examples
@@ -415,7 +450,7 @@ impl MinimallyComplexModel {
         } else if self.count_nontrivial_icc() == 0 {
             MutationType::Merge
         } else {
-            MutationType::rand(rng)
+            MutationType::rand(rng, 0.1)
         };
 
         match mut_type {
@@ -436,7 +471,7 @@ impl MinimallyComplexModel {
                         }
                     })
                     .collect();
-                let basis = candidates.choose(rng).unwrap();
+                let basis = *candidates.choose(rng).unwrap();
                 let mut random_data: Vec<u64> = vec![0; self.variables().div_ceil(32)];
                 rng.fill(&mut random_data);
 
@@ -444,7 +479,9 @@ impl MinimallyComplexModel {
                     self.variables(),
                     random_data.into_iter().map(|n| n as usize),
                 );
-                self.split(*basis, split)
+                self.split(basis, split)
+                // let choice = self.partition[basis].ones().choose(rng).unwrap();
+                // self.split_one(basis, choice)
             }
             MutationType::Swap => {
                 let basis_candidates: Vec<usize> = self
@@ -571,5 +608,26 @@ impl Display for MinimallyComplexModel {
             .collect();
         partition_string.pop();
         write!(f, "{}", partition_string)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct LogeMCMPair {
+    pub mcm: MinimallyComplexModel,
+    pub log_e: f64,
+}
+
+impl LogeMCMPair {
+    pub fn new(mcm: MinimallyComplexModel, log_e: f64) -> Self {
+        Self { mcm, log_e }
+    }
+
+    pub fn calculate<T: Dataset>(
+        mcm: MinimallyComplexModel,
+        dataset: &T,
+        log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
+    ) -> Self {
+        let log_e = mcm.log_e(dataset, log_e_cache);
+        Self { mcm, log_e }
     }
 }

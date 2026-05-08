@@ -23,9 +23,9 @@ pub enum AnnealingStarter {
 }
 
 pub struct SimulatedAnnealingSearcher {
-    pub(crate) dataset: VecDataset,
-    pub(crate) starter: AnnealingStarter,
-    pub(crate) temperature: AnnealingTemperature,
+     dataset: VecDataset,
+     starter: AnnealingStarter,
+     temperature: AnnealingTemperature,
 }
 
 impl SimulatedAnnealingSearcher {

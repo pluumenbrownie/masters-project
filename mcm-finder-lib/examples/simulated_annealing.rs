@@ -13,16 +13,16 @@ fn main() -> Result<()> {
 
     let solver = SimulatedAnnealingSearcher::from_file(filepath)?
         .set_temperature(
-            // AnnealingTemperature::exponential(10_000.0, 5.0, 0.0003)
-            //     .then_constant(10_000)
-            //     .then_exponential(0.001, 0.00001),
-            AnnealingTemperature::logarithmic(1_000_000.0, 1.0),
+            AnnealingTemperature::logarithmic(1_000_000.0, 1_000.0)
+                // .then_constant(10_000)
+                .then_exponential(0.001, 0.003),
+            // AnnealingTemperature::logarithmic(1_000_000.0, 1.0),
             // .then_exponential(5.0, 0.0003)
             // .then_constant(10_000)
             // .then_exponential(0.001, 0.00001),
         )
-        // .set_starter(AnnealingStarter::Trivial);
-        .set_starter(AnnealingStarter::Single);
+        .set_starter(AnnealingStarter::Trivial);
+    // .set_starter(AnnealingStarter::Single);
     let result = solver.solve();
     println!("{}", result);
     Ok(())

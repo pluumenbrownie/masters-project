@@ -11,7 +11,7 @@ use crate::{
 };
 
 pub struct ExhaustiveSearcher {
-    pub(crate) dataset: VecDataset,
+     dataset: VecDataset,
 }
 
 impl Solver for ExhaustiveSearcher {
@@ -42,7 +42,7 @@ impl Solver for ExhaustiveSearcher {
     }
 }
 
-pub(crate) fn generate_all_mcms(number: usize) -> Vec<MinimallyComplexModel> {
+ fn generate_all_mcms(number: usize) -> Vec<MinimallyComplexModel> {
     let mut output: Vec<Vec<usize>> = vec![];
     let mut current = vec![0usize; number];
 
@@ -63,7 +63,7 @@ pub(crate) fn generate_all_mcms(number: usize) -> Vec<MinimallyComplexModel> {
         .collect()
 }
 
-pub(crate) fn add_to(current: &mut Vec<usize>, index: usize, output: &mut Vec<Vec<usize>>) {
+ fn add_to(current: &mut Vec<usize>, index: usize, output: &mut Vec<Vec<usize>>) {
     loop {
         if index < current.len() - 1 {
             add_to(current, index + 1, output);

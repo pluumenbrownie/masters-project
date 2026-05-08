@@ -8,10 +8,10 @@ pub enum TempType {
 
 #[derive(Debug)]
 pub struct AnnealingTemperature {
-    pub(crate) start: f64,
-    pub(crate) end: f64,
-    pub(crate) temp_type: TempType,
-    pub(crate) next_temp: Option<Box<AnnealingTemperature>>,
+     start: f64,
+     end: f64,
+     temp_type: TempType,
+     next_temp: Option<Box<AnnealingTemperature>>,
 }
 
 impl Default for AnnealingTemperature {
@@ -129,14 +129,14 @@ impl AnnealingTemperature {
         self.create_iter().count()
     }
 
-    pub(crate) fn set_next_none(&mut self, next_value: AnnealingTemperature) {
+     fn set_next_none(&mut self, next_value: AnnealingTemperature) {
         match &mut self.next_temp {
             Some(at) => at.set_next_none(next_value),
             None => self.next_temp = Some(Box::new(next_value)),
         };
     }
 
-    pub(crate) fn get_last_end(&self) -> f64 {
+     fn get_last_end(&self) -> f64 {
         match &self.next_temp {
             Some(at) => at.get_last_end(),
             None => self.end,
@@ -250,7 +250,7 @@ pub struct AnnealTempIter {
 }
 
 impl AnnealTempIter {
-    pub(crate) fn new(
+     fn new(
         temp: f64,
         end: f64,
         temp_type: TempType,

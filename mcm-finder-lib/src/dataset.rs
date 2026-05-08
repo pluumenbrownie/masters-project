@@ -33,7 +33,7 @@ pub trait LogE {
     fn log_e(&self) -> f64;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VecDataset {
     data: Vec<(FixedBitSet, usize)>,
     datapoints: usize,

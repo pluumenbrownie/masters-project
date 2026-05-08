@@ -1,6 +1,6 @@
 pub mod dataset;
 pub mod mcm;
-pub(crate) mod mcm_error;
+mod mcm_error;
 pub mod solvers;
 
 // #[derive(Debug, Default)]
