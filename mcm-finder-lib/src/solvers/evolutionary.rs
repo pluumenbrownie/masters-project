@@ -127,6 +127,7 @@ pub struct EvolutionarySolver {
     survivors: usize,
     parent_selection_type: SelectionType,
     survivor_selection_type: SelectionType,
+    elitism: usize,
     rng: RefCell<ThreadRng>,
 }
 
@@ -145,6 +146,7 @@ impl Solver for EvolutionarySolver {
             survivors: 1000,
             parent_selection_type: SelectionType::Linear,
             survivor_selection_type: SelectionType::Linear,
+            elitism: 0,
             rng: RefCell::new(rand::rng()),
         })
     }
@@ -168,8 +170,8 @@ impl Solver for EvolutionarySolver {
                     .unwrap()
             ));
 
-            let survivors = self.survivor_selection(&fitness_generation);
-            generation = self.generate_children(survivors);
+            let survivors = self.survivor_selection(fitness_generation);
+            generation = self.generate_next_generation(survivors);
         }
 
         let best_mcm = generation
@@ -177,7 +179,14 @@ impl Solver for EvolutionarySolver {
             .map(|mcm| (mcm, mcm.log_e(&self.dataset, &mut log_e_cache)))
             .max_by(|a, b| a.1.total_cmp(&b.1))
             .unwrap();
-        SolverReport::new(best_mcm.0.clone(), best_mcm.1, HashMap::new())
+        SolverReport::new(
+            best_mcm.0.clone(),
+            best_mcm.1,
+            HashMap::from([(
+                "Unique ICCs covered".into(),
+                format!("{}", log_e_cache.unwrap().len()),
+            )]),
+        )
     }
 }
 
@@ -198,24 +207,47 @@ impl EvolutionarySolver {
 
     fn survivor_selection<'a>(
         &self,
-        generation: &[(&'a MinimallyComplexModel, f64)],
+        generation: Vec<(&'a MinimallyComplexModel, f64)>,
     ) -> Vec<(&'a MinimallyComplexModel, f64)> {
-        self.survivor_selection_type
-            .select(generation, self.survivors, &mut self.rng.borrow_mut())
+        let mut generation = generation;
+        // elitism
+        generation.sort_by(|a, b| a.1.total_cmp(&b.1));
+        let mut output = generation.split_off(generation.len() - self.elitism);
+        // normal selection
+        output.extend(self.survivor_selection_type.select(
+            &generation,
+            self.survivors,
+            &mut self.rng.borrow_mut(),
+        ));
+        output
+    }
+
+    fn generate_next_generation(
+        &self,
+        survivors: Vec<(&MinimallyComplexModel, f64)>,
+    ) -> Vec<MinimallyComplexModel> {
+        self.generate_children(survivors)
     }
 
     fn generate_children(
         &self,
         survivors: Vec<(&MinimallyComplexModel, f64)>,
     ) -> Vec<MinimallyComplexModel> {
-        let parents = self.parent_selection(survivors);
-        let mut next_generation = vec![];
+        let mut next_generation: Vec<MinimallyComplexModel> = survivors
+            .iter()
+            .take(self.elitism)
+            .map(|(mcm, _f)| *mcm)
+            .cloned()
+            .collect();
+
+        let parent_couples = (self.generation_size - self.elitism).div_ceil(2);
+        let parents = self.parent_selection(parent_couples, survivors);
 
         for (parent_a, parent_b) in parents {
-            let mut child_a = parent_a.mutate(&mut self.rng.borrow_mut());
-            let mut child_b = parent_b.mutate(&mut self.rng.borrow_mut());
+            let mut child_a = parent_a.clone();
+            let mut child_b = parent_b.clone();
 
-            for _ in 1..self.mutation_rate {
+            for _ in 0..self.mutation_rate {
                 child_a = child_a.mutate(&mut self.rng.borrow_mut());
                 child_b = child_b.mutate(&mut self.rng.borrow_mut());
             }
@@ -226,16 +258,22 @@ impl EvolutionarySolver {
             next_generation.push(child_b);
         }
 
+        // next_generation could be too long if self.generation_size - self.elitism is uneven.
+        if next_generation.len() > self.generation_size {
+            next_generation.pop();
+        }
+
         next_generation
     }
 
     fn parent_selection<'a>(
         &self,
+        parent_couples: usize,
         survivors: Vec<(&'a MinimallyComplexModel, f64)>,
     ) -> Vec<(&'a MinimallyComplexModel, &'a MinimallyComplexModel)> {
         let mut output = vec![];
 
-        for _ in 0..self.generation_size.div_ceil(2) {
+        for _ in 0..parent_couples {
             let pair = self
                 .parent_selection_type
                 .select(&survivors, 2, &mut self.rng.borrow_mut());
@@ -318,6 +356,12 @@ impl EvolutionarySolver {
         self
     }
 
+    /// Set the crossover chance of the variables.
+    pub fn set_crossover_probability(mut self, probability: f64) -> Self {
+        self.crossover_probability = probability;
+        self
+    }
+
     /// Set the type of selection to use for parent selection.
     pub fn set_parent_selection(mut self, selection_type: SelectionType) -> Self {
         self.parent_selection_type = selection_type;
@@ -327,6 +371,13 @@ impl EvolutionarySolver {
     /// Set the type of selection to use for survivor selection.
     pub fn set_survivor_selection(mut self, selection_type: SelectionType) -> Self {
         self.survivor_selection_type = selection_type;
+        self
+    }
+
+    /// Set how many of the best generated models each generation are guaranteed to
+    /// survive to the next generation.
+    pub fn set_elitism(mut self, amount: usize) -> Self {
+        self.elitism = amount;
         self
     }
 }
