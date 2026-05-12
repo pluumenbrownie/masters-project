@@ -92,6 +92,13 @@ impl Solver for SimulatedAnnealingSearcher {
             progress.set_description(format!("T={:.3}/{} - {:.1}", temp, end, best_log_e));
             let _ = progress.update(1);
         }
-        SolverReport::new(best_mcm, best_log_e, HashMap::new())
+        SolverReport::new(
+            best_mcm,
+            best_log_e,
+            HashMap::from([(
+                "Unique ICCs covered".into(),
+                format!("{}", log_e_cache.unwrap().len()),
+            )]),
+        )
     }
 }

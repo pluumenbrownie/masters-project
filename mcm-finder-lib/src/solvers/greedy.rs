@@ -199,6 +199,13 @@ impl Solver for GreedySearcher {
             }
         }
 
-        SolverReport::new(best_mcm.mcm, best_mcm.log_e, HashMap::new())
+        SolverReport::new(
+            best_mcm.mcm,
+            best_mcm.log_e,
+            HashMap::from([(
+                "Unique ICCs covered".into(),
+                format!("{}", log_e_cache.unwrap().len()),
+            )]),
+        )
     }
 }
