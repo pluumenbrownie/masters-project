@@ -1,5 +1,7 @@
 use std::{collections::HashMap, fmt::Display, marker::Sized, path::Path};
 
+use fixedbitset::FixedBitSet;
+
 use crate::{mcm::MinimallyComplexModel, mcm_error::MCMError};
 
 /// A class contaning the result of a `Solver`. Contains:
@@ -59,4 +61,8 @@ pub trait Solver {
     ///
     /// Returns a `SolverReport` which can be printed or used further.
     fn solve(&self) -> SolverReport;
+}
+
+pub(crate) fn get_log_e_cache() -> Option<HashMap<FixedBitSet, f64>> {
+    Some(HashMap::new())
 }

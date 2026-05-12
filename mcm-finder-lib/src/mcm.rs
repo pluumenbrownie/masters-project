@@ -187,6 +187,83 @@ impl MinimallyComplexModel {
         Err(MCMError::FromIccs)
     }
 
+    /// Create a new MCM from the given vector of numbers.
+    ///
+    /// The numbers in the vector should correspond to the ICC the variable of that
+    /// index is a part of. '1' means that variable belongs to the first ICC. '0' means
+    /// that variable is not included in the model.
+    ///
+    /// Note that ICCs in an MCM will be sorted so may have a different order from how
+    /// they were inserted.
+    ///
+    /// # Examples
+    /// ```
+    /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
+    /// # use fixedbitset::FixedBitSet;
+    /// let mut partition = vec!(
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
+    /// );
+    /// let test_mcm = MinimallyComplexModel::from_iccs(partition).unwrap();
+    /// assert_eq!(MinimallyComplexModel::from_vector(vec![1, 2, 2, 3, 3, 3, 2, 3, 3]), test_mcm);
+    /// ```
+    pub fn from_vector(vector: Vec<usize>) -> MinimallyComplexModel {
+        let mut sorted = vector.clone();
+        sorted.sort();
+        sorted.dedup();
+        sorted.retain(|&n| n > 0);
+        let icc_amount = sorted.len();
+        let map: Vec<(usize, &usize)> = sorted.iter().enumerate().collect();
+
+        let icc_vector: Vec<usize> = vector
+            .into_iter()
+            .map(|n| match n {
+                0 => 0,
+                1.. => map
+                    .iter()
+                    .find_map(|(nr, m)| if **m == n { Some(nr + 1) } else { None })
+                    .unwrap(),
+            })
+            .collect();
+
+        let mut iccs =
+            vec![FixedBitSet::with_capacity_and_blocks(icc_vector.len(), [0]); icc_amount];
+        for (nr, icc) in icc_vector.into_iter().enumerate() {
+            if icc > 0 {
+                iccs[icc - 1].set(nr, true);
+            }
+        }
+
+        MinimallyComplexModel::new(iccs)
+    }
+
+    /// Turn this MCM into a vector of integers representing the ICC each variable is
+    /// included in. '1' means that variable belongs to the first ICC. '0' means that
+    /// variable is not included in the model.
+    ///
+    /// # Examples
+    /// ```
+    /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
+    /// # use fixedbitset::FixedBitSet;
+    /// let mut partition = vec!(
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
+    /// );
+    /// let mcm = MinimallyComplexModel::from_iccs(partition).unwrap();
+    /// assert_eq!(mcm.to_vector(), vec![1, 2, 2, 3, 3, 3, 2, 3, 3]);
+    /// ```
+    pub fn to_vector(&self) -> Vec<usize> {
+        let mut output = vec![0usize; self.variables()];
+        for (nr, icc) in self.partition.iter().enumerate() {
+            for variable in icc.ones() {
+                output[variable] = nr + 1;
+            }
+        }
+        output
+    }
+
     /// Returns an MCM with a single partition.
     ///
     /// # Examples
@@ -608,26 +685,5 @@ impl Display for MinimallyComplexModel {
             .collect();
         partition_string.pop();
         write!(f, "{}", partition_string)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct LogeMCMPair {
-    pub mcm: MinimallyComplexModel,
-    pub log_e: f64,
-}
-
-impl LogeMCMPair {
-    pub fn new(mcm: MinimallyComplexModel, log_e: f64) -> Self {
-        Self { mcm, log_e }
-    }
-
-    pub fn calculate<T: Dataset>(
-        mcm: MinimallyComplexModel,
-        dataset: &T,
-        log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
-    ) -> Self {
-        let log_e = mcm.log_e(dataset, log_e_cache);
-        Self { mcm, log_e }
     }
 }

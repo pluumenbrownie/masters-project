@@ -7,7 +7,10 @@ use crate::{
     dataset::{Dataset, VecDataset},
     mcm::MinimallyComplexModel,
     mcm_error::MCMError,
-    solvers::solvers_base::{Solver, SolverReport},
+    solvers::{
+        get_log_e_cache,
+        solvers_base::{Solver, SolverReport},
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -171,7 +174,7 @@ impl Solver for GreedySearcher {
     }
 
     fn solve(&self) -> SolverReport {
-        let mut log_e_cache = Some(HashMap::new());
+        let mut log_e_cache = get_log_e_cache();
 
         let mut best_mcm = LogeMCM::calculate(
             MinimallyComplexModel::trivial(NonZero::new(self.dataset.variables()).unwrap()),

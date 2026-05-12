@@ -9,6 +9,7 @@ use crate::{
     mcm_error::MCMError,
     solvers::{
         anneal_temps::AnnealingTemperature,
+        get_log_e_cache,
         solvers_base::{Solver, SolverReport},
     },
 };
@@ -23,9 +24,9 @@ pub enum AnnealingStarter {
 }
 
 pub struct SimulatedAnnealingSearcher {
-     dataset: VecDataset,
-     starter: AnnealingStarter,
-     temperature: AnnealingTemperature,
+    dataset: VecDataset,
+    starter: AnnealingStarter,
+    temperature: AnnealingTemperature,
 }
 
 impl SimulatedAnnealingSearcher {
@@ -63,7 +64,7 @@ impl Solver for SimulatedAnnealingSearcher {
         };
 
         let mut rng = rand::rng();
-        let mut log_e_cache = Some(HashMap::new());
+        let mut log_e_cache = get_log_e_cache();
 
         let mut best_mcm = current.clone();
         let mut best_log_e = current.log_e(&self.dataset, &mut log_e_cache);
