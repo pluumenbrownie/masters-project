@@ -10,11 +10,12 @@ fn main() -> Result<()> {
     // let filepath = Path::new("mcm-finder-lib/tests/data/Big5PT.sorted");
 
     let solver = EvolutionarySolver::from_file(filepath)?
-        .set_generations(100)
-        .set_generation_size(100)
+        .set_generations(10000)
+        .set_generation_size(4)
+        .set_survivors(2)
         .set_shuffle_steps(150)
         .set_mutation_rate(1)
-        .set_parent_selection(SelectionType::Linear)
+        .set_parent_selection(SelectionType::Exponential)
         .set_survivor_selection(SelectionType::Linear)
         .set_elitism(1)
         .set_crossover_probability(0.3);

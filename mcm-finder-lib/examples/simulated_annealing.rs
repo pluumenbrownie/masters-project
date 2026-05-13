@@ -14,8 +14,8 @@ fn main() -> Result<()> {
     let solver = SimulatedAnnealingSearcher::from_file(filepath)?
         .set_temperature(
             AnnealingTemperature::logarithmic(1_000_000.0, 1_000.0)
-                // .then_constant(10_000)
-                .then_exponential(0.001, 0.003),
+                .then_constant(10_000)
+                .then_exponential(0.0001, 0.002),
             // AnnealingTemperature::logarithmic(1_000_000.0, 1.0),
             // .then_exponential(5.0, 0.0003)
             // .then_constant(10_000)

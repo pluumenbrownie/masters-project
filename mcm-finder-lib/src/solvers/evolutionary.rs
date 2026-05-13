@@ -136,14 +136,16 @@ impl Solver for EvolutionarySolver {
     where
         Self: Sized,
     {
+        let dataset = VecDataset::read_from_file(filepath)?;
+        let variables = dataset.variables();
         Ok(EvolutionarySolver {
-            dataset: VecDataset::read_from_file(filepath)?,
-            generation_size: 30000,
-            generations: 100,
-            shuffle_steps: 1000,
-            crossover_probability: 0.5,
+            dataset,
+            generations: 10_000,
+            generation_size: 4,
+            shuffle_steps: 2 * variables,
+            crossover_probability: 0.3,
             mutation_rate: 1,
-            survivors: 1000,
+            survivors: 2,
             parent_selection_type: SelectionType::Linear,
             survivor_selection_type: SelectionType::Linear,
             elitism: 0,
