@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["mcm-finder-lib"]
+members = ["mcm-finder-lib", "mcm-finder-tui"]
 
 [profile.release]
 debug = true
