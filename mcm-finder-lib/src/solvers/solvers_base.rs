@@ -1,5 +1,6 @@
-use std::{collections::HashMap, fmt::Display, marker::Sized, path::Path};
+use std::{collections::HashMap, fmt::Display, marker::Sized, path::Path, sync::Arc};
 
+use dashmap::DashMap;
 use fixedbitset::FixedBitSet;
 
 use crate::{mcm::MinimallyComplexModel, mcm_error::MCMError};
@@ -65,4 +66,8 @@ pub trait Solver {
 
 pub(crate) fn get_log_e_cache() -> Option<HashMap<FixedBitSet, f64>> {
     Some(HashMap::new())
+}
+
+pub(crate) fn get_par_log_e_cache() -> Option<Arc<DashMap<FixedBitSet, f64>>> {
+    Some(Arc::new(DashMap::new()))
 }

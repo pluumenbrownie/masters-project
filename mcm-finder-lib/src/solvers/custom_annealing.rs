@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, num::NonZero, path::Path};
 
 use fixedbitset::FixedBitSet;
-use kdam::{Bar, BarExt, tqdm};
+use kdam::{BarExt, tqdm};
 use rand::{RngExt, rngs::ThreadRng};
 
 use crate::{

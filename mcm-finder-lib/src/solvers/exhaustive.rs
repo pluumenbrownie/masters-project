@@ -51,7 +51,7 @@ fn generate_all_mcms(number: usize) -> Vec<MinimallyComplexModel> {
     output
         .into_iter()
         .map(|v| {
-            let mut partitions: Vec<crate::mcm::IndependentCompleteComponent> = vec![
+            let mut partitions: Vec<crate::mcm::icc::IndependentCompleteComponent> = vec![
                 FixedBitSet::with_capacity_and_blocks(number, [0b000000000])
                     .into();
                 *v.iter().max().unwrap() + 1

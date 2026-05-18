@@ -7,24 +7,25 @@ use rand::{
     RngExt,
     seq::{IndexedRandom, IteratorRandom},
 };
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use statrs::function::gamma::ln_gamma;
 use std::{
-    cell::OnceCell,
     collections::HashMap,
     f64::consts::{LN_2, PI},
     fmt::Display,
     fs::File,
     io::{BufReader, Read},
     num::{NonZeroU32, NonZeroUsize},
-    ops::{BitAnd, BitAndAssign, BitOrAssign, Deref, DerefMut},
     path::Path,
     sync::Arc,
 };
 
 use crate::{
-    dataset::{Dataset, LogE, line_length_tracker, verify_ascii},
+    dataset::{Dataset, line_length_tracker, verify_ascii},
     mcm_error::MCMError,
 };
+
+pub mod icc;
 
 #[derive(Debug, Clone, Copy)]
 enum MutationType {
@@ -103,17 +104,17 @@ pub fn parameter_complexity_icc(spin_variables: NonZeroU32, n: usize) -> f64 {
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MinimallyComplexModel {
-    partition: Vec<IndependentCompleteComponent>,
+    partition: Vec<icc::IndependentCompleteComponent>,
 }
 
 impl MinimallyComplexModel {
     /// Create a new MCM with sorted ICCs.
-    fn new_unsorted(partition: Vec<IndependentCompleteComponent>) -> MinimallyComplexModel {
+    fn new_unsorted(partition: Vec<icc::IndependentCompleteComponent>) -> MinimallyComplexModel {
         MinimallyComplexModel { partition }
     }
 
     /// Create a new MCM with sorted ICCs.
-    fn new(partition: Vec<IndependentCompleteComponent>) -> MinimallyComplexModel {
+    fn new(partition: Vec<icc::IndependentCompleteComponent>) -> MinimallyComplexModel {
         let mut mcm = MinimallyComplexModel::new_unsorted(partition);
         mcm.sort_first_bit();
         mcm
@@ -122,7 +123,9 @@ impl MinimallyComplexModel {
     /// Returns an MCM from the given ICCs, with empty ICCs removed. Note that
     /// ICCs in an MCM will be sorted so may have a different order from how they were
     /// inserted.
-    fn new_remove_empty(partition: Vec<IndependentCompleteComponent>) -> MinimallyComplexModel {
+    fn new_remove_empty(
+        partition: Vec<icc::IndependentCompleteComponent>,
+    ) -> MinimallyComplexModel {
         let mut partition = partition;
         partition.retain(|icc| icc.count_ones(..) > 0);
         MinimallyComplexModel::new(partition)
@@ -144,7 +147,7 @@ impl MinimallyComplexModel {
     /// partition[1].set(0, true);
     /// assert!(!MinimallyComplexModel::verify_iccs(&partition));
     /// ```
-    pub fn verify_iccs(partition: &[IndependentCompleteComponent]) -> bool {
+    pub fn verify_iccs(partition: &[icc::IndependentCompleteComponent]) -> bool {
         for (nr, one) in partition.iter().enumerate() {
             for two in &partition[(nr + 1)..] {
                 if !(one & two).is_clear() {
@@ -185,7 +188,7 @@ impl MinimallyComplexModel {
     /// assert_eq!(mcm.count_icc(), 3);
     /// ```
     pub fn from_iccs(
-        partition: Vec<IndependentCompleteComponent>,
+        partition: Vec<icc::IndependentCompleteComponent>,
     ) -> Result<MinimallyComplexModel, MCMError> {
         if MinimallyComplexModel::verify_iccs(&partition) {
             return Ok(MinimallyComplexModel::new_remove_empty(partition));
@@ -233,7 +236,7 @@ impl MinimallyComplexModel {
             })
             .collect();
 
-        let mut iccs: Vec<IndependentCompleteComponent> = vec![
+        let mut iccs: Vec<icc::IndependentCompleteComponent> = vec![
             FixedBitSet::with_capacity_and_blocks(continuous_vector.len(), [0])
                 .into();
             icc_amount
@@ -392,7 +395,7 @@ impl MinimallyComplexModel {
     /// assert_eq!(mcm.merge(2, 0), result_mcm);
     /// ```
     pub fn merge(&self, basis: usize, into: usize) -> MinimallyComplexModel {
-        let mut iccs: Vec<IndependentCompleteComponent> =
+        let mut iccs: Vec<icc::IndependentCompleteComponent> =
             self.partition.iter().map(|i| i.full_clone()).collect();
         // let mut iccs = self.partition.clone();
 
@@ -422,7 +425,7 @@ impl MinimallyComplexModel {
     /// ```
     pub fn split(&self, basis: usize, split: FixedBitSet) -> MinimallyComplexModel {
         let mut mask = split.into();
-        let mut iccs: Vec<IndependentCompleteComponent> =
+        let mut iccs: Vec<icc::IndependentCompleteComponent> =
             self.partition.iter().map(|i| i.full_clone()).collect();
         // let mut iccs = self.partition.clone();
         let new_icc = &iccs[basis] & &mask;
@@ -454,7 +457,7 @@ impl MinimallyComplexModel {
     /// assert_eq!(mcm.split_one(0, 0), result_mcm);
     /// ```
     pub fn split_one(&self, basis: usize, choice: usize) -> MinimallyComplexModel {
-        let mut iccs: Vec<IndependentCompleteComponent> =
+        let mut iccs: Vec<icc::IndependentCompleteComponent> =
             self.partition.iter().map(|i| i.full_clone()).collect();
         // let mut iccs = self.partition.clone();
         let mut new_icc = FixedBitSet::with_capacity_and_blocks(iccs[0].len(), [0b0]);
@@ -484,7 +487,7 @@ impl MinimallyComplexModel {
     /// assert_eq!(mcm.swap(1, 0, 4), result_mcm);
     /// ```
     pub fn swap(&self, basis: usize, destination: usize, choice: usize) -> MinimallyComplexModel {
-        let mut iccs: Vec<IndependentCompleteComponent> =
+        let mut iccs: Vec<icc::IndependentCompleteComponent> =
             self.partition.iter().map(|i| i.full_clone()).collect();
 
         iccs[basis].toggle(choice);
@@ -614,9 +617,13 @@ impl MinimallyComplexModel {
 
         for icc in self.partition.iter() {
             if let Some(cache) = log_e_cache {
-                log_e += *cache
-                    .entry(icc.bits.clone())
-                    .or_insert_with(|| icc.log_e(dataset));
+                if let Some(icc_log_e) = icc.log_e.get() {
+                    log_e += icc_log_e;
+                } else {
+                    log_e += *cache
+                        .entry(icc.bits.clone())
+                        .or_insert_with(|| icc.log_e(dataset));
+                }
             } else {
                 log_e += icc.log_e(dataset);
             }
@@ -628,22 +635,28 @@ impl MinimallyComplexModel {
     }
 
     /// Calculate the logarithm of the evidence of this MCM, parallelized with Rayon.
-    pub fn par_log_e<T: Dataset>(
+    pub fn par_log_e<T: Dataset + Sync>(
         &self,
         dataset: &T,
         log_e_cache: &Option<Arc<DashMap<FixedBitSet, f64>>>,
     ) -> f64 {
-        let mut log_e = 0f64;
-
-        for icc in self.partition.iter() {
-            if let Some(cache) = log_e_cache {
-                log_e += *cache
-                    .entry(icc.bits.clone())
-                    .or_insert_with(|| icc.log_e(dataset));
-            } else {
-                log_e += icc.log_e(dataset);
-            }
-        }
+        let log_e: f64 = self
+            .partition
+            .par_iter()
+            .map(|icc| {
+                if let Some(cache) = log_e_cache {
+                    if let Some(icc_log_e) = icc.log_e.get() {
+                        *icc_log_e
+                    } else {
+                        *cache
+                            .entry(icc.bits.clone())
+                            .or_insert_with(|| icc.log_e(dataset))
+                    }
+                } else {
+                    icc.log_e(dataset)
+                }
+            })
+            .sum();
 
         let front_constant: f64 =
             (dataset.datapoints() * (self.variables() - self.rank())) as f64 * LN_2;
@@ -651,7 +664,7 @@ impl MinimallyComplexModel {
     }
 
     pub fn read_from_file(path: &Path) -> Result<MinimallyComplexModel, MCMError> {
-        let mut iccs: Vec<IndependentCompleteComponent> = vec![];
+        let mut iccs: Vec<icc::IndependentCompleteComponent> = vec![];
         let filename = path.file_name().unwrap().to_str().unwrap().to_owned();
         let mut buf_reader = BufReader::new(File::open(path)?);
 
@@ -716,106 +729,5 @@ impl Display for MinimallyComplexModel {
             .collect();
         partition_string.pop();
         write!(f, "{}", partition_string)
-    }
-}
-
-#[derive(Debug)]
-pub struct IndependentCompleteComponent {
-    bits: FixedBitSet,
-    log_e: OnceCell<f64>,
-}
-
-impl IndependentCompleteComponent {
-    pub fn log_e<T: Dataset>(&self, dataset: &T) -> f64 {
-        *self.log_e.get_or_init(|| self.calculate_log_e(dataset))
-    }
-
-    fn calculate_log_e<T: Dataset>(&self, dataset: &T) -> f64 {
-        let rank_subset: i32 = self.count_ones(..).try_into().unwrap();
-
-        let gamma_factor = gamma_factor(dataset, rank_subset);
-
-        gamma_factor + dataset.transform_to_icc(self).log_e()
-    }
-
-    pub fn full_clone(&self) -> Self {
-        IndependentCompleteComponent {
-            bits: self.bits.clone(),
-            log_e: self.log_e.clone(),
-        }
-    }
-}
-
-impl Clone for IndependentCompleteComponent {
-    fn clone(&self) -> Self {
-        IndependentCompleteComponent {
-            bits: self.bits.clone(),
-            log_e: OnceCell::new(),
-        }
-    }
-}
-
-impl Display for IndependentCompleteComponent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.bits)
-    }
-}
-
-impl PartialEq for IndependentCompleteComponent {
-    fn eq(&self, other: &Self) -> bool {
-        self.bits == other.bits
-    }
-}
-
-impl Eq for IndependentCompleteComponent {}
-
-impl From<FixedBitSet> for IndependentCompleteComponent {
-    fn from(value: FixedBitSet) -> Self {
-        Self {
-            bits: value,
-            log_e: OnceCell::new(),
-        }
-    }
-}
-
-impl Deref for IndependentCompleteComponent {
-    type Target = FixedBitSet;
-    fn deref(&self) -> &Self::Target {
-        &self.bits
-    }
-}
-
-impl DerefMut for IndependentCompleteComponent {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.log_e = OnceCell::new();
-        &mut self.bits
-    }
-}
-
-impl BitAnd for &IndependentCompleteComponent {
-    type Output = IndependentCompleteComponent;
-    fn bitand(self, rhs: Self) -> Self::Output {
-        IndependentCompleteComponent::from(&self.bits & &rhs.bits)
-    }
-}
-
-impl BitOrAssign<&Self> for IndependentCompleteComponent {
-    fn bitor_assign(&mut self, rhs: &Self) {
-        self.log_e = OnceCell::new();
-        self.bits |= &rhs.bits;
-    }
-}
-
-impl BitAndAssign<&Self> for IndependentCompleteComponent {
-    fn bitand_assign(&mut self, rhs: &Self) {
-        self.log_e = OnceCell::new();
-        self.bits &= &rhs.bits;
-    }
-}
-
-impl BitAndAssign<Self> for IndependentCompleteComponent {
-    fn bitand_assign(&mut self, rhs: Self) {
-        self.log_e = OnceCell::new();
-        self.bits &= &rhs.bits;
     }
 }

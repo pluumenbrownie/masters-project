@@ -17,7 +17,7 @@ use crate::{
     mcm::MinimallyComplexModel,
     mcm_error::MCMError,
     solvers::{
-        AnnealingStarter, get_log_e_cache,
+        AnnealingStarter, get_par_log_e_cache,
         solvers_base::{Solver, SolverReport},
     },
 };
@@ -72,7 +72,7 @@ impl Solver for ParallelTemperingSearcher {
             .map(|t| TemperPool::new(starter.clone(), *t, &self.dataset))
             .collect();
 
-        let log_e_cache: Option<Arc<DashMap<FixedBitSet, f64>>> = Some(Arc::new(DashMap::new()));
+        let log_e_cache = get_par_log_e_cache();
         let bar = Arc::new(Mutex::new(par_tqdm!(
             total = self.shuffles * self.steps_per_shuffle * self.temperatures.len()
         )));
