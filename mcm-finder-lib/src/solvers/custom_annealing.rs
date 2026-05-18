@@ -9,26 +9,19 @@ use crate::{
     mcm::MinimallyComplexModel,
     mcm_error::MCMError,
     solvers::{
-        get_log_e_cache,
+        AnnealingStarter, get_log_e_cache,
         solvers_base::{Solver, SolverReport},
     },
 };
 
-#[derive(Debug, Default)]
-pub enum AdaptiveStarter {
-    Single,
-    #[default]
-    Trivial,
-}
-
 pub struct AdaptiveAnnealingSearcher {
     dataset: VecDataset,
-    starter: AdaptiveStarter,
+    starter: AnnealingStarter,
     temperature: RefCell<AdaptiveTemperature>,
 }
 
 impl AdaptiveAnnealingSearcher {
-    pub fn set_starter(mut self, starter: AdaptiveStarter) -> Self {
+    pub fn set_starter(mut self, starter: AnnealingStarter) -> Self {
         self.starter = starter;
         self
     }
@@ -64,17 +57,17 @@ impl Solver for AdaptiveAnnealingSearcher {
     {
         Ok(AdaptiveAnnealingSearcher {
             dataset: VecDataset::read_from_file(filepath)?,
-            starter: AdaptiveStarter::default(),
+            starter: AnnealingStarter::default(),
             temperature: AdaptiveTemperature::new(0.1, 100).into(),
         })
     }
 
     fn solve(&self) -> SolverReport {
         let mut current = match self.starter {
-            AdaptiveStarter::Single => {
+            AnnealingStarter::Single => {
                 MinimallyComplexModel::full(NonZero::new(self.dataset.variables()).unwrap())
             }
-            AdaptiveStarter::Trivial => {
+            AnnealingStarter::Trivial => {
                 MinimallyComplexModel::trivial(NonZero::new(self.dataset.variables()).unwrap())
             }
         };

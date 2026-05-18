@@ -5,6 +5,7 @@ mod custom_annealing;
 mod evolutionary;
 mod exhaustive;
 mod greedy;
+mod parallel_tempering;
 mod solvers_base;
 
 pub use annealing::anneal_temps::*;
@@ -13,4 +14,5 @@ pub use custom_annealing::*;
 pub use evolutionary::*;
 pub use exhaustive::*;
 pub use greedy::*;
+pub use parallel_tempering::*;
 pub use solvers_base::*;

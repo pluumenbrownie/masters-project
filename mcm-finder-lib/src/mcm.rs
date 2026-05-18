@@ -1,5 +1,6 @@
 //! This module contains the main MinimallyComplexModel type.
 
+use dashmap::DashMap;
 use fixedbitset::FixedBitSet;
 use miette::NamedSource;
 use rand::{
@@ -15,6 +16,7 @@ use std::{
     io::{BufReader, Read},
     num::{NonZeroU32, NonZeroUsize},
     path::Path,
+    sync::Arc,
 };
 
 use crate::{
@@ -594,6 +596,36 @@ impl MinimallyComplexModel {
         &self,
         dataset: &T,
         log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
+    ) -> f64 {
+        let mut log_e = 0f64;
+
+        for part in self.partition.iter() {
+            let rank_subset: i32 = part.count_ones(..).try_into().unwrap();
+
+            let gamma_factor = gamma_factor(dataset, rank_subset);
+
+            let sum_of_partitions = if let Some(cache) = log_e_cache {
+                *cache
+                    .entry(part.clone())
+                    .or_insert_with(|| dataset.transform_to_icc(part).log_e())
+            } else {
+                dataset.transform_to_icc(part).log_e()
+            };
+
+            log_e += gamma_factor;
+            log_e += sum_of_partitions;
+        }
+
+        let front_constant: f64 =
+            (dataset.datapoints() * (self.variables() - self.rank())) as f64 * LN_2;
+        log_e - front_constant
+    }
+
+    /// Calculate the logarithm of the evidence of this MCM, parallelized with Rayon.
+    pub fn par_log_e<T: Dataset>(
+        &self,
+        dataset: &T,
+        log_e_cache: &Option<Arc<DashMap<FixedBitSet, f64>>>,
     ) -> f64 {
         let mut log_e = 0f64;
 
