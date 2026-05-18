@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, num::NonZero, path::Path};
 
 use fixedbitset::FixedBitSet;
-use kdam::{BarExt, tqdm};
+use kdam::{Bar, BarExt, tqdm};
 use rand::{RngExt, rngs::ThreadRng};
 
 use crate::{
@@ -33,6 +33,8 @@ impl AdaptiveAnnealingSearcher {
         log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
     ) {
         let mut deltas_log_e_regressions: Vec<f64> = vec![];
+        let mut progress = tqdm!(total = 100, leave = true);
+        progress.set_description("Calculating initial temperature.");
 
         while deltas_log_e_regressions.len() < 100 {
             let old_log_e = current.log_e(&self.dataset, log_e_cache);
@@ -41,6 +43,7 @@ impl AdaptiveAnnealingSearcher {
 
             if new_log_e.total_cmp(&old_log_e).is_lt() {
                 deltas_log_e_regressions.push(new_log_e - old_log_e);
+                let _ = progress.update(1);
             }
         }
 
