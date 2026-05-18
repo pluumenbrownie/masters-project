@@ -34,7 +34,7 @@ impl AdaptiveAnnealingSearcher {
     ) {
         let mut deltas_log_e_regressions: Vec<f64> = vec![];
         let mut progress = tqdm!(total = 100, leave = true);
-        progress.set_description("Calculating initial temperature.");
+        progress.set_description("Calculating initial temperature");
 
         while deltas_log_e_regressions.len() < 100 {
             let old_log_e = current.log_e(&self.dataset, log_e_cache);
