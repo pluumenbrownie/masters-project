@@ -1,5 +1,5 @@
 {
-  description = "A devShell example";
+  description = "Flake containing all needed dependencies to reproduce this masters thesis.";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -19,6 +19,13 @@
         pkgs = import nixpkgs {
           inherit system overlays;
         };
+
+        python = pkgs.python3.override {
+          self = python;
+          packageOverrides = pyfinal: pyprev: {
+            # garage_admin_sdk = pyfinal.callPackage ./garage_sdk.nix {};
+          };
+        };
       in {
         devShells.default = with pkgs;
           mkShell {
@@ -30,6 +37,13 @@
               gcc
               cargo-flamegraph
               gnuplot
+
+              (python.withPackages
+                (pypkgs:
+                  with pypkgs; [
+                    torch
+                    numpy
+                  ]))
             ];
 
             shellHook = ''
