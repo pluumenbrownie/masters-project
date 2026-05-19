@@ -22,11 +22,21 @@ use crate::{
     },
 };
 
+/// How to calculate the temperatures of all of the tempering pools between the
+/// minimum (T0) and maximum (Tm) temperature.
 pub enum ParallelTemperatureCurve {
+    /// Uses linear interpolation between T0 and Tm.
     Linear,
+    /// Temperatures calculated using the inverse of the T0 and Tm.
+    ///
+    /// This one is pretty bad, don't use it.
     InverseLinear,
+
     Geometric,
     Exponential,
+    /// Show you're better than the machines by supplying your own temperatures.
+    ///
+    /// Requires `self.set_custom_temperatures()` to be set before starting the solve.
     Custom,
 }
 
@@ -44,11 +54,16 @@ pub struct ParallelTemperingSearcher {
 }
 
 impl ParallelTemperingSearcher {
+    /// Set the starting point for the algorithm
     pub fn set_starter(mut self, starter: AnnealingStarter) -> Self {
         self.starter = starter;
         self
     }
 
+    /// Set the desired temperatures for the tempering pools.
+    ///
+    /// The amount of temperatures must be at least 2. This option is ignored, unless
+    /// `self.set_temperature_curve(ParallelTemperatureCurve::Custom)` is set.
     pub fn set_custom_temperatures(mut self, temperatures: Vec<f64>) -> Self {
         self.custom_temperatures = temperatures;
         self
@@ -58,37 +73,61 @@ impl ParallelTemperingSearcher {
     ///
     /// If set to `0.0` (default), the solver will calculate it's own max temperature.
     /// Should only be set if you (think you) know better.
+    ///
+    /// Ignored if `self.set_temperature_curve(ParallelTemperatureCurve::Custom)` is set.
     pub fn set_max_temperature(mut self, temp: f64) -> Self {
         self.max_temperature = temp;
         self
     }
 
+    /// Sets the temperature of the lowers tempering pool. Must be lower than
+    /// `self.set_max_temperature()`.
+    ///
+    /// Ignored if `self.temperature_curve == ParallelTemperatureCurve::Custom` is set.
     pub fn set_min_temperature(mut self, temp: f64) -> Self {
         self.min_temperature = temp;
         self
     }
 
+    /// Sets the way the temperatures of the tempering pools should be distributed.
+    ///
+    /// Note that for `ParallelTemperingCurve::Custom`, you also need to set
+    /// `self.set_custom_temperatures()`
     pub fn set_temperature_curve(mut self, curve: ParallelTemperatureCurve) -> Self {
         self.temperature_curve = curve;
         self
     }
 
+    /// Sets the amount of tempering pools used.
+    ///
+    /// Default is set to the number of CPU threads, but you could also set this
+    /// higher, as the threads wait a lot for access to the log_e_cache.
+    ///
+    /// Ignored if `self.temperature_curve == ParallelTemperatureCurve::Custom`
+    /// is set.
     pub fn set_pools(mut self, pools: usize) -> Self {
         assert!(pools > 1, "Amount of pools should be at least 2.");
         self.pool_amount = pools;
         self
     }
 
+    /// Sets how many steps the tempering pools should temper, before exchanging
+    /// MCMs.
     pub fn set_steps_per_shuffle(mut self, steps: usize) -> Self {
         self.steps_per_shuffle = steps;
         self
     }
 
+    /// How many times the MCMs should be exchanged between tempering pools.
     pub fn set_shuffles(mut self, shuffles: usize) -> Self {
         self.shuffles = shuffles;
         self
     }
 
+    /// Sets the target acceptence probability of the dynamically calculated
+    /// maximum tempering temperature.
+    ///
+    /// Ignored when `self.max_temperature()` is set to a non-zero value.
     pub fn set_acception_fraction(mut self, fraction: f64) -> Self {
         self.acception_fraction = fraction;
         self
@@ -162,6 +201,42 @@ impl ParallelTemperingSearcher {
             })
             .collect()
     }
+
+    /// Here we want to use the user provided temperatures when
+    /// `ParallelTemperatureCurve::Custom` is provided, and calculate the temperatures
+    /// dynamically otherwise. Supplying `self.max_temperature` is optional.
+    fn calculate_temperatures(
+        &self,
+        log_e_cache: &Option<Arc<DashMap<FixedBitSet, f64>>>,
+        starter: &mut MinimallyComplexModel,
+    ) -> Vec<f64> {
+        let mut temperatures = if let ParallelTemperatureCurve::Custom = self.temperature_curve {
+            assert!(
+                self.custom_temperatures.len() > 2,
+                "At least 2 temperatures are required for custom temperature curve."
+            );
+            self.custom_temperatures.clone()
+        } else {
+            let max_temp = if self.max_temperature > 0.0 {
+                self.max_temperature
+            } else {
+                self.calculate_inital_temperature(starter, &mut rand::rng(), log_e_cache)
+            };
+            match self.temperature_curve {
+                ParallelTemperatureCurve::Linear => self.linear_temperatures(max_temp),
+                ParallelTemperatureCurve::InverseLinear => {
+                    self.inverse_linear_temperatures(max_temp)
+                }
+                ParallelTemperatureCurve::Geometric => self.geometric_temperatures(max_temp),
+                ParallelTemperatureCurve::Exponential => self.exponential_temperatures(max_temp),
+                ParallelTemperatureCurve::Custom => {
+                    unreachable!("Filtered out in above if statement.")
+                }
+            }
+        };
+        temperatures.sort_by(|a, b| b.total_cmp(a));
+        temperatures
+    }
 }
 
 impl Solver for ParallelTemperingSearcher {
@@ -176,7 +251,7 @@ impl Solver for ParallelTemperingSearcher {
             max_temperature: 0.0,
             min_temperature: 0.001,
             temperature_curve: ParallelTemperatureCurve::Linear,
-            pool_amount: 12,
+            pool_amount: std::thread::available_parallelism().unwrap().into(),
             steps_per_shuffle: 100,
             shuffles: 200,
             acception_fraction: 0.23,
@@ -195,31 +270,7 @@ impl Solver for ParallelTemperingSearcher {
             }
         };
 
-        let mut temperatures = if let ParallelTemperatureCurve::Custom = self.temperature_curve {
-            assert!(
-                self.custom_temperatures.len() > 2,
-                "At least 2 temperatures are required for custom temperature curve."
-            );
-            self.custom_temperatures.clone()
-        } else {
-            let max_temp = if self.max_temperature > 0.0 {
-                self.max_temperature
-            } else {
-                self.calculate_inital_temperature(&mut starter, &mut rand::rng(), &log_e_cache)
-            };
-            match self.temperature_curve {
-                ParallelTemperatureCurve::Linear => self.linear_temperatures(max_temp),
-                ParallelTemperatureCurve::InverseLinear => {
-                    self.inverse_linear_temperatures(max_temp)
-                }
-                ParallelTemperatureCurve::Geometric => self.geometric_temperatures(max_temp),
-                ParallelTemperatureCurve::Exponential => self.exponential_temperatures(max_temp),
-                ParallelTemperatureCurve::Custom => {
-                    unreachable!("Filtered out in above if statement.")
-                }
-            }
-        };
-        temperatures.sort_by(|a, b| b.total_cmp(a));
+        let temperatures = self.calculate_temperatures(&log_e_cache, &mut starter);
         println!("{:?}", temperatures);
 
         let mut pools: Vec<_> = temperatures
@@ -232,15 +283,9 @@ impl Solver for ParallelTemperingSearcher {
         )));
 
         for i in 0..self.shuffles {
-            pools.par_iter_mut().for_each_init(rand::rng, |rng, p| {
-                p.step_n(
-                    &self.dataset,
-                    rng,
-                    self.steps_per_shuffle,
-                    &log_e_cache,
-                    &bar,
-                )
-            });
+            pools
+                .par_iter_mut()
+                .for_each(|p| p.step_n(&self.dataset, self.steps_per_shuffle, &log_e_cache, &bar));
             let best_pool = pools
                 .iter()
                 .max_by(|a, b| a.best_log_e.total_cmp(&b.best_log_e))
@@ -295,6 +340,7 @@ impl TemperPool {
         }
     }
 
+    /// Perform a Metropolis step on the held `MinimallyComplexModel`.
     fn step(
         &mut self,
         dataset: &VecDataset,
@@ -316,20 +362,27 @@ impl TemperPool {
         }
     }
 
+    /// Perform n Metropolis steps. Also updates the progress bar.
     fn step_n(
         &mut self,
         dataset: &VecDataset,
-        rng: &mut ThreadRng,
         n: usize,
         log_e_cache: &Option<Arc<DashMap<FixedBitSet, f64>>>,
         bar: &Arc<Mutex<Bar>>,
     ) {
         for _ in 0..n {
-            self.step(dataset, rng, log_e_cache);
-            let _ = bar.lock().unwrap().update(1);
+            rayon::join(
+                || {
+                    let mut rng = rand::rng();
+                    self.step(dataset, &mut rng, log_e_cache);
+                },
+                || bar.lock().unwrap().update(1).unwrap(),
+            );
         }
     }
 
+    /// Stochatically swaps the `MinimallyComplesModel`s between this and the supplied
+    /// `TemperPool`.
     fn swap(&mut self, other: &mut TemperPool, rng: &mut ThreadRng) {
         let probability = ((1.0 / other.temperature - 1.0 / self.temperature)
             * (other.log_e - self.log_e))

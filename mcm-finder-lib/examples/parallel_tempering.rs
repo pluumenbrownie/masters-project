@@ -13,8 +13,7 @@ fn main() -> Result<()> {
 
     let solver = ParallelTemperingSearcher::from_file(filepath)?
         .set_starter(AnnealingStarter::Trivial)
-        .set_temperature_curve(ParallelTemperatureCurve::Exponential)
-        .set_pools(12);
+        .set_temperature_curve(ParallelTemperatureCurve::Exponential);
     // .set_starter(AnnealingStarter::Single);
     let result = solver.solve();
     println!("{}", result);
