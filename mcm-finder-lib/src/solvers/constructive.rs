@@ -1,7 +1,6 @@
-use std::{collections::HashMap, marker::Sized, num::NonZero, path::Path};
+use std::{collections::HashMap, marker::Sized, path::Path};
 
-use fixedbitset::FixedBitSet;
-use kdam::{Bar, BarExt, tqdm};
+use kdam::tqdm;
 
 use crate::{
     dataset::{Dataset, VecDataset},

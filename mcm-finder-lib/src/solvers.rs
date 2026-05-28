@@ -7,6 +7,7 @@ mod evolutionary;
 mod exhaustive;
 mod greedy;
 mod parallel_tempering;
+mod pso;
 mod solvers_base;
 
 pub use annealing::anneal_temps::*;
@@ -17,4 +18,5 @@ pub use evolutionary::*;
 pub use exhaustive::*;
 pub use greedy::*;
 pub use parallel_tempering::*;
+pub use pso::*;
 pub use solvers_base::*;
