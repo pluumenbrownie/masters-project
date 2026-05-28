@@ -10,16 +10,16 @@ use crate::{
     solvers::solvers_base::{Solver, SolverReport},
 };
 
-pub struct ExhaustiveSearcher {
+pub struct ExhaustiveSolver {
     dataset: VecDataset,
 }
 
-impl Solver for ExhaustiveSearcher {
+impl Solver for ExhaustiveSolver {
     fn from_file(filepath: &Path) -> Result<Self, MCMError>
     where
         Self: Sized,
     {
-        Ok(ExhaustiveSearcher {
+        Ok(ExhaustiveSolver {
             dataset: VecDataset::read_from_file(filepath)?,
         })
     }

@@ -3,7 +3,7 @@ use std::path::Path;
 use miette::Result;
 
 use mcm_finder_lib::solvers::{
-    AnnealingStarter, ParallelTemperatureCurve, ParallelTemperingSearcher, Solver,
+    AnnealingStarter, ParallelTemperatureCurve, ParallelTemperingSolver, Solver,
 };
 
 fn main() -> Result<()> {
@@ -11,7 +11,7 @@ fn main() -> Result<()> {
     let filepath = Path::new("mcm-finder-lib/tests/data/MNIST11.sorted");
     // let filepath = Path::new("mcm-finder-lib/tests/data/Big5PT.sorted");
 
-    let solver = ParallelTemperingSearcher::from_file(filepath)?
+    let solver = ParallelTemperingSolver::from_file(filepath)?
         .set_starter(AnnealingStarter::Trivial)
         .set_temperature_curve(ParallelTemperatureCurve::Linear)
         .set_steps_per_shuffle(20)

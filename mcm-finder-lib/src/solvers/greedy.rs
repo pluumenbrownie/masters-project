@@ -52,13 +52,13 @@ impl LogeMCM {
 }
 
 #[derive(Clone)]
-pub struct GreedySearcher {
+pub struct GreedySolver {
     dataset: VecDataset,
     lookahead_depth: usize,
     continue_after_minimum: bool,
 }
 
-impl GreedySearcher {
+impl GreedySolver {
     /// Toggle whether the greedy algorithm should stop searching when a step does not
     /// generate a new minimum (default) or should finish all steps.
     pub fn continue_after_minimum(mut self) -> Self {
@@ -161,12 +161,12 @@ fn update_if_deep_log_e_better(gen_best: Option<LogeMCM>, candidate: &LogeMCM) -
         .or(Some(candidate.clone()))
 }
 
-impl Solver for GreedySearcher {
+impl Solver for GreedySolver {
     fn from_file(filepath: &Path) -> Result<Self, MCMError>
     where
         Self: Sized,
     {
-        Ok(GreedySearcher {
+        Ok(GreedySolver {
             dataset: VecDataset::read_from_file(filepath)?,
             lookahead_depth: 0,
             continue_after_minimum: false,

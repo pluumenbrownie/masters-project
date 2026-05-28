@@ -14,13 +14,13 @@ use crate::{
     },
 };
 
-pub struct AdaptiveAnnealingSearcher {
+pub struct AdaptiveAnnealingSolver {
     dataset: VecDataset,
     starter: AnnealingStarter,
     temperature: RefCell<AdaptiveTemperature>,
 }
 
-impl AdaptiveAnnealingSearcher {
+impl AdaptiveAnnealingSolver {
     pub fn set_starter(mut self, starter: AnnealingStarter) -> Self {
         self.starter = starter;
         self
@@ -53,12 +53,12 @@ impl AdaptiveAnnealingSearcher {
     }
 }
 
-impl Solver for AdaptiveAnnealingSearcher {
+impl Solver for AdaptiveAnnealingSolver {
     fn from_file(filepath: &Path) -> Result<Self, MCMError>
     where
         Self: Sized,
     {
-        Ok(AdaptiveAnnealingSearcher {
+        Ok(AdaptiveAnnealingSolver {
             dataset: VecDataset::read_from_file(filepath)?,
             starter: AnnealingStarter::default(),
             temperature: AdaptiveTemperature::new(0.1, 100).into(),

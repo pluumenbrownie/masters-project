@@ -40,7 +40,7 @@ pub enum ParallelTemperatureCurve {
     Custom,
 }
 
-pub struct ParallelTemperingSearcher {
+pub struct ParallelTemperingSolver {
     dataset: VecDataset,
     starter: AnnealingStarter,
     custom_temperatures: Vec<f64>,
@@ -53,7 +53,7 @@ pub struct ParallelTemperingSearcher {
     acception_fraction: f64,
 }
 
-impl ParallelTemperingSearcher {
+impl ParallelTemperingSolver {
     /// Set the starting point for the algorithm
     pub fn set_starter(mut self, starter: AnnealingStarter) -> Self {
         self.starter = starter;
@@ -239,12 +239,12 @@ impl ParallelTemperingSearcher {
     }
 }
 
-impl Solver for ParallelTemperingSearcher {
+impl Solver for ParallelTemperingSolver {
     fn from_file(filepath: &Path) -> Result<Self, MCMError>
     where
         Self: Sized,
     {
-        Ok(ParallelTemperingSearcher {
+        Ok(ParallelTemperingSolver {
             dataset: VecDataset::read_from_file(filepath)?,
             starter: AnnealingStarter::default(),
             custom_temperatures: vec![],
