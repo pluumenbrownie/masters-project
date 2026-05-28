@@ -22,6 +22,7 @@ use std::{
 
 use crate::{
     dataset::{Dataset, line_length_tracker, verify_ascii},
+    mcm::icc::IndependentCompleteComponent,
     mcm_error::MCMError,
 };
 
@@ -109,7 +110,7 @@ pub struct MinimallyComplexModel {
 
 impl MinimallyComplexModel {
     /// Create a new MCM with sorted ICCs.
-    fn new_unsorted(partition: Vec<icc::IndependentCompleteComponent>) -> MinimallyComplexModel {
+    fn new_unsorted(partition: Vec<IndependentCompleteComponent>) -> MinimallyComplexModel {
         MinimallyComplexModel { partition }
     }
 
@@ -127,7 +128,13 @@ impl MinimallyComplexModel {
         partition: Vec<icc::IndependentCompleteComponent>,
     ) -> MinimallyComplexModel {
         let mut partition = partition;
+        let variables = partition[0].len();
         partition.retain(|icc| icc.count_ones(..) > 0);
+        if partition.is_empty() {
+            partition.push(IndependentCompleteComponent::from(
+                FixedBitSet::with_capacity_and_blocks(variables, [0]),
+            ));
+        }
         MinimallyComplexModel::new(partition)
     }
 
@@ -156,6 +163,15 @@ impl MinimallyComplexModel {
             }
         }
         true
+    }
+
+    /// Returns an empty MCM.
+    pub fn empty(variables: NonZeroUsize) -> MinimallyComplexModel {
+        MinimallyComplexModel {
+            partition: vec![IndependentCompleteComponent::from(
+                FixedBitSet::with_capacity_and_blocks(variables.into(), [0]),
+            )],
+        }
     }
 
     /// Sorts the ICCs in the MCM so that they look sorted by the first bit in
