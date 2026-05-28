@@ -187,7 +187,7 @@ impl Solver for GreedySearcher {
 
         // we merge one partition each round
         let mut progress = tqdm!(total = length);
-        for iccs_left in (0usize..self.dataset.variables()).rev() {
+        for iccs_left in (1usize..self.dataset.variables()).rev() {
             let original = gen_best.clone();
             progress.set_description(format!("{iccs_left} ICCs"));
             gen_best = self
