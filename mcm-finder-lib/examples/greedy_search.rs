@@ -9,8 +9,8 @@ fn main() -> Result<()> {
     // let filepath = Path::new("mcm-finder-lib/tests/data/MNIST11.sorted");
     // let filepath = Path::new("mcm-finder-lib/tests/data/MNIST14.sorted");
     // let filepath = Path::new("mcm-finder-lib/tests/data/MNIST22.sorted");
-    let filepath = Path::new("mcm-finder-lib/tests/data/MNIST28.sorted");
-    // let filepath = Path::new("mcm-finder-lib/tests/data/Big5PT.sorted");
+    // let filepath = Path::new("mcm-finder-lib/tests/data/MNIST28.sorted");
+    let filepath = Path::new("mcm-finder-lib/tests/data/Big5PT.sorted");
 
     let solver = GreedySolver::from_file(filepath)?
         .lookahead(0)

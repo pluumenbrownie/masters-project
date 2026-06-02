@@ -26,6 +26,9 @@ pub trait Dataset {
 
     /// Return the histogram of data for the given ICC.
     fn transform_to_icc(&self, icc: &FixedBitSet) -> impl LogE;
+
+    /// Returns the prevalence of each state of this variable.
+    fn state_prevalence(&self, variable: usize) -> Vec<usize>;
 }
 
 pub trait LogE {
@@ -154,6 +157,13 @@ impl Dataset for VecDataset {
                 .or_insert(n);
         }
         VecDataset::new(partitioned_map.into_iter().collect(), self.datapoints)
+    }
+
+    fn state_prevalence(&self, variable: usize) -> Vec<usize> {
+        let mut mask = FixedBitSet::with_capacity_and_blocks(self.variables(), [0]);
+        mask.set(variable, true);
+        let partition: VecDataset = self.transform_to_icc(&mask);
+        partition.iter().map(|(_, c)| *c).collect()
     }
 }
 
