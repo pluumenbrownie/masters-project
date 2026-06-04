@@ -724,6 +724,35 @@ impl MinimallyComplexModel {
 
         Ok(MinimallyComplexModel { partition: iccs })
     }
+
+    pub fn to_matrix(&self) -> Vec<FixedBitSet> {
+        let mut output =
+            vec![FixedBitSet::with_capacity_and_blocks(self.variables(), [0]); self.variables()];
+
+        for icc in self.partition.iter() {
+            for row in icc.bits.ones() {
+                for col in icc.bits.ones() {
+                    output[row].set(col, true);
+                }
+            }
+        }
+
+        output
+    }
+
+    pub fn jakkard_difference(&self, other: &MinimallyComplexModel) -> f64 {
+        let self_matrix = self.to_matrix();
+        let other_matrix = other.to_matrix();
+
+        let mut or_total = 0usize;
+        let mut and_total = 0usize;
+        for (s, o) in self_matrix.iter().zip(other_matrix.iter()) {
+            or_total += (s | o).count_ones(..);
+            and_total += (s & o).count_ones(..);
+        }
+
+        and_total as f64 / or_total as f64
+    }
 }
 
 fn gamma_factor<T: Dataset>(dataset: &T, rank_subset: i32) -> f64 {

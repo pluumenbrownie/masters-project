@@ -17,7 +17,7 @@ use crate::{
 #[derive(Clone, Copy)]
 pub enum PsoStrategy {
     Rounding,
-    ConstruciveOrder,
+    ConstructiveOrder,
 }
 
 #[derive(Clone)]
@@ -29,6 +29,7 @@ pub struct PsoSolver {
     momentum_weight: f64,
     cognitive_weight: f64,
     social_weight: f64,
+    steps: usize,
 }
 
 impl Solver for PsoSolver {
@@ -38,12 +39,13 @@ impl Solver for PsoSolver {
     {
         Ok(PsoSolver {
             dataset: VecDataset::read_from_file(filepath)?,
-            swarm_size: 16,
+            swarm_size: 64,
             starter_iccs: None,
             strategy: PsoStrategy::Rounding,
             momentum_weight: 0.8,
             cognitive_weight: 1.4,
             social_weight: 1.45,
+            steps: 1000,
         })
     }
 
@@ -53,7 +55,7 @@ impl Solver for PsoSolver {
 
         match self.strategy {
             PsoStrategy::Rounding => self.solve_rounding(&log_e_cache, &global_best),
-            PsoStrategy::ConstruciveOrder => {
+            PsoStrategy::ConstructiveOrder => {
                 self.solve_constuctive_order(&log_e_cache, &global_best)
             }
         }
@@ -97,6 +99,16 @@ impl PsoSolver {
         self
     }
 
+    pub fn set_swarm_size(mut self, swarm_size: usize) -> Self {
+        self.swarm_size = swarm_size;
+        self
+    }
+
+    pub fn set_steps(mut self, steps: usize) -> Self {
+        self.steps = steps;
+        self
+    }
+
     fn get_mcm_range(&self) -> usize {
         self.starter_iccs
             .unwrap_or_else(|| self.dataset.variables())
@@ -113,10 +125,12 @@ impl PsoSolver {
             swarm.push(Particle::new(
                 self.dataset.variables(),
                 global_best.clone(),
-                self.get_mcm_range() as f64 / 2.0,
-                self.momentum_weight,
-                self.cognitive_weight,
-                self.social_weight,
+                20.0,
+                Weights {
+                    momentum: self.momentum_weight,
+                    cognitive: self.cognitive_weight,
+                    social: self.social_weight,
+                },
                 log_e_cache.clone(),
                 &self.dataset,
                 &mut rng,
@@ -124,8 +138,8 @@ impl PsoSolver {
             ));
         }
 
-        let mut progress = tqdm!(total = 10_000);
-        for _ in 0..10_000 {
+        let mut progress = tqdm!(total = self.steps);
+        for _ in 0..self.steps {
             swarm.iter_mut().for_each(|p| p.evaluate(&self.dataset));
             swarm.iter_mut().for_each(|p| p.update(&mut rng));
 
@@ -149,19 +163,21 @@ impl PsoSolver {
             swarm.push(Particle::new(
                 self.dataset.variables(),
                 global_best.clone(),
-                self.get_mcm_range() as f64 / 2.0,
-                self.momentum_weight,
-                self.cognitive_weight,
-                self.social_weight,
+                20.0,
+                Weights {
+                    momentum: self.momentum_weight,
+                    cognitive: self.cognitive_weight,
+                    social: self.social_weight,
+                },
                 log_e_cache.clone(),
                 &self.dataset,
                 &mut rng,
-                PsoStrategy::ConstruciveOrder,
+                PsoStrategy::ConstructiveOrder,
             ));
         }
 
-        let mut progress = tqdm!(total = 1000);
-        for _ in 0..1000 {
+        let mut progress = tqdm!(total = self.steps);
+        for _ in 0..self.steps {
             swarm.iter_mut().for_each(|p| p.evaluate(&self.dataset));
             swarm.iter_mut().for_each(|p| p.update(&mut rng));
 
@@ -176,10 +192,15 @@ impl PsoSolver {
 }
 
 #[derive(Clone)]
+struct Weights {
+    momentum: f64,
+    cognitive: f64,
+    social: f64,
+}
+
+#[derive(Clone)]
 struct Particle {
-    momentum_weight: f64,
-    cognitive_weight: f64,
-    social_weight: f64,
+    weights: Weights,
     x: Vec<f64>,
     v: Option<Vec<f64>>,
     best_x: Option<Vec<f64>>,
@@ -193,19 +214,17 @@ impl Particle {
         variables: usize,
         global_best: Rc<RefCell<Option<Vec<f64>>>>,
         max_value: f64,
-        momentum_weight: f64,
-        cognitive_weight: f64,
-        social_weight: f64,
+        weights: Weights,
         cache: Rc<RefCell<Option<HashMap<FixedBitSet, f64>>>>,
         dataset: &VecDataset,
         rng: &mut ThreadRng,
         strategy: PsoStrategy,
     ) -> Particle {
-        let numbers = Vec::from_iter((0..variables).map(|_| rng.random_range(1.0..max_value)));
+        let numbers =
+            Vec::from_iter((0..variables).map(|_| rng.random_range(max_value..(max_value + 5.0))));
+        // let numbers = vec![5.0f64; variables];
         let mut particle = Particle {
-            momentum_weight,
-            cognitive_weight,
-            social_weight,
+            weights,
             x: numbers,
             v: None,
             best_x: None,
@@ -242,7 +261,7 @@ impl Particle {
     fn generate_mcm(&mut self, dataset: &VecDataset) -> MinimallyComplexModel {
         match self.strategy {
             PsoStrategy::Rounding => float_to_mcm(&self.x),
-            PsoStrategy::ConstruciveOrder => self.constructive_mcm(dataset),
+            PsoStrategy::ConstructiveOrder => self.constructive_mcm(dataset),
         }
     }
 
@@ -251,7 +270,7 @@ impl Particle {
 
         self.x.iter_mut().zip(velocity.iter()).for_each(|(x, v)| {
             *x += v;
-            *x = x.clamp(1.0, f64::MAX);
+            *x = x.clamp(0.51, f64::MAX);
         });
         self.v = Some(velocity);
     }
@@ -277,7 +296,7 @@ impl Particle {
                 .for_each(|value| *value = rng.random_range(-5.0f64..5.0));
             v
         });
-        v.iter_mut().for_each(|v| *v *= self.momentum_weight);
+        v.iter_mut().for_each(|v| *v *= self.weights.momentum);
         v
     }
 
@@ -287,7 +306,7 @@ impl Particle {
             .unwrap()
             .iter()
             .zip(self.x.iter())
-            .map(|(b, x)| (b - x) * rng.random_range(0.0f64..1.0) * self.cognitive_weight)
+            .map(|(b, x)| (b - x) * rng.random_range(0.0f64..1.0) * self.weights.cognitive)
             .collect()
     }
 
@@ -298,7 +317,7 @@ impl Particle {
             .unwrap()
             .iter()
             .zip(self.x.iter())
-            .map(|(b, x)| (b - x) * rng.random_range(0.0f64..1.0) * self.social_weight)
+            .map(|(b, x)| (b - x) * rng.random_range(0.0f64..1.0) * self.weights.social)
             .collect()
     }
 

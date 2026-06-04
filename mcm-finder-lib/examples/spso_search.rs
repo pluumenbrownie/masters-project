@@ -2,11 +2,7 @@ use std::path::Path;
 
 use miette::Result;
 
-use mcm_finder_lib::solvers::{
-    PsoSolver,
-    PsoStrategy::{ConstructiveOrder, Rounding},
-    Solver,
-};
+use mcm_finder_lib::solvers::{Solver, SpsoSolver};
 
 fn main() -> Result<()> {
     // let filepath = Path::new("mcm-finder-lib/tests/data/SCOTUS_n9_N895_Data.dat");
@@ -16,10 +12,7 @@ fn main() -> Result<()> {
     // let filepath = Path::new("mcm-finder-lib/tests/data/MNIST28.sorted");
     // let filepath = Path::new("mcm-finder-lib/tests/data/Big5PT.sorted");
 
-    let solver = PsoSolver::from_file(filepath)?
-        .set_strategy(ConstructiveOrder)
-        .set_momentum_weight(0.75)
-        .set_swarm_size(16);
+    let solver = SpsoSolver::from_file(filepath)?;
     let result = solver.solve();
     println!("{}", result);
     Ok(())

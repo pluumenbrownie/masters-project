@@ -10,5 +10,10 @@ fn main() -> Result<()> {
     let solver = ExhaustiveSolver::from_file(filepath);
     let result = solver?.solve();
     println!("{result}");
+    println!();
+    let matrix = result.mcm.to_matrix();
+    for row in matrix {
+        println!("{}", row);
+    }
     Ok(())
 }

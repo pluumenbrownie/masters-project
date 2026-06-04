@@ -9,6 +9,7 @@ mod greedy;
 mod parallel_tempering;
 mod pso;
 mod solvers_base;
+mod spso;
 
 pub use annealing::anneal_temps::*;
 pub use annealing::*;
@@ -20,3 +21,4 @@ pub use greedy::*;
 pub use parallel_tempering::*;
 pub use pso::*;
 pub use solvers_base::*;
+pub use spso::*;
