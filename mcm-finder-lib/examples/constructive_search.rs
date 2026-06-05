@@ -18,7 +18,7 @@ fn main() -> Result<()> {
     // let filepath = Path::new("mcm-finder-lib/tests/data/MNIST28.sorted");
     let filepath = Path::new("mcm-finder-lib/tests/data/Big5PT.sorted");
 
-    let solver = ConstructiveSolver::from_file(filepath)?.set_strategy(FrontToBack);
+    let solver = ConstructiveSolver::from_file(filepath)?.set_strategy(VarianceLast);
     let result = solver.solve();
     println!("{}", result);
     Ok(())

@@ -25,7 +25,7 @@ impl Solver for SpsoSolver {
         Ok(SpsoSolver {
             dataset: VecDataset::read_from_file(filepath)?,
             swarm_size: 64,
-            steps: 1000,
+            steps: 100000,
             weights: Weights { weight: 0.8 },
         })
     }
@@ -150,13 +150,14 @@ impl Particle {
         let mut counter = 0usize;
         self.x = loop {
             let candidate = self.x.mutate(rng);
-            if distance_random - candidate.jakkard_difference(&self.random_x) < 0.0
-                && distance_best - candidate.jakkard_difference(self.best_x.as_ref().unwrap()) < 0.0
-                && distance_global
-                    - candidate.jakkard_difference(&self.global_best_x.borrow().clone().unwrap())
-                    < 0.0
-                || counter > 10000
-            {
+            let random_closer =
+                distance_random - candidate.jakkard_difference(&self.random_x) < 0.0;
+            let best_closer =
+                distance_best - candidate.jakkard_difference(self.best_x.as_ref().unwrap()) < 0.0;
+            let globar_closer = distance_global
+                - candidate.jakkard_difference(&self.global_best_x.borrow().clone().unwrap())
+                < 0.0;
+            if random_closer && best_closer && globar_closer || counter > 10000 {
                 break candidate;
             }
             counter += 1;
