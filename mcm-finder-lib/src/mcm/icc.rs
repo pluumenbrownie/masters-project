@@ -6,10 +6,7 @@ use std::{
 
 use fixedbitset::FixedBitSet;
 
-use crate::{
-    dataset::{Dataset, LogE},
-    mcm::gamma_factor,
-};
+use crate::{dataset::Dataset, mcm::gamma_factor};
 
 #[derive(Debug)]
 pub struct IndependentCompleteComponent {
