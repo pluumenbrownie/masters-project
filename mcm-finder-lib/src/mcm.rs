@@ -95,9 +95,9 @@ pub fn parameter_complexity_icc(spin_variables: NonZeroU32, n: usize) -> f64 {
 /// # use fixedbitset::FixedBitSet;
 /// let mcm = MinimallyComplexModel::from_iccs(
 ///     vec![
-///         FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
-///         FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
-///         FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
+///         FixedBitSet::with_capacity_and_blocks(9, [0b110111000]).into(),
+///         FixedBitSet::with_capacity_and_blocks(9, [0b001000110]).into(),
+///         FixedBitSet::with_capacity_and_blocks(9, [0b000000001]).into(),
 ///     ],
 /// ).unwrap();
 /// assert_eq!(mcm.rank(), 9);
@@ -146,9 +146,9 @@ impl MinimallyComplexModel {
     /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
     /// # use fixedbitset::FixedBitSet;
     /// let mut partition = vec!(
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]).into(),
     /// );
     /// assert!(MinimallyComplexModel::verify_iccs(&partition));
     /// partition[1].set(0, true);
@@ -195,9 +195,9 @@ impl MinimallyComplexModel {
     /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
     /// # use fixedbitset::FixedBitSet;
     /// let mut partition = vec!(
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]).into(),
     /// );
     /// let mcm = MinimallyComplexModel::from_iccs(partition).unwrap();
     /// assert_eq!(mcm.rank(), 9);
@@ -226,9 +226,9 @@ impl MinimallyComplexModel {
     /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
     /// # use fixedbitset::FixedBitSet;
     /// let mut partition = vec!(
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]).into(),
     /// );
     /// let test_mcm = MinimallyComplexModel::from_iccs(partition).unwrap();
     /// assert_eq!(MinimallyComplexModel::from_vector(vec![1, 2, 2, 3, 3, 3, 2, 3, 3]), test_mcm);
@@ -275,9 +275,9 @@ impl MinimallyComplexModel {
     /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
     /// # use fixedbitset::FixedBitSet;
     /// let mut partition = vec!(
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]).into(),
     /// );
     /// let mcm = MinimallyComplexModel::from_iccs(partition).unwrap();
     /// assert_eq!(mcm.to_vector(), vec![1, 2, 2, 3, 3, 3, 2, 3, 3]);
@@ -352,9 +352,9 @@ impl MinimallyComplexModel {
     /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
     /// # use fixedbitset::FixedBitSet;
     /// let mcm = MinimallyComplexModel::from_iccs(vec![
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]).into(),
     /// ]).unwrap();
     /// assert_eq!(mcm.rank(), 9);
     /// ```
@@ -363,9 +363,9 @@ impl MinimallyComplexModel {
     /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
     /// # use fixedbitset::FixedBitSet;
     /// let smaller_mcm = MinimallyComplexModel::from_iccs(vec![
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b010111000]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b010111000]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]).into(),
     /// ]).unwrap();
     /// assert_eq!(smaller_mcm.rank(), 8);
     /// ```
@@ -383,9 +383,9 @@ impl MinimallyComplexModel {
     /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
     /// # use fixedbitset::FixedBitSet;
     /// let mcm = MinimallyComplexModel::from_iccs(vec![
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]).into(),
     /// ]).unwrap();
     /// assert_eq!(mcm.variables(), 9);
     /// ```
@@ -400,13 +400,13 @@ impl MinimallyComplexModel {
     /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
     /// # use fixedbitset::FixedBitSet;
     /// let mcm = MinimallyComplexModel::from_iccs(vec![
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]).into(),
     /// ]).unwrap();
     /// let result_mcm = MinimallyComplexModel::from_iccs(vec![
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111001]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111001]).into(),
     /// ]).unwrap();
     /// assert_eq!(mcm.merge(2, 0), result_mcm);
     /// ```
@@ -428,13 +428,13 @@ impl MinimallyComplexModel {
     /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
     /// # use fixedbitset::FixedBitSet;
     /// let mcm = MinimallyComplexModel::from_iccs(vec![
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111001]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111001]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]).into(),
     /// ]).unwrap();
     /// let result_mcm = MinimallyComplexModel::from_iccs(vec![
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110101000]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000010001]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110101000]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000010001]).into(),
     /// ]).unwrap();
     /// let mark = FixedBitSet::with_capacity_and_blocks(9, [0b001010001]);
     /// assert_eq!(mcm.split(0, mark), result_mcm);
@@ -461,13 +461,13 @@ impl MinimallyComplexModel {
     /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
     /// # use fixedbitset::FixedBitSet;
     /// let mcm = MinimallyComplexModel::from_iccs(vec![
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111001]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111001]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]).into(),
     /// ]).unwrap();
     /// let result_mcm = MinimallyComplexModel::from_iccs(vec![
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111000]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]).into(),
     /// ]).unwrap();
     /// println!("{}", mcm.split_one(0, 0));
     /// assert_eq!(mcm.split_one(0, 0), result_mcm);
@@ -493,12 +493,12 @@ impl MinimallyComplexModel {
     /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
     /// # use fixedbitset::FixedBitSet;
     /// let mcm = MinimallyComplexModel::from_iccs(vec![
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111001]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111001]).into(),
     /// ]).unwrap();
     /// let result_mcm = MinimallyComplexModel::from_iccs(vec![
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001010110]),
-    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110101001]),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001010110]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110101001]).into(),
     /// ]).unwrap();
     /// assert_eq!(mcm.swap(1, 0, 4), result_mcm);
     /// ```
