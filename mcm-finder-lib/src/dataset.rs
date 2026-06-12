@@ -33,6 +33,10 @@ pub trait Dataset {
 
     /// Compute the logarithmic evidence for this ICC.
     fn log_e(&self) -> f64;
+
+    fn read_from_file(path: &Path) -> Result<Self, MCMError>
+    where
+        Self: Sized;
 }
 
 #[derive(Debug, Clone)]
@@ -44,55 +48,6 @@ pub struct VecDataset {
 impl VecDataset {
     pub fn new(data: Vec<(FixedBitSet, usize)>, datapoints: usize) -> VecDataset {
         VecDataset { data, datapoints }
-    }
-
-    pub fn read_from_file(path: &Path) -> Result<VecDataset, MCMError> {
-        let mut data = HashMap::new();
-        let mut datapoints = 0usize;
-        let filename = path.file_name().unwrap().to_str().unwrap().to_owned();
-        let mut buf_reader = BufReader::new(File::open(path)?);
-
-        // reading the entire file to a string
-        let file = {
-            let mut file = String::new();
-            buf_reader.read_to_string(&mut file)?;
-            file
-        };
-
-        let mut line_length = 0usize;
-        let mut bool_array: Vec<bool> = vec![];
-
-        for (nr, byte) in file.bytes().enumerate() {
-            // validate character is valid ascii
-            verify_ascii(&filename, &file, nr, byte)?;
-            // count ones and zeroes
-            match byte {
-                b'0' => bool_array.push(false),
-                b'1' => bool_array.push(true),
-                b'\r' | b'\n' if !bool_array.is_empty() => {
-                    // check the line length
-                    line_length_tracker(&filename, &file, &mut line_length, &bool_array, nr)?;
-
-                    // add the datapoints to the hashmap
-                    let mut bitvec = FixedBitSet::with_capacity(bool_array.len());
-                    for (nr, bit) in bool_array.drain(..).enumerate() {
-                        bitvec.set(nr, bit);
-                    }
-                    data.entry(bitvec).and_modify(|i| *i += 1).or_insert(1usize);
-                    debug_assert!(bool_array.is_empty());
-
-                    datapoints += 1;
-                }
-                b'\r' | b'\n' => {}
-                // wrong character case
-                _ => Err(MCMError::BadCharacter {
-                    src: NamedSource::new(&filename, file.clone()),
-                    bad_line: nr.into(),
-                })?,
-            }
-        }
-
-        Ok(VecDataset::new(data.into_iter().collect(), datapoints))
     }
 
     pub fn get(&self, configuration: &FixedBitSet) -> Option<usize> {
@@ -147,6 +102,55 @@ impl Dataset for VecDataset {
         self.iter()
             .map(|(_, k)| ln_gamma((*k) as f64 + 0.5) - ln_gamma(0.5))
             .sum::<f64>()
+    }
+
+    fn read_from_file(path: &Path) -> Result<VecDataset, MCMError> {
+        let mut data = HashMap::new();
+        let mut datapoints = 0usize;
+        let filename = path.file_name().unwrap().to_str().unwrap().to_owned();
+        let mut buf_reader = BufReader::new(File::open(path)?);
+
+        // reading the entire file to a string
+        let file = {
+            let mut file = String::new();
+            buf_reader.read_to_string(&mut file)?;
+            file
+        };
+
+        let mut line_length = 0usize;
+        let mut bool_array: Vec<bool> = vec![];
+
+        for (nr, byte) in file.bytes().enumerate() {
+            // validate character is valid ascii
+            verify_ascii(&filename, &file, nr, byte)?;
+            // count ones and zeroes
+            match byte {
+                b'0' => bool_array.push(false),
+                b'1' => bool_array.push(true),
+                b'\r' | b'\n' if !bool_array.is_empty() => {
+                    // check the line length
+                    line_length_tracker(&filename, &file, &mut line_length, &bool_array, nr)?;
+
+                    // add the datapoints to the hashmap
+                    let mut bitvec = FixedBitSet::with_capacity(bool_array.len());
+                    for (nr, bit) in bool_array.drain(..).enumerate() {
+                        bitvec.set(nr, bit);
+                    }
+                    data.entry(bitvec).and_modify(|i| *i += 1).or_insert(1usize);
+                    debug_assert!(bool_array.is_empty());
+
+                    datapoints += 1;
+                }
+                b'\r' | b'\n' => {}
+                // wrong character case
+                _ => Err(MCMError::BadCharacter {
+                    src: NamedSource::new(&filename, file.clone()),
+                    bad_line: nr.into(),
+                })?,
+            }
+        }
+
+        Ok(VecDataset::new(data.into_iter().collect(), datapoints))
     }
 }
 
@@ -250,10 +254,8 @@ impl Dataset for EndsCachedDataset {
     fn log_e(&self) -> f64 {
         todo!()
     }
-}
 
-impl EndsCachedDataset {
-    pub fn read_from_file(path: &Path) -> Result<EndsCachedDataset, MCMError> {
+    fn read_from_file(path: &Path) -> Result<EndsCachedDataset, MCMError> {
         let base = VecDataset::read_from_file(path)?;
         // println!("Base length: {}", base.data.len());
         let mut base_ref_index = 0usize;
@@ -301,7 +303,9 @@ impl EndsCachedDataset {
             data,
         })
     }
+}
 
+impl EndsCachedDataset {
     pub fn get(&self, configuration: &FixedBitSet) -> Option<usize> {
         self.data[0]
             .iter()

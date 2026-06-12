@@ -23,13 +23,13 @@ pub enum AnnealingStarter {
     Trivial,
 }
 
-pub struct SimulatedAnnealingSolver {
-    dataset: VecDataset,
+pub struct SimulatedAnnealingSolver<T> {
+    dataset: T,
     starter: AnnealingStarter,
     temperature: AnnealingTemperature,
 }
 
-impl SimulatedAnnealingSolver {
+impl<T: Dataset> SimulatedAnnealingSolver<T> {
     pub fn set_starter(mut self, starter: AnnealingStarter) -> Self {
         self.starter = starter;
         self
@@ -41,13 +41,13 @@ impl SimulatedAnnealingSolver {
     }
 }
 
-impl Solver for SimulatedAnnealingSolver {
+impl<T: Dataset> Solver for SimulatedAnnealingSolver<T> {
     fn from_file(filepath: &Path) -> Result<Self, MCMError>
     where
         Self: Sized,
     {
         Ok(SimulatedAnnealingSolver {
-            dataset: VecDataset::read_from_file(filepath)?,
+            dataset: T::read_from_file(filepath)?,
             starter: AnnealingStarter::default(),
             temperature: AnnealingTemperature::default(),
         })
