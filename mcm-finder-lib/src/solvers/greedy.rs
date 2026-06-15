@@ -56,6 +56,8 @@ pub struct GreedySolver {
     dataset: VecDataset,
     lookahead_depth: usize,
     continue_after_minimum: bool,
+    local_search_after_minimum: bool,
+    local_search_only: bool,
 }
 
 impl GreedySolver {
@@ -73,6 +75,27 @@ impl GreedySolver {
     /// with caution.
     pub fn lookahead(mut self, depth: usize) -> Self {
         self.lookahead_depth = depth;
+        self
+    }
+
+    /// Sets the amount of steps the algorithm is allowed to look ahead to choose the
+    /// next best candidate.
+    ///
+    /// Setting this value will explode the execution time of this algorithm, so use
+    /// with caution.
+    pub fn set_local_search(mut self) -> Self {
+        self.local_search_after_minimum = true;
+        self
+    }
+
+    /// Sets the amount of steps the algorithm is allowed to look ahead to choose the
+    /// next best candidate.
+    ///
+    /// Setting this value will explode the execution time of this algorithm, so use
+    /// with caution.
+    pub fn set_local_only(mut self) -> Self {
+        self.local_search_after_minimum = true;
+        self.local_search_only = true;
         self
     }
 
@@ -126,6 +149,33 @@ impl GreedySolver {
         }
     }
 
+    #[must_use]
+    fn find_best_local(
+        &self,
+        log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
+        progress: &mut Bar,
+        // iccs_left: usize,
+        original: &LogeMCM,
+    ) -> Option<LogeMCM> {
+        let icc_amount = original.mcm.count_icc();
+
+        let mut gen_best = None;
+        for variable in 0..original.mcm.variables() {
+            for into in 0..=icc_amount {
+                let candidate = LogeMCM::calculate(
+                    original.mcm.swap(variable, into),
+                    &self.dataset,
+                    log_e_cache,
+                );
+
+                gen_best = update_if_deep_log_e_better(gen_best, &candidate);
+                let _ = progress.update(1);
+            }
+        }
+
+        gen_best
+    }
+
     fn count_calculations(&self) -> usize {
         let mut length = 0usize;
         let depth = self.lookahead_depth;
@@ -170,6 +220,8 @@ impl Solver for GreedySolver {
             dataset: VecDataset::read_from_file(filepath)?,
             lookahead_depth: 0,
             continue_after_minimum: false,
+            local_search_after_minimum: false,
+            local_search_only: false,
         })
     }
 
@@ -187,15 +239,34 @@ impl Solver for GreedySolver {
 
         // we merge one partition each round
         let mut progress = tqdm!(total = length);
-        for iccs_left in (1usize..self.dataset.variables()).rev() {
-            let original = gen_best.clone();
-            progress.set_description(format!("{iccs_left} ICCs"));
-            gen_best = self
-                .find_best_merge(&mut log_e_cache, &mut progress, iccs_left, &original, 0)
-                .unwrap();
-            let new_best = self.update_global_best(&mut best_mcm, &gen_best);
-            if !new_best & !self.continue_after_minimum {
-                break;
+        if !self.local_search_only {
+            for iccs_left in (1usize..self.dataset.variables()).rev() {
+                let original = gen_best.clone();
+                progress.set_description(format!("{iccs_left} ICCs - {:.0}", gen_best.log_e));
+                gen_best = self
+                    .find_best_merge(&mut log_e_cache, &mut progress, iccs_left, &original, 0)
+                    .unwrap();
+                let new_best = self.update_global_best(&mut best_mcm, &gen_best);
+                if !new_best & !self.continue_after_minimum {
+                    break;
+                }
+            }
+        }
+
+        if self.local_search_after_minimum {
+            if !self.local_search_only {
+                println!("{}", best_mcm.mcm);
+            }
+            loop {
+                let original = best_mcm.clone();
+                progress.set_description("Running local search...");
+                match self
+                    .find_best_local(&mut log_e_cache, &mut progress, &original)
+                    .and_then(|c| self.update_global_best(&mut best_mcm, &c).then_some(()))
+                {
+                    Some(()) => {}
+                    None => break,
+                };
             }
         }
 

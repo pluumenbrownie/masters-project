@@ -36,3 +36,5 @@ harness = false
 
 [lints.rust]
 refining_impl_trait = "allow"
+unused_imports = "allow"
+dead_code = "allow"

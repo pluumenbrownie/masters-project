@@ -14,7 +14,8 @@ fn main() -> Result<()> {
 
     let solver = GreedySolver::from_file(filepath)?
         .lookahead(0)
-        .continue_after_minimum();
+        .set_local_search()
+        .set_local_only();
     // let solver = GreedySearcher::from_file(filepath)?.continue_after_minimum();
     let result = solver.solve();
     println!("{}", result);

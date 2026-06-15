@@ -105,7 +105,7 @@ pub fn parameter_complexity_icc(spin_variables: NonZeroU32, n: usize) -> f64 {
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MinimallyComplexModel {
-    partition: Vec<icc::IndependentCompleteComponent>,
+    partition: Vec<IndependentCompleteComponent>,
 }
 
 impl MinimallyComplexModel {
@@ -115,7 +115,7 @@ impl MinimallyComplexModel {
     }
 
     /// Create a new MCM with sorted ICCs.
-    fn new(partition: Vec<icc::IndependentCompleteComponent>) -> MinimallyComplexModel {
+    fn new(partition: Vec<IndependentCompleteComponent>) -> MinimallyComplexModel {
         let mut mcm = MinimallyComplexModel::new_unsorted(partition);
         mcm.sort_first_bit();
         mcm
@@ -124,9 +124,7 @@ impl MinimallyComplexModel {
     /// Returns an MCM from the given ICCs, with empty ICCs removed. Note that
     /// ICCs in an MCM will be sorted so may have a different order from how they were
     /// inserted.
-    fn new_remove_empty(
-        partition: Vec<icc::IndependentCompleteComponent>,
-    ) -> MinimallyComplexModel {
+    fn new_remove_empty(partition: Vec<IndependentCompleteComponent>) -> MinimallyComplexModel {
         let mut partition = partition;
         let variables = partition[0].len();
         partition.retain(|icc| icc.count_ones(..) > 0);
@@ -136,6 +134,16 @@ impl MinimallyComplexModel {
             ));
         }
         MinimallyComplexModel::new(partition)
+    }
+
+    /// Get the index of the ICC which contains this variable.
+    fn get_index(&self, variable: usize) -> Option<usize> {
+        for (nr, icc) in self.partition.iter().enumerate() {
+            if icc[variable] {
+                return Some(nr);
+            }
+        }
+        None
     }
 
     /// Returns `true` if ICCs in array do not overlap anywhere. The ICCs do not
@@ -154,7 +162,7 @@ impl MinimallyComplexModel {
     /// partition[1].set(0, true);
     /// assert!(!MinimallyComplexModel::verify_iccs(&partition));
     /// ```
-    pub fn verify_iccs(partition: &[icc::IndependentCompleteComponent]) -> bool {
+    pub fn verify_iccs(partition: &[IndependentCompleteComponent]) -> bool {
         for (nr, one) in partition.iter().enumerate() {
             for two in &partition[(nr + 1)..] {
                 if !(one & two).is_clear() {
@@ -469,17 +477,18 @@ impl MinimallyComplexModel {
     ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]).into(),
     ///     FixedBitSet::with_capacity_and_blocks(9, [0b000000001]).into(),
     /// ]).unwrap();
-    /// println!("{}", mcm.split_one(0, 0));
-    /// assert_eq!(mcm.split_one(0, 0), result_mcm);
+    /// println!("{}", mcm.split_one(0));
+    /// assert_eq!(mcm.split_one(0), result_mcm);
     /// ```
-    pub fn split_one(&self, basis: usize, choice: usize) -> MinimallyComplexModel {
+    pub fn split_one(&self, variable: usize) -> MinimallyComplexModel {
+        let basis = self.get_index(variable).unwrap();
         let mut iccs: Vec<icc::IndependentCompleteComponent> =
             self.partition.iter().map(|i| i.full_clone()).collect();
         // let mut iccs = self.partition.clone();
         let mut new_icc = FixedBitSet::with_capacity_and_blocks(iccs[0].len(), [0b0]);
 
-        new_icc.set(choice, iccs[basis][choice]);
-        iccs[basis].remove(choice);
+        new_icc.set(variable, iccs[basis][variable]);
+        iccs[basis].remove(variable);
 
         iccs.push(new_icc.into());
 
@@ -500,14 +509,20 @@ impl MinimallyComplexModel {
     ///     FixedBitSet::with_capacity_and_blocks(9, [0b001010110]).into(),
     ///     FixedBitSet::with_capacity_and_blocks(9, [0b110101001]).into(),
     /// ]).unwrap();
-    /// assert_eq!(mcm.swap(1, 0, 4), result_mcm);
+    /// assert_eq!(mcm.swap(4, 1), result_mcm);
     /// ```
-    pub fn swap(&self, basis: usize, destination: usize, choice: usize) -> MinimallyComplexModel {
-        let mut iccs: Vec<icc::IndependentCompleteComponent> =
+    pub fn swap(&self, variable: usize, destination: usize) -> MinimallyComplexModel {
+        let basis = self.get_index(variable);
+        let mut iccs: Vec<IndependentCompleteComponent> =
             self.partition.iter().map(|i| i.full_clone()).collect();
 
-        iccs[basis].toggle(choice);
-        iccs[destination].toggle(choice);
+        if destination >= self.count_icc() {
+            return self.split_one(variable);
+        }
+        if let Some(basis) = basis {
+            iccs[basis].set(variable, false);
+        }
+        iccs[destination].set(variable, true);
 
         MinimallyComplexModel::new_remove_empty(iccs)
     }
@@ -614,7 +629,7 @@ impl MinimallyComplexModel {
                     .unwrap();
                 let choice = self.partition[basis].ones().choose(rng).unwrap();
 
-                self.swap(basis, destination, choice)
+                self.swap(choice, destination)
             }
         }
     }
