@@ -212,7 +212,7 @@ pub(crate) fn verify_ascii(
 
 #[derive(Debug, Clone)]
 pub struct EndsCachedDataset {
-    pub data: Vec<VecDataset>,
+    pub data: Vec<Option<VecDataset>>,
     variables: usize,
     datapoints: usize,
     bins: usize,
@@ -241,7 +241,7 @@ impl Dataset for EndsCachedDataset {
             println!("{partition}");
             dbg!(self.variables);
         }
-        self.data[location].transform_to_icc(partition)
+        self.get(location).unwrap().transform_to_icc(partition)
     }
 
     fn state_prevalence(&self, variable: usize) -> Vec<usize> {
@@ -258,59 +258,132 @@ impl Dataset for EndsCachedDataset {
     fn read_from_file(path: &Path) -> Result<EndsCachedDataset, MCMError> {
         let base = VecDataset::read_from_file(path)?;
         // println!("Base length: {}", base.data.len());
-        let mut base_ref_index = 0usize;
         let variables = base.variables();
-        let mut data = Vec::with_capacity((variables * (variables + 1)) / 2);
+        let data: Vec<Option<VecDataset>> = Vec::with_capacity((variables * (variables + 1)) / 2);
+
+        let mut output = EndsCachedDataset {
+            datapoints: base.datapoints(),
+            bins: base.bins(),
+            variables: base.variables(),
+            data,
+        };
+
+        let mut base_ref_index = 0usize;
 
         let mut icc = FixedBitSet::with_capacity_and_blocks(variables, [0]);
         for start in 0..variables {
             icc.set_range(0..start, false);
             icc.set_range(start..variables, true);
 
-            data.push(
-                data.get(base_ref_index)
+            output.data.push(Some(
+                output
+                    .get(base_ref_index)
                     .unwrap_or(&base)
                     .transform_to_icc(&icc),
-            );
-            base_ref_index = data.len() - 1;
-            println!(
-                "{}: {icc} - {}",
-                get_ends_cache_location(Some(Ends::new(start, variables)), variables),
-                data[base_ref_index].data.len()
-            );
+            ));
+            base_ref_index = output.data.len() - 1;
+            // println!(
+            //     "{}: {icc} - {}",
+            //     get_ends_cache_location(Some(Ends::new(start, variables)), variables),
+            //     data[base_ref_index].data.len()
+            // );
             let mut sub_base_index = base_ref_index;
 
             for end in (start + 1..variables).rev() {
                 icc.set(end, false);
-                data.push(data[sub_base_index].transform_to_icc(&icc));
+                if icc.count_ones(..) < variables / 2 {
+                    output.data.push(Some(
+                        output.get(sub_base_index).unwrap().transform_to_icc(&icc),
+                    ));
+                } else {
+                    output.data.push(None);
+                }
 
-                sub_base_index = data.len() - 1;
-                println!(
-                    "{}: {icc} - {}",
-                    get_ends_cache_location(Some(Ends::new(start, end)), variables),
-                    data[sub_base_index].data.len()
-                );
+                sub_base_index = output.data.len() - 1;
+                // println!(
+                //     "{}: {icc} - {}",
+                //     get_ends_cache_location(Some(Ends::new(start, end)), variables),
+                //     data[sub_base_index].data.len()
+                // );
             }
         }
         icc.set_range(.., false);
-        data.push(data.last().unwrap().transform_to_icc(&icc));
-        println!("{}: {icc}", get_ends_cache_location(None, variables));
+        output.data.push(Some(
+            output
+                .data
+                .last()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .transform_to_icc(&icc),
+        ));
+        // println!("{}: {icc}", get_ends_cache_location(None, variables));
 
-        Ok(EndsCachedDataset {
-            datapoints: data[0].datapoints(),
-            bins: data[0].bins(),
-            variables: data[0].variables(),
-            data,
-        })
+        Ok(output)
+    }
+}
+
+impl Display for EndsCachedDataset {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut icc = FixedBitSet::with_capacity_and_blocks(self.variables(), [0]);
+        let mut data_iter = self.data.iter();
+        let variables = self.variables();
+        for start in 0..variables {
+            icc.set_range(0..start, false);
+            icc.set_range(start..variables, true);
+
+            match data_iter.next().unwrap() {
+                Some(vec_dataset) => writeln!(
+                    f,
+                    "{}: {icc} - {}",
+                    get_ends_cache_location(Some(Ends::new(start, variables)), variables),
+                    vec_dataset.bins()
+                )?,
+                None => writeln!(f, "None")?,
+            };
+
+            for end in (start + 1..variables).rev() {
+                icc.set(end, false);
+                match data_iter.next().unwrap() {
+                    Some(vec_dataset) => writeln!(
+                        f,
+                        "{}: {icc} - {}",
+                        get_ends_cache_location(Some(Ends::new(start, end)), variables),
+                        vec_dataset.bins()
+                    )?,
+                    None => writeln!(f, "None")?,
+                };
+            }
+        }
+        icc.set_range(.., false);
+        writeln!(
+            f,
+            "{}: {icc} - {}",
+            get_ends_cache_location(None, variables),
+            data_iter.next().unwrap().as_ref().unwrap().bins()
+        )?;
+        Ok(())
     }
 }
 
 impl EndsCachedDataset {
-    pub fn get(&self, configuration: &FixedBitSet) -> Option<usize> {
+    pub fn get_icc(&self, configuration: &FixedBitSet) -> Option<usize> {
         self.data[0]
+            .as_ref()
+            .unwrap()
             .iter()
             .find_map(|(d, n)| if d == configuration { Some(n) } else { None })
             .copied()
+    }
+
+    /// Get the first best dataset for this `get_ends_cache_location` index.
+    ///
+    /// Returns `None` when the dataset is empty.
+    pub fn get(&self, index: usize) -> Option<&VecDataset> {
+        if self.data.is_empty() {
+            return None;
+        }
+        self.data[..=index].iter().rev().find_map(|d| d.as_ref())
     }
 }
 
@@ -353,7 +426,3 @@ const fn get_ends_cache_location(ends: Option<Ends>, variables: usize) -> usize 
         }
     }
 }
-
-// impl Dataset for EndsCachedDataset {
-
-// }

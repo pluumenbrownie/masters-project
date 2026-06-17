@@ -47,7 +47,7 @@ fn ends_cache_partition() {
     ];
     let test_total: usize = should_fit_in_icc
         .iter()
-        .map(|v| ends_dataset.get(v).unwrap_or(0))
+        .map(|v| ends_dataset.get_icc(v).unwrap_or(0))
         .sum();
     assert_eq!(Some(test_total), partitioned_dataset.get(&icc));
 
