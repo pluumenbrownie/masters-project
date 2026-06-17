@@ -22,7 +22,7 @@ use crate::mcm_error::MCMError;
 pub trait DataContainter: From<HashMap<FixedBitSet, usize>> {
     fn iter(&self) -> std::slice::Iter<'_, (FixedBitSet, usize)>;
 
-    fn transform_to_icc(&self, icc: &FixedBitSet) -> Self {
+    fn to_icc(&self, icc: &FixedBitSet) -> Self {
         let mut new_icc_map: HashMap<FixedBitSet, usize> = HashMap::new();
         for (o, n) in self.iter().map(|(i, n)| (i & icc, *n)) {
             new_icc_map.entry(o).and_modify(|v| *v += n).or_insert(n);
@@ -98,7 +98,7 @@ impl<C: DataContainter> SimpleDataset<C> {
 
     /// Return the histogram of data for the given ICC.
     pub fn transform_to_icc(&self, icc: &FixedBitSet) -> SimpleDataset<C> {
-        SimpleDataset::new(self.data.transform_to_icc(icc), self.datapoints)
+        SimpleDataset::new(self.data.to_icc(icc), self.datapoints)
     }
 }
 
@@ -114,13 +114,13 @@ impl<C: DataContainter> Dataset for SimpleDataset<C> {
     fn state_prevalence(&self, variable: usize) -> Vec<usize> {
         let mut mask = FixedBitSet::with_capacity_and_blocks(self.variables(), [0]);
         mask.set(variable, true);
-        let partition = self.data.transform_to_icc(&mask);
+        let partition = self.data.to_icc(&mask);
         partition.iter().map(|(_, c)| *c).collect()
     }
 
     fn log_e(&self, icc: &FixedBitSet) -> f64 {
         self.data
-            .transform_to_icc(icc)
+            .to_icc(icc)
             .iter()
             .map(|(_, k)| ln_gamma((*k) as f64 + 0.5) - ln_gamma(0.5))
             .sum::<f64>()
@@ -233,13 +233,15 @@ pub(crate) fn verify_ascii(
 }
 
 #[derive(Debug, Clone)]
-pub struct EndsCachedDataset {
-    pub data: Vec<Option<SimpleDataset<DataVec>>>,
+pub struct EndsCachedDataset<C: DataContainter> {
+    pub data: Vec<Option<C>>,
     variables: usize,
     datapoints: usize,
 }
 
-impl Dataset for EndsCachedDataset {
+pub type EndsCachedVecDataset = EndsCachedDataset<DataVec>;
+
+impl<C: DataContainter> Dataset for EndsCachedDataset<C> {
     fn variables(&self) -> usize {
         self.variables
     }
@@ -251,23 +253,30 @@ impl Dataset for EndsCachedDataset {
     fn state_prevalence(&self, variable: usize) -> Vec<usize> {
         let mut mask = FixedBitSet::with_capacity_and_blocks(self.variables(), [0]);
         mask.set(variable, true);
-        let partition: SimpleDataset<DataVec> = self.transform_to_icc(&mask);
+        let partition: C = self
+            .get(get_ends_cache_location(
+                Ends::from_icc(&mask),
+                self.variables,
+            ))
+            .unwrap()
+            .to_icc(&mask);
         partition.iter().map(|(_, c)| *c).collect()
     }
 
     fn log_e(&self, icc: &FixedBitSet) -> f64 {
-        self.transform_to_icc(icc)
+        self.get(get_ends_cache_location(Ends::from_icc(icc), self.variables))
+            .unwrap()
+            .to_icc(icc)
             .iter()
             .map(|(_, k)| ln_gamma((*k) as f64 + 0.5) - ln_gamma(0.5))
             .sum::<f64>()
     }
 
-    fn read_from_file(path: &Path) -> Result<EndsCachedDataset, MCMError> {
+    fn read_from_file(path: &Path) -> Result<EndsCachedDataset<C>, MCMError> {
         let base = SimpleDataset::read_from_file(path)?;
         // println!("Base length: {}", base.data.len());
         let variables = base.variables();
-        let data: Vec<Option<SimpleDataset<DataVec>>> =
-            Vec::with_capacity((variables * (variables + 1)) / 2);
+        let data: Vec<Option<C>> = Vec::with_capacity((variables * (variables + 1)) / 2);
 
         let mut output = EndsCachedDataset {
             datapoints: base.datapoints(),
@@ -285,8 +294,8 @@ impl Dataset for EndsCachedDataset {
             output.data.push(Some(
                 output
                     .get(base_ref_index)
-                    .unwrap_or(&base)
-                    .transform_to_icc(&icc),
+                    .unwrap_or(&base.data)
+                    .to_icc(&icc),
             ));
             base_ref_index = output.data.len() - 1;
             // println!(
@@ -299,9 +308,9 @@ impl Dataset for EndsCachedDataset {
             for end in (start + 1..variables).rev() {
                 icc.set(end, false);
                 if icc.count_ones(..) < variables / 2 {
-                    output.data.push(Some(
-                        output.get(sub_base_index).unwrap().transform_to_icc(&icc),
-                    ));
+                    output
+                        .data
+                        .push(Some(output.get(sub_base_index).unwrap().to_icc(&icc)));
                 } else {
                     output.data.push(None);
                 }
@@ -316,13 +325,7 @@ impl Dataset for EndsCachedDataset {
         }
         icc.set_range(.., false);
         output.data.push(Some(
-            output
-                .data
-                .last()
-                .unwrap()
-                .as_ref()
-                .unwrap()
-                .transform_to_icc(&icc),
+            output.data.last().unwrap().as_ref().unwrap().to_icc(&icc),
         ));
         // println!("{}: {icc}", get_ends_cache_location(None, variables));
 
@@ -330,7 +333,7 @@ impl Dataset for EndsCachedDataset {
     }
 }
 
-impl Display for EndsCachedDataset {
+impl<C: DataContainter> Display for EndsCachedDataset<C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut icc = FixedBitSet::with_capacity_and_blocks(self.variables(), [0]);
         let mut data_iter = self.data.iter();
@@ -373,7 +376,7 @@ impl Display for EndsCachedDataset {
     }
 }
 
-impl EndsCachedDataset {
+impl<C: DataContainter> EndsCachedDataset<C> {
     pub fn get_icc(&self, configuration: &FixedBitSet) -> Option<usize> {
         self.data[0]
             .as_ref()
@@ -386,15 +389,15 @@ impl EndsCachedDataset {
     /// Get the first best dataset for this `get_ends_cache_location` index.
     ///
     /// Returns `None` when the dataset is empty.
-    pub fn get(&self, index: usize) -> Option<&SimpleDataset<DataVec>> {
+    pub fn get(&self, index: usize) -> Option<&C> {
         if self.data.is_empty() {
             return None;
         }
         self.data[..=index].iter().rev().find_map(|d| d.as_ref())
     }
 
-    /// Return the histogram of data for the given ICC.
-    pub fn transform_to_icc(&self, partition: &FixedBitSet) -> SimpleDataset<DataVec> {
+    /// Turns this EndsCachedDataset into a SimpleDataset, transformed for the given ICC.
+    pub fn transform_to_icc(&self, partition: &FixedBitSet) -> SimpleDataset<C> {
         let ends = Ends::from_icc(partition);
         let location = get_ends_cache_location(ends.as_ref().cloned(), self.variables);
         if location > self.data.len() {
@@ -402,7 +405,10 @@ impl EndsCachedDataset {
             println!("{partition}");
             dbg!(self.variables);
         }
-        self.get(location).unwrap().transform_to_icc(partition)
+        SimpleDataset::new(
+            self.get(location).unwrap().to_icc(partition),
+            self.datapoints,
+        )
     }
 }
 

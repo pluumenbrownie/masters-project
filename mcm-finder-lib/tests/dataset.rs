@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use fixedbitset::FixedBitSet;
-use mcm_finder_lib::dataset::{Dataset, EndsCachedDataset, VecDataset};
+use mcm_finder_lib::dataset::{Dataset, EndsCachedVecDataset, VecDataset};
 use pretty_assertions::assert_eq;
 
 #[test]

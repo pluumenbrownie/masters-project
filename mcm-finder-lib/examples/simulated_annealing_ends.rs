@@ -3,7 +3,7 @@ use std::path::Path;
 use miette::Result;
 
 use mcm_finder_lib::{
-    dataset::{Dataset, EndsCachedDataset, VecDataset},
+    dataset::{Dataset, EndsCachedVecDataset, VecDataset},
     solvers::{
         AnnealingStarter, SimulatedAnnealingSolver, Solver, anneal_temps::AnnealingTemperature,
     },
@@ -13,7 +13,7 @@ fn main() -> Result<()> {
     // let filepath = Path::new("mcm-finder-lib/tests/data/SCOTUS_n9_N895_Data.dat");
     let filepath = Path::new("mcm-finder-lib/tests/data/MNIST11.sorted");
     // let filepath = Path::new("mcm-finder-lib/tests/data/Big5PT.sorted");
-    println!("{}", EndsCachedDataset::read_from_file(filepath)?);
+    println!("{}", EndsCachedVecDataset::read_from_file(filepath)?);
 
     // let solver = SimulatedAnnealingSolver::<EndsCachedDataset>::from_file(filepath)?
     //     .set_temperature(

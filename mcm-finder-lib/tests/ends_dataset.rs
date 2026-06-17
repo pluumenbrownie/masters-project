@@ -2,13 +2,13 @@ use std::path::Path;
 
 use approx::assert_relative_eq;
 use fixedbitset::FixedBitSet;
-use mcm_finder_lib::dataset::{Dataset, EndsCachedDataset, VecDataset};
+use mcm_finder_lib::dataset::{Dataset, EndsCachedVecDataset, VecDataset};
 use pretty_assertions::assert_eq;
 
 #[test]
 fn ends_cache_partition() {
     let ends_dataset =
-        EndsCachedDataset::read_from_file(Path::new("./tests/data/SCOTUS_n9_N895_Data.dat"))
+        EndsCachedVecDataset::read_from_file(Path::new("./tests/data/SCOTUS_n9_N895_Data.dat"))
             .unwrap();
     let reference_dataset =
         VecDataset::read_from_file(Path::new("./tests/data/SCOTUS_n9_N895_Data.dat")).unwrap();

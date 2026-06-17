@@ -6,7 +6,7 @@ use criterion::{
 };
 
 use fixedbitset::FixedBitSet;
-use mcm_finder_lib::dataset::{Dataset, EndsCachedDataset, VecDataset};
+use mcm_finder_lib::dataset::{Dataset, EndsCachedVecDataset, VecDataset};
 
 fn criterion_benchmark(c: &mut Criterion) {
     {
@@ -33,12 +33,13 @@ fn criterion_benchmark(c: &mut Criterion) {
 
         c.bench_function("Loading MNIST11", |b| {
             b.iter(|| {
-                EndsCachedDataset::read_from_file(Path::new("tests/data/MNIST11.sorted")).unwrap()
+                EndsCachedVecDataset::read_from_file(Path::new("tests/data/MNIST11.sorted"))
+                    .unwrap()
             })
         });
         c.bench_function("Loading Big5", |b| {
             b.iter(|| {
-                EndsCachedDataset::read_from_file(Path::new("tests/data/Big5PT.sorted")).unwrap()
+                EndsCachedVecDataset::read_from_file(Path::new("tests/data/Big5PT.sorted")).unwrap()
             })
         });
 
@@ -69,7 +70,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     }
     {
         let dataset =
-            EndsCachedDataset::read_from_file(Path::new("tests/data/MNIST11.sorted")).unwrap();
+            EndsCachedVecDataset::read_from_file(Path::new("tests/data/MNIST11.sorted")).unwrap();
         let mut group = c.benchmark_group("EndsCachedDataset Log E MNIST11 random inputs");
         for nr_of_bits in 0usize..122 {
             group.bench_with_input(
