@@ -52,22 +52,18 @@ fn ends_cache_partition() {
     assert_eq!(Some(test_total), partitioned_dataset.get(&icc));
 
     assert_relative_eq!(
-        partitioned_dataset.log_e(),
-        reference_dataset.transform_to_icc(&icc).log_e(),
+        partitioned_dataset.log_e(&icc),
+        reference_dataset.log_e(&icc),
         epsilon = 1e-9,
     );
 
     assert_relative_eq!(
-        ends_dataset
-            .transform_to_icc(&FixedBitSet::with_capacity_and_blocks(9, [0]))
-            .log_e(),
+        ends_dataset.log_e(&FixedBitSet::with_capacity_and_blocks(9, [0])),
         5188.503754891344,
         epsilon = 1e-9,
     );
     assert_relative_eq!(
-        ends_dataset
-            .transform_to_icc(&FixedBitSet::with_capacity_and_blocks(9, [0b100000001]))
-            .log_e(),
+        ends_dataset.log_e(&FixedBitSet::with_capacity_and_blocks(9, [0b100000001])),
         4136.3735176022055,
         epsilon = 1e-9,
     );

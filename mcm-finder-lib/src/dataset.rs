@@ -15,6 +15,45 @@ use std::{
 
 use crate::mcm_error::MCMError;
 
+// trait BitVector {}
+
+// impl BitVector for FixedBitSet {}
+
+pub trait DataContainter: From<HashMap<FixedBitSet, usize>> {
+    fn iter(&self) -> std::slice::Iter<'_, (FixedBitSet, usize)>;
+
+    fn transform_to_icc(&self, icc: &FixedBitSet) -> Self {
+        let mut new_icc_map: HashMap<FixedBitSet, usize> = HashMap::new();
+        for (o, n) in self.iter().map(|(i, n)| (i & icc, *n)) {
+            new_icc_map.entry(o).and_modify(|v| *v += n).or_insert(n);
+        }
+        Self::from(new_icc_map)
+    }
+
+    fn bins(&self) -> usize {
+        self.iter().len()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DataVec {
+    data: Vec<(FixedBitSet, usize)>,
+}
+
+impl From<HashMap<FixedBitSet, usize>> for DataVec {
+    fn from(value: HashMap<FixedBitSet, usize>) -> Self {
+        Self {
+            data: value.into_iter().collect(),
+        }
+    }
+}
+
+impl DataContainter for DataVec {
+    fn iter(&self) -> std::slice::Iter<'_, (FixedBitSet, usize)> {
+        self.data.iter()
+    }
+}
+
 pub trait Dataset {
     /// Returns the amount of datapoints in this dataset.
     fn datapoints(&self) -> usize;
@@ -22,17 +61,11 @@ pub trait Dataset {
     /// Returns the amount of variables in each datapoint.
     fn variables(&self) -> usize;
 
-    /// Returns the amount of bins (unique datapoints) in this dataset.
-    fn bins(&self) -> usize;
-
-    /// Return the histogram of data for the given ICC.
-    fn transform_to_icc(&self, icc: &FixedBitSet) -> VecDataset;
-
     /// Returns the prevalence of each state of this variable.
     fn state_prevalence(&self, variable: usize) -> Vec<usize>;
 
-    /// Compute the logarithmic evidence for this ICC.
-    fn log_e(&self) -> f64;
+    /// Compute the logarithmic evidence for the given ICC.
+    fn log_e(&self, icc: &FixedBitSet) -> f64;
 
     fn read_from_file(path: &Path) -> Result<Self, MCMError>
     where
@@ -40,14 +73,16 @@ pub trait Dataset {
 }
 
 #[derive(Debug, Clone)]
-pub struct VecDataset {
-    data: Vec<(FixedBitSet, usize)>,
+pub struct SimpleDataset<C: DataContainter> {
+    data: C,
     datapoints: usize,
 }
 
-impl VecDataset {
-    pub fn new(data: Vec<(FixedBitSet, usize)>, datapoints: usize) -> VecDataset {
-        VecDataset { data, datapoints }
+pub type VecDataset = SimpleDataset<DataVec>;
+
+impl<C: DataContainter> SimpleDataset<C> {
+    fn new(data: C, datapoints: usize) -> SimpleDataset<C> {
+        SimpleDataset { data, datapoints }
     }
 
     pub fn get(&self, configuration: &FixedBitSet) -> Option<usize> {
@@ -60,9 +95,14 @@ impl VecDataset {
     pub fn iter(&self) -> std::slice::Iter<'_, (FixedBitSet, usize)> {
         self.data.iter()
     }
+
+    /// Return the histogram of data for the given ICC.
+    pub fn transform_to_icc(&self, icc: &FixedBitSet) -> SimpleDataset<C> {
+        SimpleDataset::new(self.data.transform_to_icc(icc), self.datapoints)
+    }
 }
 
-impl Dataset for VecDataset {
+impl<C: DataContainter> Dataset for SimpleDataset<C> {
     fn variables(&self) -> usize {
         self.data.iter().map(|d| d.0.len()).next().unwrap()
     }
@@ -71,40 +111,22 @@ impl Dataset for VecDataset {
         self.datapoints
     }
 
-    /// Returns the amount of bins (unique datapoints) in this dataset.
-    fn bins(&self) -> usize {
-        self.data.len()
-    }
-
-    /// Return the histogram of data for the given ICC.
-    fn transform_to_icc(&self, partition: &FixedBitSet) -> VecDataset {
-        let new_vectors = self.iter().map(|(i, n)| (i & partition, *n));
-        // transformed vectors are not guaranteed to be unique, so we want to
-        // add them together without loosing information
-        let mut partitioned_map: HashMap<FixedBitSet, usize> = HashMap::new();
-        for (o, n) in new_vectors {
-            partitioned_map
-                .entry(o)
-                .and_modify(|v| *v += n)
-                .or_insert(n);
-        }
-        VecDataset::new(partitioned_map.into_iter().collect(), self.datapoints)
-    }
-
     fn state_prevalence(&self, variable: usize) -> Vec<usize> {
         let mut mask = FixedBitSet::with_capacity_and_blocks(self.variables(), [0]);
         mask.set(variable, true);
-        let partition: VecDataset = self.transform_to_icc(&mask);
+        let partition = self.data.transform_to_icc(&mask);
         partition.iter().map(|(_, c)| *c).collect()
     }
 
-    fn log_e(&self) -> f64 {
-        self.iter()
+    fn log_e(&self, icc: &FixedBitSet) -> f64 {
+        self.data
+            .transform_to_icc(icc)
+            .iter()
             .map(|(_, k)| ln_gamma((*k) as f64 + 0.5) - ln_gamma(0.5))
             .sum::<f64>()
     }
 
-    fn read_from_file(path: &Path) -> Result<VecDataset, MCMError> {
+    fn read_from_file(path: &Path) -> Result<SimpleDataset<C>, MCMError> {
         let mut data = HashMap::new();
         let mut datapoints = 0usize;
         let filename = path.file_name().unwrap().to_str().unwrap().to_owned();
@@ -150,20 +172,20 @@ impl Dataset for VecDataset {
             }
         }
 
-        Ok(VecDataset::new(data.into_iter().collect(), datapoints))
+        Ok(SimpleDataset::new(C::from(data), datapoints))
     }
 }
 
-impl IntoIterator for VecDataset {
-    type Item = (FixedBitSet, usize);
-    type IntoIter = IntoIter<(FixedBitSet, usize)>;
+// impl<C: DataContainter> IntoIterator for VecDataset<C> {
+//     type Item = (FixedBitSet, usize);
+//     type IntoIter = IntoIter<(FixedBitSet, usize)>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.data.into_iter()
-    }
-}
+//     fn into_iter(self) -> Self::IntoIter {
+//         self.data.into_iter()
+//     }
+// }
 
-impl Display for VecDataset {
+impl<C: DataContainter> Display for SimpleDataset<C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "VecDataset: {{")?;
         writeln!(f, "   data: [")?;
@@ -212,10 +234,9 @@ pub(crate) fn verify_ascii(
 
 #[derive(Debug, Clone)]
 pub struct EndsCachedDataset {
-    pub data: Vec<Option<VecDataset>>,
+    pub data: Vec<Option<SimpleDataset<DataVec>>>,
     variables: usize,
     datapoints: usize,
-    bins: usize,
 }
 
 impl Dataset for EndsCachedDataset {
@@ -227,43 +248,29 @@ impl Dataset for EndsCachedDataset {
         self.datapoints
     }
 
-    /// Returns the amount of bins (unique datapoints) in this dataset.
-    fn bins(&self) -> usize {
-        self.bins
-    }
-
-    /// Return the histogram of data for the given ICC.
-    fn transform_to_icc(&self, partition: &FixedBitSet) -> VecDataset {
-        let ends = Ends::from_icc(partition);
-        let location = get_ends_cache_location(ends.as_ref().cloned(), self.variables);
-        if location > self.data.len() {
-            dbg!(ends);
-            println!("{partition}");
-            dbg!(self.variables);
-        }
-        self.get(location).unwrap().transform_to_icc(partition)
-    }
-
     fn state_prevalence(&self, variable: usize) -> Vec<usize> {
         let mut mask = FixedBitSet::with_capacity_and_blocks(self.variables(), [0]);
         mask.set(variable, true);
-        let partition: VecDataset = self.transform_to_icc(&mask);
+        let partition: SimpleDataset<DataVec> = self.transform_to_icc(&mask);
         partition.iter().map(|(_, c)| *c).collect()
     }
 
-    fn log_e(&self) -> f64 {
-        todo!()
+    fn log_e(&self, icc: &FixedBitSet) -> f64 {
+        self.transform_to_icc(icc)
+            .iter()
+            .map(|(_, k)| ln_gamma((*k) as f64 + 0.5) - ln_gamma(0.5))
+            .sum::<f64>()
     }
 
     fn read_from_file(path: &Path) -> Result<EndsCachedDataset, MCMError> {
-        let base = VecDataset::read_from_file(path)?;
+        let base = SimpleDataset::read_from_file(path)?;
         // println!("Base length: {}", base.data.len());
         let variables = base.variables();
-        let data: Vec<Option<VecDataset>> = Vec::with_capacity((variables * (variables + 1)) / 2);
+        let data: Vec<Option<SimpleDataset<DataVec>>> =
+            Vec::with_capacity((variables * (variables + 1)) / 2);
 
         let mut output = EndsCachedDataset {
             datapoints: base.datapoints(),
-            bins: base.bins(),
             variables: base.variables(),
             data,
         };
@@ -337,7 +344,7 @@ impl Display for EndsCachedDataset {
                     f,
                     "{}: {icc} - {}",
                     get_ends_cache_location(Some(Ends::new(start, variables)), variables),
-                    vec_dataset.bins()
+                    vec_dataset.iter().len()
                 )?,
                 None => writeln!(f, "None")?,
             };
@@ -349,7 +356,7 @@ impl Display for EndsCachedDataset {
                         f,
                         "{}: {icc} - {}",
                         get_ends_cache_location(Some(Ends::new(start, end)), variables),
-                        vec_dataset.bins()
+                        vec_dataset.iter().len()
                     )?,
                     None => writeln!(f, "None")?,
                 };
@@ -360,7 +367,7 @@ impl Display for EndsCachedDataset {
             f,
             "{}: {icc} - {}",
             get_ends_cache_location(None, variables),
-            data_iter.next().unwrap().as_ref().unwrap().bins()
+            data_iter.next().unwrap().as_ref().unwrap().iter().len()
         )?;
         Ok(())
     }
@@ -379,11 +386,23 @@ impl EndsCachedDataset {
     /// Get the first best dataset for this `get_ends_cache_location` index.
     ///
     /// Returns `None` when the dataset is empty.
-    pub fn get(&self, index: usize) -> Option<&VecDataset> {
+    pub fn get(&self, index: usize) -> Option<&SimpleDataset<DataVec>> {
         if self.data.is_empty() {
             return None;
         }
         self.data[..=index].iter().rev().find_map(|d| d.as_ref())
+    }
+
+    /// Return the histogram of data for the given ICC.
+    pub fn transform_to_icc(&self, partition: &FixedBitSet) -> SimpleDataset<DataVec> {
+        let ends = Ends::from_icc(partition);
+        let location = get_ends_cache_location(ends.as_ref().cloned(), self.variables);
+        if location > self.data.len() {
+            dbg!(ends);
+            println!("{partition}");
+            dbg!(self.variables);
+        }
+        self.get(location).unwrap().transform_to_icc(partition)
     }
 }
 

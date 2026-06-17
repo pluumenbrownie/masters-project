@@ -24,7 +24,7 @@ impl IndependentCompleteComponent {
 
         let gamma_factor = gamma_factor(dataset, rank_subset);
 
-        gamma_factor + dataset.transform_to_icc(self).log_e()
+        gamma_factor + dataset.log_e(self)
     }
 
     pub fn full_clone(&self) -> Self {

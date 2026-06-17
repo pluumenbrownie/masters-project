@@ -25,9 +25,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             50,
             [0b0000000001000000000100000001000000000100000000010],
         );
-        c.bench_function("Calculate Log E Big5", |b| {
-            b.iter(|| dataset.transform_to_icc(&icc).log_e())
-        });
+        c.bench_function("Calculate Log E Big5", |b| b.iter(|| dataset.log_e(&icc)));
     }
     {
         let mut c = c.benchmark_group("Basic EndsCachedDataset");
@@ -49,9 +47,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             50,
             [0b0000000001000000000100000001000000000100000000010],
         );
-        c.bench_function("Calculate Log E Big5", |b| {
-            b.iter(|| dataset.transform_to_icc(&icc).log_e())
-        });
+        c.bench_function("Calculate Log E Big5", |b| b.iter(|| dataset.log_e(&icc)));
     }
     {
         let dataset = VecDataset::read_from_file(Path::new("tests/data/MNIST11.sorted")).unwrap();
@@ -63,7 +59,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 |b, &nr_of_bits| {
                     b.iter_batched(
                         || random_fixedbitset(122, nr_of_bits),
-                        |icc| dataset.transform_to_icc(&icc).log_e(),
+                        |icc| dataset.log_e(&icc),
                         BatchSize::SmallInput,
                     );
                 },
@@ -82,7 +78,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 |b, &nr_of_bits| {
                     b.iter_batched(
                         || random_fixedbitset(122, nr_of_bits),
-                        |icc| dataset.transform_to_icc(&icc).log_e(),
+                        |icc| dataset.log_e(&icc),
                         BatchSize::SmallInput,
                     );
                 },
