@@ -1,13 +1,25 @@
 use std::path::Path;
 
 use fixedbitset::FixedBitSet;
-use mcm_finder_lib::dataset::{Dataset, EndsCachedVecDataset, VecDataset};
+use mcm_finder_lib::dataset::{
+    DataContainter, DataMap, DataVec, Dataset, SimpleDataset, VecDataset,
+};
 use pretty_assertions::assert_eq;
 
 #[test]
-fn partition() {
+fn partition_vec() {
+    partition::<DataVec>();
+}
+
+#[test]
+fn partition_map() {
+    partition::<DataMap>();
+}
+
+fn partition<C: DataContainter>() {
     let dataset =
-        VecDataset::read_from_file(Path::new("./tests/data/SCOTUS_n9_N895_Data.dat")).unwrap();
+        SimpleDataset::<C>::read_from_file(Path::new("./tests/data/SCOTUS_n9_N895_Data.dat"))
+            .unwrap();
 
     let icc = FixedBitSet::with_capacity_and_blocks(9, [0b001011101]);
 

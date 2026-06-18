@@ -9,6 +9,7 @@ use std::{
     fmt::{self, Display},
     fs::File,
     io::{BufReader, Read},
+    marker::PhantomData,
     path::Path,
     vec::IntoIter,
 };
@@ -20,11 +21,11 @@ use crate::mcm_error::MCMError;
 // impl BitVector for FixedBitSet {}
 
 pub trait DataContainter: From<HashMap<FixedBitSet, usize>> {
-    fn iter(&self) -> std::slice::Iter<'_, (FixedBitSet, usize)>;
+    fn iter(&self) -> impl ExactSizeIterator<Item = (&FixedBitSet, usize)>;
 
     fn to_icc(&self, icc: &FixedBitSet) -> Self {
         let mut new_icc_map: HashMap<FixedBitSet, usize> = HashMap::new();
-        for (o, n) in self.iter().map(|(i, n)| (i & icc, *n)) {
+        for (o, n) in self.iter().map(|(i, n)| (i & icc, n)) {
             new_icc_map.entry(o).and_modify(|v| *v += n).or_insert(n);
         }
         Self::from(new_icc_map)
@@ -49,8 +50,25 @@ impl From<HashMap<FixedBitSet, usize>> for DataVec {
 }
 
 impl DataContainter for DataVec {
-    fn iter(&self) -> std::slice::Iter<'_, (FixedBitSet, usize)> {
-        self.data.iter()
+    fn iter(&self) -> impl ExactSizeIterator<Item = (&FixedBitSet, usize)> {
+        self.data.iter().map(|(v, n)| (v, *n))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DataMap {
+    data: HashMap<FixedBitSet, usize>,
+}
+
+impl From<HashMap<FixedBitSet, usize>> for DataMap {
+    fn from(value: HashMap<FixedBitSet, usize>) -> Self {
+        Self { data: value.into() }
+    }
+}
+
+impl DataContainter for DataMap {
+    fn iter(&self) -> impl ExactSizeIterator<Item = (&FixedBitSet, usize)> {
+        self.data.iter().map(|(v, n)| (v, *n))
     }
 }
 
@@ -79,6 +97,7 @@ pub struct SimpleDataset<C: DataContainter> {
 }
 
 pub type VecDataset = SimpleDataset<DataVec>;
+pub type MapDataset = SimpleDataset<DataMap>;
 
 impl<C: DataContainter> SimpleDataset<C> {
     fn new(data: C, datapoints: usize) -> SimpleDataset<C> {
@@ -89,10 +108,10 @@ impl<C: DataContainter> SimpleDataset<C> {
         self.data
             .iter()
             .find_map(|(d, n)| if d == configuration { Some(n) } else { None })
-            .copied()
+        // .copied()
     }
 
-    pub fn iter(&self) -> std::slice::Iter<'_, (FixedBitSet, usize)> {
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = (&FixedBitSet, usize)> {
         self.data.iter()
     }
 
@@ -115,14 +134,14 @@ impl<C: DataContainter> Dataset for SimpleDataset<C> {
         let mut mask = FixedBitSet::with_capacity_and_blocks(self.variables(), [0]);
         mask.set(variable, true);
         let partition = self.data.to_icc(&mask);
-        partition.iter().map(|(_, c)| *c).collect()
+        partition.iter().map(|(_, c)| c).collect()
     }
 
     fn log_e(&self, icc: &FixedBitSet) -> f64 {
         self.data
             .to_icc(icc)
             .iter()
-            .map(|(_, k)| ln_gamma((*k) as f64 + 0.5) - ln_gamma(0.5))
+            .map(|(_, k)| ln_gamma((k) as f64 + 0.5) - ln_gamma(0.5))
             .sum::<f64>()
     }
 
@@ -260,7 +279,7 @@ impl<C: DataContainter> Dataset for EndsCachedDataset<C> {
             ))
             .unwrap()
             .to_icc(&mask);
-        partition.iter().map(|(_, c)| *c).collect()
+        partition.iter().map(|(_, c)| c).collect()
     }
 
     fn log_e(&self, icc: &FixedBitSet) -> f64 {
@@ -268,7 +287,7 @@ impl<C: DataContainter> Dataset for EndsCachedDataset<C> {
             .unwrap()
             .to_icc(icc)
             .iter()
-            .map(|(_, k)| ln_gamma((*k) as f64 + 0.5) - ln_gamma(0.5))
+            .map(|(_, k)| ln_gamma((k) as f64 + 0.5) - ln_gamma(0.5))
             .sum::<f64>()
     }
 
@@ -383,7 +402,6 @@ impl<C: DataContainter> EndsCachedDataset<C> {
             .unwrap()
             .iter()
             .find_map(|(d, n)| if d == configuration { Some(n) } else { None })
-            .copied()
     }
 
     /// Get the first best dataset for this `get_ends_cache_location` index.

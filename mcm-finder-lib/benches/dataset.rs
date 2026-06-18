@@ -1,54 +1,26 @@
 use rand::seq::IndexedRandom;
-use std::{path::Path, time::Duration};
+use std::{any::type_name, path::Path, time::Duration};
 
 use criterion::{
     BatchSize, BenchmarkId, Criterion, SamplingMode::Linear, criterion_group, criterion_main,
 };
 
 use fixedbitset::FixedBitSet;
-use mcm_finder_lib::dataset::{Dataset, EndsCachedVecDataset, VecDataset};
+use mcm_finder_lib::dataset::{
+    DataContainter, DataMap, DataVec, Dataset, EndsCachedDataset, EndsCachedVecDataset,
+    SimpleDataset, VecDataset,
+};
 
 fn criterion_benchmark(c: &mut Criterion) {
     {
-        let mut c = c.benchmark_group("Basic VecDataset");
-        c.sample_size(10).measurement_time(Duration::from_secs(30));
-
-        c.bench_function("Loading MNIST11", |b| {
-            b.iter(|| VecDataset::read_from_file(Path::new("tests/data/MNIST11.sorted")).unwrap())
-        });
-        c.bench_function("Loading Big5", |b| {
-            b.iter(|| VecDataset::read_from_file(Path::new("tests/data/Big5PT.sorted")).unwrap())
-        });
-
-        let dataset = VecDataset::read_from_file(Path::new("tests/data/Big5PT.sorted")).unwrap();
-        let icc = FixedBitSet::with_capacity_and_blocks(
-            50,
-            [0b0000000001000000000100000001000000000100000000010],
-        );
-        c.bench_function("Calculate Log E Big5", |b| b.iter(|| dataset.log_e(&icc)));
+        let mut c = c.benchmark_group("SimpleDataset");
+        c = simple_dataset_benches::<DataVec>(c);
+        simple_dataset_benches::<DataMap>(c);
     }
     {
         let mut c = c.benchmark_group("Basic EndsCachedDataset");
-        c.sample_size(10).measurement_time(Duration::from_secs(30));
-
-        c.bench_function("Loading MNIST11", |b| {
-            b.iter(|| {
-                EndsCachedVecDataset::read_from_file(Path::new("tests/data/MNIST11.sorted"))
-                    .unwrap()
-            })
-        });
-        c.bench_function("Loading Big5", |b| {
-            b.iter(|| {
-                EndsCachedVecDataset::read_from_file(Path::new("tests/data/Big5PT.sorted")).unwrap()
-            })
-        });
-
-        let dataset = VecDataset::read_from_file(Path::new("tests/data/Big5PT.sorted")).unwrap();
-        let icc = FixedBitSet::with_capacity_and_blocks(
-            50,
-            [0b0000000001000000000100000001000000000100000000010],
-        );
-        c.bench_function("Calculate Log E Big5", |b| b.iter(|| dataset.log_e(&icc)));
+        c = ends_cached_dataset_benches::<DataVec>(c);
+        ends_cached_dataset_benches::<DataMap>(c);
     }
     {
         let dataset = VecDataset::read_from_file(Path::new("tests/data/MNIST11.sorted")).unwrap();
@@ -87,6 +59,62 @@ fn criterion_benchmark(c: &mut Criterion) {
         }
         group.finish();
     }
+}
+
+fn ends_cached_dataset_benches<C: DataContainter>(
+    mut c: criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>,
+) -> criterion::BenchmarkGroup<'_, criterion::measurement::WallTime> {
+    c.sample_size(10).measurement_time(Duration::from_secs(30));
+
+    c.bench_function(format!("{}: Loading MNIST11", type_name::<C>()), |b| {
+        b.iter(|| {
+            EndsCachedDataset::<C>::read_from_file(Path::new("tests/data/MNIST11.sorted")).unwrap()
+        })
+    });
+    c.bench_function(format!("{}: Loading Big5", type_name::<C>()), |b| {
+        b.iter(|| {
+            EndsCachedDataset::<C>::read_from_file(Path::new("tests/data/Big5PT.sorted")).unwrap()
+        })
+    });
+
+    let dataset =
+        SimpleDataset::<C>::read_from_file(Path::new("tests/data/Big5PT.sorted")).unwrap();
+    let icc = FixedBitSet::with_capacity_and_blocks(
+        50,
+        [0b0000000001000000000100000001000000000100000000010],
+    );
+    c.bench_function(format!("{}: Calculate Log E Big5", type_name::<C>()), |b| {
+        b.iter(|| dataset.log_e(&icc))
+    });
+    c
+}
+
+fn simple_dataset_benches<C: DataContainter>(
+    mut c: criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>,
+) -> criterion::BenchmarkGroup<'_, criterion::measurement::WallTime> {
+    c.sample_size(10).measurement_time(Duration::from_secs(30));
+
+    c.bench_function(format!("{}: Loading MNIST11", type_name::<C>()), |b| {
+        b.iter(|| {
+            SimpleDataset::<C>::read_from_file(Path::new("tests/data/MNIST11.sorted")).unwrap()
+        })
+    });
+    c.bench_function(format!("{}: Loading Big5", type_name::<C>()), |b| {
+        b.iter(|| {
+            SimpleDataset::<C>::read_from_file(Path::new("tests/data/Big5PT.sorted")).unwrap()
+        })
+    });
+
+    let dataset =
+        SimpleDataset::<C>::read_from_file(Path::new("tests/data/Big5PT.sorted")).unwrap();
+    let icc = FixedBitSet::with_capacity_and_blocks(
+        50,
+        [0b0000000001000000000100000001000000000100000000010],
+    );
+    c.bench_function(format!("{}: Calculate Log E Big5", type_name::<C>()), |b| {
+        b.iter(|| dataset.log_e(&icc))
+    });
+    c
 }
 
 fn random_fixedbitset(length: usize, nr_of_bits: usize) -> FixedBitSet {
