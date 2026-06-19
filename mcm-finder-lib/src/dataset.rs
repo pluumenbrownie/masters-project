@@ -5,10 +5,11 @@ use fixedbitset::FixedBitSet;
 use miette::NamedSource;
 use statrs::function::gamma::ln_gamma;
 use std::{
+    any::type_name,
     collections::HashMap,
     fmt::{self, Display},
     fs::File,
-    hash::{BuildHasher, RandomState},
+    hash::{BuildHasher, Hasher, RandomState},
     io::{BufReader, Read},
     marker::PhantomData,
     path::Path,
@@ -23,6 +24,8 @@ use crate::mcm_error::MCMError;
 
 pub trait DataContainter<S: BuildHasher + Default>: From<HashMap<FixedBitSet, usize, S>> {
     fn iter(&self) -> impl ExactSizeIterator<Item = (&FixedBitSet, usize)>;
+
+    fn name() -> String;
 
     fn to_icc(&self, icc: &FixedBitSet) -> Self {
         let mut new_icc_map = HashMap::with_hasher(S::default());
@@ -54,6 +57,10 @@ impl<S: BuildHasher + Default> DataContainter<S> for DataVec {
     fn iter(&self) -> impl ExactSizeIterator<Item = (&FixedBitSet, usize)> {
         self.data.iter().map(|(v, n)| (v, *n))
     }
+
+    fn name() -> String {
+        "DataVec".into()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -70,6 +77,10 @@ impl<S: BuildHasher> From<HashMap<FixedBitSet, usize, S>> for DataMap<S> {
 impl<S: BuildHasher + Default> DataContainter<S> for DataMap<S> {
     fn iter(&self) -> impl ExactSizeIterator<Item = (&FixedBitSet, usize)> {
         self.data.iter().map(|(v, n)| (v, *n))
+    }
+
+    fn name() -> String {
+        "DataMap".into()
     }
 }
 
