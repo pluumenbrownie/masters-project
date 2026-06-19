@@ -8,6 +8,7 @@ use std::{
     collections::HashMap,
     fmt::{self, Display},
     fs::File,
+    hash::{BuildHasher, RandomState},
     io::{BufReader, Read},
     marker::PhantomData,
     path::Path,
@@ -20,11 +21,11 @@ use crate::mcm_error::MCMError;
 
 // impl BitVector for FixedBitSet {}
 
-pub trait DataContainter: From<HashMap<FixedBitSet, usize>> {
+pub trait DataContainter<S: BuildHasher + Default>: From<HashMap<FixedBitSet, usize, S>> {
     fn iter(&self) -> impl ExactSizeIterator<Item = (&FixedBitSet, usize)>;
 
     fn to_icc(&self, icc: &FixedBitSet) -> Self {
-        let mut new_icc_map: HashMap<FixedBitSet, usize> = HashMap::new();
+        let mut new_icc_map = HashMap::with_hasher(S::default());
         for (o, n) in self.iter().map(|(i, n)| (i & icc, n)) {
             new_icc_map.entry(o).and_modify(|v| *v += n).or_insert(n);
         }
@@ -41,32 +42,32 @@ pub struct DataVec {
     data: Vec<(FixedBitSet, usize)>,
 }
 
-impl From<HashMap<FixedBitSet, usize>> for DataVec {
-    fn from(value: HashMap<FixedBitSet, usize>) -> Self {
+impl<S: BuildHasher + Default> From<HashMap<FixedBitSet, usize, S>> for DataVec {
+    fn from(value: HashMap<FixedBitSet, usize, S>) -> Self {
         Self {
             data: value.into_iter().collect(),
         }
     }
 }
 
-impl DataContainter for DataVec {
+impl<S: BuildHasher + Default> DataContainter<S> for DataVec {
     fn iter(&self) -> impl ExactSizeIterator<Item = (&FixedBitSet, usize)> {
         self.data.iter().map(|(v, n)| (v, *n))
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct DataMap {
-    data: HashMap<FixedBitSet, usize>,
+pub struct DataMap<S: BuildHasher> {
+    data: HashMap<FixedBitSet, usize, S>,
 }
 
-impl From<HashMap<FixedBitSet, usize>> for DataMap {
-    fn from(value: HashMap<FixedBitSet, usize>) -> Self {
-        Self { data: value.into() }
+impl<S: BuildHasher> From<HashMap<FixedBitSet, usize, S>> for DataMap<S> {
+    fn from(value: HashMap<FixedBitSet, usize, S>) -> Self {
+        Self { data: value }
     }
 }
 
-impl DataContainter for DataMap {
+impl<S: BuildHasher + Default> DataContainter<S> for DataMap<S> {
     fn iter(&self) -> impl ExactSizeIterator<Item = (&FixedBitSet, usize)> {
         self.data.iter().map(|(v, n)| (v, *n))
     }
@@ -91,24 +92,35 @@ pub trait Dataset {
 }
 
 #[derive(Debug, Clone)]
-pub struct SimpleDataset<C: DataContainter> {
+pub struct SimpleDataset<C: DataContainter<S>, S: BuildHasher + Default> {
     data: C,
     datapoints: usize,
+    _build_hasher: PhantomData<S>,
 }
 
-pub type VecDataset = SimpleDataset<DataVec>;
-pub type MapDataset = SimpleDataset<DataMap>;
+pub type DefaultState = std::hash::RandomState;
+pub type AhashState = ahash::RandomState;
+pub type RapidStateFast = rapidhash::fast::RandomState;
+pub type RapidStateQuality = rapidhash::quality::RandomState;
+pub type FxState = rustc_hash::FxBuildHasher;
 
-impl<C: DataContainter> SimpleDataset<C> {
-    fn new(data: C, datapoints: usize) -> SimpleDataset<C> {
-        SimpleDataset { data, datapoints }
+pub type VecDataset = SimpleDataset<DataVec, DefaultState>;
+pub type MapDataset = SimpleDataset<DataMap<DefaultState>, DefaultState>;
+pub type EndsCachedVecDataset = EndsCachedDataset<DataVec, DefaultState>;
+
+impl<C: DataContainter<S>, S: BuildHasher + Default> SimpleDataset<C, S> {
+    fn new(data: C, datapoints: usize) -> SimpleDataset<C, S> {
+        SimpleDataset {
+            data,
+            datapoints,
+            _build_hasher: PhantomData,
+        }
     }
 
     pub fn get(&self, configuration: &FixedBitSet) -> Option<usize> {
         self.data
             .iter()
             .find_map(|(d, n)| if d == configuration { Some(n) } else { None })
-        // .copied()
     }
 
     pub fn iter(&self) -> impl ExactSizeIterator<Item = (&FixedBitSet, usize)> {
@@ -116,12 +128,12 @@ impl<C: DataContainter> SimpleDataset<C> {
     }
 
     /// Return the histogram of data for the given ICC.
-    pub fn transform_to_icc(&self, icc: &FixedBitSet) -> SimpleDataset<C> {
+    pub fn transform_to_icc(&self, icc: &FixedBitSet) -> SimpleDataset<C, S> {
         SimpleDataset::new(self.data.to_icc(icc), self.datapoints)
     }
 }
 
-impl<C: DataContainter> Dataset for SimpleDataset<C> {
+impl<C: DataContainter<S>, S: BuildHasher + Default> Dataset for SimpleDataset<C, S> {
     fn variables(&self) -> usize {
         self.data.iter().map(|d| d.0.len()).next().unwrap()
     }
@@ -145,8 +157,8 @@ impl<C: DataContainter> Dataset for SimpleDataset<C> {
             .sum::<f64>()
     }
 
-    fn read_from_file(path: &Path) -> Result<SimpleDataset<C>, MCMError> {
-        let mut data = HashMap::new();
+    fn read_from_file(path: &Path) -> Result<SimpleDataset<C, S>, MCMError> {
+        let mut data = HashMap::with_hasher(S::default());
         let mut datapoints = 0usize;
         let filename = path.file_name().unwrap().to_str().unwrap().to_owned();
         let mut buf_reader = BufReader::new(File::open(path)?);
@@ -204,7 +216,7 @@ impl<C: DataContainter> Dataset for SimpleDataset<C> {
 //     }
 // }
 
-impl<C: DataContainter> Display for SimpleDataset<C> {
+impl<C: DataContainter<S>, S: BuildHasher + Default> Display for SimpleDataset<C, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "VecDataset: {{")?;
         writeln!(f, "   data: [")?;
@@ -252,15 +264,14 @@ pub(crate) fn verify_ascii(
 }
 
 #[derive(Debug, Clone)]
-pub struct EndsCachedDataset<C: DataContainter> {
+pub struct EndsCachedDataset<C: DataContainter<S>, S: BuildHasher + Default> {
     pub data: Vec<Option<C>>,
     variables: usize,
     datapoints: usize,
+    _build_hasher: PhantomData<S>,
 }
 
-pub type EndsCachedVecDataset = EndsCachedDataset<DataVec>;
-
-impl<C: DataContainter> Dataset for EndsCachedDataset<C> {
+impl<C: DataContainter<S>, S: BuildHasher + Default> Dataset for EndsCachedDataset<C, S> {
     fn variables(&self) -> usize {
         self.variables
     }
@@ -291,7 +302,7 @@ impl<C: DataContainter> Dataset for EndsCachedDataset<C> {
             .sum::<f64>()
     }
 
-    fn read_from_file(path: &Path) -> Result<EndsCachedDataset<C>, MCMError> {
+    fn read_from_file(path: &Path) -> Result<EndsCachedDataset<C, S>, MCMError> {
         let base = SimpleDataset::read_from_file(path)?;
         // println!("Base length: {}", base.data.len());
         let variables = base.variables();
@@ -301,6 +312,7 @@ impl<C: DataContainter> Dataset for EndsCachedDataset<C> {
             datapoints: base.datapoints(),
             variables: base.variables(),
             data,
+            _build_hasher: PhantomData,
         };
 
         let mut base_ref_index = 0usize;
@@ -352,7 +364,7 @@ impl<C: DataContainter> Dataset for EndsCachedDataset<C> {
     }
 }
 
-impl<C: DataContainter> Display for EndsCachedDataset<C> {
+impl<C: DataContainter<S>, S: BuildHasher + Default> Display for EndsCachedDataset<C, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut icc = FixedBitSet::with_capacity_and_blocks(self.variables(), [0]);
         let mut data_iter = self.data.iter();
@@ -395,7 +407,7 @@ impl<C: DataContainter> Display for EndsCachedDataset<C> {
     }
 }
 
-impl<C: DataContainter> EndsCachedDataset<C> {
+impl<C: DataContainter<S>, S: BuildHasher + Default> EndsCachedDataset<C, S> {
     pub fn get_icc(&self, configuration: &FixedBitSet) -> Option<usize> {
         self.data[0]
             .as_ref()
@@ -415,7 +427,7 @@ impl<C: DataContainter> EndsCachedDataset<C> {
     }
 
     /// Turns this EndsCachedDataset into a SimpleDataset, transformed for the given ICC.
-    pub fn transform_to_icc(&self, partition: &FixedBitSet) -> SimpleDataset<C> {
+    pub fn transform_to_icc(&self, partition: &FixedBitSet) -> SimpleDataset<C, S> {
         let ends = Ends::from_icc(partition);
         let location = get_ends_cache_location(ends.as_ref().cloned(), self.variables);
         if location > self.data.len() {

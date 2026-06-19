@@ -1,5 +1,5 @@
 use rand::seq::IndexedRandom;
-use std::{any::type_name, path::Path, time::Duration};
+use std::{any::type_name, hash::BuildHasher, path::Path, time::Duration};
 
 use criterion::{
     BatchSize, BenchmarkId, Criterion, SamplingMode::Linear, criterion_group, criterion_main,
@@ -7,20 +7,36 @@ use criterion::{
 
 use fixedbitset::FixedBitSet;
 use mcm_finder_lib::dataset::{
-    DataContainter, DataMap, DataVec, Dataset, EndsCachedDataset, EndsCachedVecDataset,
-    SimpleDataset, VecDataset,
+    AhashState, DataContainter, DataMap, DataVec, Dataset, DefaultState, EndsCachedDataset,
+    EndsCachedVecDataset, FxState, RapidStateFast, RapidStateQuality, SimpleDataset, VecDataset,
 };
 
 fn criterion_benchmark(c: &mut Criterion) {
     {
         let mut c = c.benchmark_group("SimpleDataset");
-        c = simple_dataset_benches::<DataVec>(c);
-        simple_dataset_benches::<DataMap>(c);
+        c = simple_dataset_benches::<DataVec, DefaultState>(c);
+        c = simple_dataset_benches::<DataVec, AhashState>(c);
+        c = simple_dataset_benches::<DataVec, RapidStateFast>(c);
+        c = simple_dataset_benches::<DataVec, RapidStateQuality>(c);
+        c = simple_dataset_benches::<DataVec, FxState>(c);
+        c = simple_dataset_benches::<DataMap<DefaultState>, DefaultState>(c);
+        c = simple_dataset_benches::<DataMap<AhashState>, AhashState>(c);
+        c = simple_dataset_benches::<DataMap<RapidStateFast>, RapidStateFast>(c);
+        c = simple_dataset_benches::<DataMap<RapidStateQuality>, RapidStateQuality>(c);
+        c = simple_dataset_benches::<DataMap<FxState>, FxState>(c);
     }
     {
         let mut c = c.benchmark_group("Basic EndsCachedDataset");
-        c = ends_cached_dataset_benches::<DataVec>(c);
-        ends_cached_dataset_benches::<DataMap>(c);
+        c = ends_cached_dataset_benches::<DataVec, DefaultState>(c);
+        c = ends_cached_dataset_benches::<DataVec, AhashState>(c);
+        c = ends_cached_dataset_benches::<DataVec, RapidStateFast>(c);
+        c = ends_cached_dataset_benches::<DataVec, RapidStateQuality>(c);
+        c = ends_cached_dataset_benches::<DataVec, FxState>(c);
+        c = ends_cached_dataset_benches::<DataMap<DefaultState>, DefaultState>(c);
+        c = ends_cached_dataset_benches::<DataMap<AhashState>, AhashState>(c);
+        c = ends_cached_dataset_benches::<DataMap<RapidStateFast>, RapidStateFast>(c);
+        c = ends_cached_dataset_benches::<DataMap<RapidStateQuality>, RapidStateQuality>(c);
+        c = ends_cached_dataset_benches::<DataMap<FxState>, FxState>(c);
     }
     {
         let dataset = VecDataset::read_from_file(Path::new("tests/data/MNIST11.sorted")).unwrap();
@@ -61,24 +77,26 @@ fn criterion_benchmark(c: &mut Criterion) {
     }
 }
 
-fn ends_cached_dataset_benches<C: DataContainter>(
+fn ends_cached_dataset_benches<C: DataContainter<S>, S: BuildHasher + Default>(
     mut c: criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>,
 ) -> criterion::BenchmarkGroup<'_, criterion::measurement::WallTime> {
     c.sample_size(10).measurement_time(Duration::from_secs(30));
 
     c.bench_function(format!("{}: Loading MNIST11", type_name::<C>()), |b| {
         b.iter(|| {
-            EndsCachedDataset::<C>::read_from_file(Path::new("tests/data/MNIST11.sorted")).unwrap()
+            EndsCachedDataset::<C, S>::read_from_file(Path::new("tests/data/MNIST11.sorted"))
+                .unwrap()
         })
     });
     c.bench_function(format!("{}: Loading Big5", type_name::<C>()), |b| {
         b.iter(|| {
-            EndsCachedDataset::<C>::read_from_file(Path::new("tests/data/Big5PT.sorted")).unwrap()
+            EndsCachedDataset::<C, S>::read_from_file(Path::new("tests/data/Big5PT.sorted"))
+                .unwrap()
         })
     });
 
     let dataset =
-        SimpleDataset::<C>::read_from_file(Path::new("tests/data/Big5PT.sorted")).unwrap();
+        SimpleDataset::<C, S>::read_from_file(Path::new("tests/data/Big5PT.sorted")).unwrap();
     let icc = FixedBitSet::with_capacity_and_blocks(
         50,
         [0b0000000001000000000100000001000000000100000000010],
@@ -89,24 +107,36 @@ fn ends_cached_dataset_benches<C: DataContainter>(
     c
 }
 
-fn simple_dataset_benches<C: DataContainter>(
+fn simple_dataset_benches<C: DataContainter<S>, S: BuildHasher + Default>(
     mut c: criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>,
 ) -> criterion::BenchmarkGroup<'_, criterion::measurement::WallTime> {
     c.sample_size(10).measurement_time(Duration::from_secs(30));
 
-    c.bench_function(format!("{}: Loading MNIST11", type_name::<C>()), |b| {
-        b.iter(|| {
-            SimpleDataset::<C>::read_from_file(Path::new("tests/data/MNIST11.sorted")).unwrap()
-        })
-    });
-    c.bench_function(format!("{}: Loading Big5", type_name::<C>()), |b| {
-        b.iter(|| {
-            SimpleDataset::<C>::read_from_file(Path::new("tests/data/Big5PT.sorted")).unwrap()
-        })
-    });
+    c.bench_function(
+        format!(
+            "{} + {}: Loading MNIST11",
+            type_name::<C>(),
+            type_name::<S>()
+        ),
+        |b| {
+            b.iter(|| {
+                SimpleDataset::<C, S>::read_from_file(Path::new("tests/data/MNIST11.sorted"))
+                    .unwrap()
+            })
+        },
+    );
+    c.bench_function(
+        format!("{} + {}: Loading Big5", type_name::<C>(), type_name::<S>()),
+        |b| {
+            b.iter(|| {
+                SimpleDataset::<C, S>::read_from_file(Path::new("tests/data/Big5PT.sorted"))
+                    .unwrap()
+            })
+        },
+    );
 
     let dataset =
-        SimpleDataset::<C>::read_from_file(Path::new("tests/data/Big5PT.sorted")).unwrap();
+        SimpleDataset::<C, S>::read_from_file(Path::new("tests/data/Big5PT.sorted")).unwrap();
     let icc = FixedBitSet::with_capacity_and_blocks(
         50,
         [0b0000000001000000000100000001000000000100000000010],

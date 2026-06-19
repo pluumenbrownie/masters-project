@@ -1,24 +1,24 @@
-use std::path::Path;
+use std::{hash::BuildHasher, path::Path};
 
 use fixedbitset::FixedBitSet;
 use mcm_finder_lib::dataset::{
-    DataContainter, DataMap, DataVec, Dataset, SimpleDataset, VecDataset,
+    DataContainter, DataMap, DataVec, Dataset, DefaultState, SimpleDataset, VecDataset,
 };
 use pretty_assertions::assert_eq;
 
 #[test]
 fn partition_vec() {
-    partition::<DataVec>();
+    partition::<DataVec, DefaultState>();
 }
 
 #[test]
 fn partition_map() {
-    partition::<DataMap>();
+    partition::<DataMap<DefaultState>, DefaultState>();
 }
 
-fn partition<C: DataContainter>() {
+fn partition<C: DataContainter<S>, S: BuildHasher + Default>() {
     let dataset =
-        SimpleDataset::<C>::read_from_file(Path::new("./tests/data/SCOTUS_n9_N895_Data.dat"))
+        SimpleDataset::<C, S>::read_from_file(Path::new("./tests/data/SCOTUS_n9_N895_Data.dat"))
             .unwrap();
 
     let icc = FixedBitSet::with_capacity_and_blocks(9, [0b001011101]);
