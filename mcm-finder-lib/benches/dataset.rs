@@ -12,7 +12,7 @@ use criterion::{
 
 use fixedbitset::FixedBitSet;
 use mcm_finder_lib::dataset::{
-    AhashState, DataContainter, DataMap, DataVec, Dataset, DefaultState, EndsCachedDataset,
+    AhashState, DataContainer, DataMap, DataVec, Dataset, DefaultState, EndsCachedDataset,
     EndsCachedVecDataset, FxState, RapidStateFast, RapidStateQuality, SimpleDataset, VecDataset,
 };
 
@@ -22,23 +22,31 @@ fn criterion_benchmark(c: &mut Criterion) {
         let datapaths = [DataPath::Mnist11, DataPath::Big5];
         for data in datapaths {
             let mut c = c.benchmark_group(format!("SimpleDataset - Load {}", data.name()));
-            c = simple_dataset_loading_bench::<DataVec, DefaultState>(
+            c = simple_dataset_loading_bench::<DataVec<DefaultState>, DefaultState>(
                 data,
                 "DefaultState".into(),
                 c,
             );
-            c = simple_dataset_loading_bench::<DataVec, AhashState>(data, "AhashState".into(), c);
-            c = simple_dataset_loading_bench::<DataVec, RapidStateFast>(
+            c = simple_dataset_loading_bench::<DataVec<AhashState>, AhashState>(
+                data,
+                "AhashState".into(),
+                c,
+            );
+            c = simple_dataset_loading_bench::<DataVec<RapidStateFast>, RapidStateFast>(
                 data,
                 "RapidStateFast".into(),
                 c,
             );
-            c = simple_dataset_loading_bench::<DataVec, RapidStateQuality>(
+            c = simple_dataset_loading_bench::<DataVec<RapidStateQuality>, RapidStateQuality>(
                 data,
                 "RapidStateQuality".into(),
                 c,
             );
-            c = simple_dataset_loading_bench::<DataVec, FxState>(data, "FxState".into(), c);
+            c = simple_dataset_loading_bench::<DataVec<FxState>, FxState>(
+                data,
+                "FxState".into(),
+                c,
+            );
             c = simple_dataset_loading_bench::<DataMap<DefaultState>, DefaultState>(
                 data,
                 "DefaultState".into(),
@@ -75,19 +83,27 @@ fn criterion_benchmark(c: &mut Criterion) {
                 "SimpleDataset - Calculate Log E of {}",
                 data.name()
             ));
-            c = simple_dataset_log_e_bench::<DataVec, DefaultState>(data, "DefaultState".into(), c);
-            c = simple_dataset_log_e_bench::<DataVec, AhashState>(data, "AhashState".into(), c);
-            c = simple_dataset_log_e_bench::<DataVec, RapidStateFast>(
+            c = simple_dataset_log_e_bench::<DataVec<DefaultState>, DefaultState>(
+                data,
+                "DefaultState".into(),
+                c,
+            );
+            c = simple_dataset_log_e_bench::<DataVec<AhashState>, AhashState>(
+                data,
+                "AhashState".into(),
+                c,
+            );
+            c = simple_dataset_log_e_bench::<DataVec<RapidStateFast>, RapidStateFast>(
                 data,
                 "RapidStateFast".into(),
                 c,
             );
-            c = simple_dataset_log_e_bench::<DataVec, RapidStateQuality>(
+            c = simple_dataset_log_e_bench::<DataVec<RapidStateQuality>, RapidStateQuality>(
                 data,
                 "RapidStateQuality".into(),
                 c,
             );
-            c = simple_dataset_log_e_bench::<DataVec, FxState>(data, "FxState".into(), c);
+            c = simple_dataset_log_e_bench::<DataVec<FxState>, FxState>(data, "FxState".into(), c);
             c = simple_dataset_log_e_bench::<DataMap<DefaultState>, DefaultState>(
                 data,
                 "DefaultState".into(),
@@ -117,27 +133,31 @@ fn criterion_benchmark(c: &mut Criterion) {
         let datapaths = [DataPath::Mnist11, DataPath::Big5];
         for data in datapaths {
             let mut c = c.benchmark_group(format!("EndsCachedDataset - Load {}", data.name()));
-            c = ends_cached_dataset_loading_bench::<DataVec, DefaultState>(
+            c = ends_cached_dataset_loading_bench::<DataVec<DefaultState>, DefaultState>(
                 data,
                 "DefaultState".into(),
                 c,
             );
-            c = ends_cached_dataset_loading_bench::<DataVec, AhashState>(
+            c = ends_cached_dataset_loading_bench::<DataVec<AhashState>, AhashState>(
                 data,
                 "AhashState".into(),
                 c,
             );
-            c = ends_cached_dataset_loading_bench::<DataVec, RapidStateFast>(
+            c = ends_cached_dataset_loading_bench::<DataVec<RapidStateFast>, RapidStateFast>(
                 data,
                 "RapidStateFast".into(),
                 c,
             );
-            c = ends_cached_dataset_loading_bench::<DataVec, RapidStateQuality>(
+            c = ends_cached_dataset_loading_bench::<DataVec<RapidStateQuality>, RapidStateQuality>(
                 data,
                 "RapidStateQuality".into(),
                 c,
             );
-            c = ends_cached_dataset_loading_bench::<DataVec, FxState>(data, "FxState".into(), c);
+            c = ends_cached_dataset_loading_bench::<DataVec<FxState>, FxState>(
+                data,
+                "FxState".into(),
+                c,
+            );
             c = ends_cached_dataset_loading_bench::<DataMap<DefaultState>, DefaultState>(
                 data,
                 "DefaultState".into(),
@@ -174,27 +194,31 @@ fn criterion_benchmark(c: &mut Criterion) {
                 "EndsCachedDataset - Calculate Log E of {}",
                 data.name()
             ));
-            c = ends_cached_dataset_log_e_bench::<DataVec, DefaultState>(
+            c = ends_cached_dataset_log_e_bench::<DataVec<DefaultState>, DefaultState>(
                 data,
                 "DefaultState".into(),
                 c,
             );
-            c = ends_cached_dataset_log_e_bench::<DataVec, AhashState>(
+            c = ends_cached_dataset_log_e_bench::<DataVec<AhashState>, AhashState>(
                 data,
                 "AhashState".into(),
                 c,
             );
-            c = ends_cached_dataset_log_e_bench::<DataVec, RapidStateFast>(
+            c = ends_cached_dataset_log_e_bench::<DataVec<RapidStateFast>, RapidStateFast>(
                 data,
                 "RapidStateFast".into(),
                 c,
             );
-            c = ends_cached_dataset_log_e_bench::<DataVec, RapidStateQuality>(
+            c = ends_cached_dataset_log_e_bench::<DataVec<RapidStateQuality>, RapidStateQuality>(
                 data,
                 "RapidStateQuality".into(),
                 c,
             );
-            c = ends_cached_dataset_log_e_bench::<DataVec, FxState>(data, "FxState".into(), c);
+            c = ends_cached_dataset_log_e_bench::<DataVec<FxState>, FxState>(
+                data,
+                "FxState".into(),
+                c,
+            );
             c = ends_cached_dataset_log_e_bench::<DataMap<DefaultState>, DefaultState>(
                 data,
                 "DefaultState".into(),
@@ -287,7 +311,7 @@ impl DataPath {
     }
 }
 
-fn simple_dataset_loading_bench<'a, C: DataContainter<S>, S: BuildHasher + Default>(
+fn simple_dataset_loading_bench<'a, C: DataContainer<S>, S: BuildHasher + Default>(
     datapath: DataPath,
     hasher_name: String,
     mut c: criterion::BenchmarkGroup<'a, criterion::measurement::WallTime>,
@@ -303,7 +327,7 @@ fn simple_dataset_loading_bench<'a, C: DataContainter<S>, S: BuildHasher + Defau
     c
 }
 
-fn simple_dataset_log_e_bench<C: DataContainter<S>, S: BuildHasher + Default>(
+fn simple_dataset_log_e_bench<C: DataContainer<S>, S: BuildHasher + Default>(
     datapath: DataPath,
     hasher_name: String,
     mut c: criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>,
@@ -327,7 +351,7 @@ fn simple_dataset_log_e_bench<C: DataContainter<S>, S: BuildHasher + Default>(
     c
 }
 
-fn ends_cached_dataset_loading_bench<C: DataContainter<S>, S: BuildHasher + Default>(
+fn ends_cached_dataset_loading_bench<C: DataContainer<S>, S: BuildHasher + Default>(
     datapath: DataPath,
     hasher_name: String,
     mut c: criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>,
@@ -344,7 +368,7 @@ fn ends_cached_dataset_loading_bench<C: DataContainter<S>, S: BuildHasher + Defa
     c
 }
 
-fn ends_cached_dataset_log_e_bench<C: DataContainter<S>, S: BuildHasher + Default>(
+fn ends_cached_dataset_log_e_bench<C: DataContainer<S>, S: BuildHasher + Default>(
     datapath: DataPath,
     hasher_name: String,
     mut c: criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>,

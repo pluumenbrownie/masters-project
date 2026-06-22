@@ -2,13 +2,13 @@ use std::{hash::BuildHasher, path::Path};
 
 use fixedbitset::FixedBitSet;
 use mcm_finder_lib::dataset::{
-    DataContainter, DataMap, DataVec, Dataset, DefaultState, SimpleDataset, VecDataset,
+    DataContainer, DataMap, DataVec, Dataset, DefaultState, SimpleDataset, VecDataset,
 };
 use pretty_assertions::assert_eq;
 
 #[test]
 fn partition_vec() {
-    partition::<DataVec, DefaultState>();
+    partition::<DataVec<DefaultState>, DefaultState>();
 }
 
 #[test]
@@ -16,7 +16,7 @@ fn partition_map() {
     partition::<DataMap<DefaultState>, DefaultState>();
 }
 
-fn partition<C: DataContainter<S>, S: BuildHasher + Default>() {
+fn partition<C: DataContainer<S>, S: BuildHasher + Default>() {
     let dataset =
         SimpleDataset::<C, S>::read_from_file(Path::new("./tests/data/SCOTUS_n9_N895_Data.dat"))
             .unwrap();

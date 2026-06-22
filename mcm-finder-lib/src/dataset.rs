@@ -4,6 +4,8 @@
 use fixedbitset::FixedBitSet;
 use miette::NamedSource;
 use statrs::function::gamma::ln_gamma;
+use std::default;
+use std::path::Path;
 use std::{
     any::type_name,
     collections::HashMap,
@@ -12,7 +14,6 @@ use std::{
     hash::{BuildHasher, Hasher, RandomState},
     io::{BufReader, Read},
     marker::PhantomData,
-    path::Path,
     vec::IntoIter,
 };
 
@@ -22,7 +23,7 @@ use crate::mcm_error::MCMError;
 
 // impl BitVector for FixedBitSet {}
 
-pub trait DataContainter<S: BuildHasher + Default>: From<HashMap<FixedBitSet, usize, S>> {
+pub trait DataContainer<S: BuildHasher + Default>: From<HashMap<FixedBitSet, usize, S>> {
     fn iter(&self) -> impl ExactSizeIterator<Item = (&FixedBitSet, usize)>;
 
     fn name() -> String;
@@ -41,19 +42,21 @@ pub trait DataContainter<S: BuildHasher + Default>: From<HashMap<FixedBitSet, us
 }
 
 #[derive(Debug, Clone)]
-pub struct DataVec {
+pub struct DataVec<S: BuildHasher> {
     data: Vec<(FixedBitSet, usize)>,
+    _hasher: PhantomData<S>,
 }
 
-impl<S: BuildHasher + Default> From<HashMap<FixedBitSet, usize, S>> for DataVec {
+impl<S: BuildHasher + Default> From<HashMap<FixedBitSet, usize, S>> for DataVec<S> {
     fn from(value: HashMap<FixedBitSet, usize, S>) -> Self {
         Self {
             data: value.into_iter().collect(),
+            _hasher: PhantomData,
         }
     }
 }
 
-impl<S: BuildHasher + Default> DataContainter<S> for DataVec {
+impl<S: BuildHasher + Default> DataContainer<S> for DataVec<S> {
     fn iter(&self) -> impl ExactSizeIterator<Item = (&FixedBitSet, usize)> {
         self.data.iter().map(|(v, n)| (v, *n))
     }
@@ -74,7 +77,7 @@ impl<S: BuildHasher> From<HashMap<FixedBitSet, usize, S>> for DataMap<S> {
     }
 }
 
-impl<S: BuildHasher + Default> DataContainter<S> for DataMap<S> {
+impl<S: BuildHasher + Default> DataContainer<S> for DataMap<S> {
     fn iter(&self) -> impl ExactSizeIterator<Item = (&FixedBitSet, usize)> {
         self.data.iter().map(|(v, n)| (v, *n))
     }
@@ -103,7 +106,18 @@ pub trait Dataset {
 }
 
 #[derive(Debug, Clone)]
-pub struct SimpleDataset<C: DataContainter<S>, S: BuildHasher + Default> {
+/// A simple dataset without any caching or optimization.
+///
+/// # Examples
+/// ```
+/// use mcm_finder_lib::dataset::{SimpleDataset, DataVec, DefaultState, Dataset};
+/// let dataset = SimpleDataset::<DataVec<DefaultState>, DefaultState>::read_from_file(
+///     std::path::Path::new("tests/data/SCOTUS_n9_N895_Data.dat"),
+/// ).unwrap();
+/// assert_eq!(dataset.datapoints(), 895);
+/// assert_eq!(dataset.variables(), 9);
+/// ```
+pub struct SimpleDataset<C: DataContainer<S>, S: BuildHasher + Default> {
     data: C,
     datapoints: usize,
     _build_hasher: PhantomData<S>,
@@ -115,12 +129,12 @@ pub type RapidStateFast = rapidhash::fast::RandomState;
 pub type RapidStateQuality = rapidhash::quality::RandomState;
 pub type FxState = rustc_hash::FxBuildHasher;
 
-pub type VecDataset = SimpleDataset<DataVec, DefaultState>;
+pub type VecDataset = SimpleDataset<DataVec<DefaultState>, DefaultState>;
 pub type MapDataset = SimpleDataset<DataMap<DefaultState>, DefaultState>;
-pub type EndsCachedVecDataset = EndsCachedDataset<DataVec, DefaultState>;
+pub type EndsCachedVecDataset = EndsCachedDataset<DataVec<DefaultState>, DefaultState>;
 
-impl<C: DataContainter<S>, S: BuildHasher + Default> SimpleDataset<C, S> {
-    fn new(data: C, datapoints: usize) -> SimpleDataset<C, S> {
+impl<C: DataContainer<S>, S: BuildHasher + Default> SimpleDataset<C, S> {
+    pub fn new(data: C, datapoints: usize) -> SimpleDataset<C, S> {
         SimpleDataset {
             data,
             datapoints,
@@ -128,23 +142,122 @@ impl<C: DataContainter<S>, S: BuildHasher + Default> SimpleDataset<C, S> {
         }
     }
 
+    /// Returns the count of datapoints matching the given configuration.
+    ///
+    /// # Examples
+    /// ```
+    /// use mcm_finder_lib::dataset::{SimpleDataset, DataVec, DefaultState};
+    /// use fixedbitset::FixedBitSet;
+    /// use std::collections::HashMap;
+    ///
+    /// let mut bitset1 = FixedBitSet::with_capacity(3);
+    /// bitset1.set(0, true);
+    ///
+    /// let mut bitset2 = FixedBitSet::with_capacity(3);
+    /// bitset2.set(0, true);
+    /// bitset2.set(1, true);
+    ///
+    /// let data = DataVec::from(HashMap::from([
+    ///     (bitset1.clone(), 10),
+    ///     (bitset2.clone(), 20),
+    /// ]));
+    /// let dataset = SimpleDataset::<DataVec<DefaultState>, DefaultState>::new(data, 2);
+    ///
+    /// // Matching configuration returns Some(count)
+    /// assert_eq!(dataset.get(&bitset1), Some(10));
+    ///
+    /// // Non-matching configuration returns None
+    /// let mut bitset3 = FixedBitSet::with_capacity(3);
+    /// bitset3.set(1, true);
+    /// assert_eq!(dataset.get(&bitset3), None);
+    /// ```
     pub fn get(&self, configuration: &FixedBitSet) -> Option<usize> {
         self.data
             .iter()
             .find_map(|(d, n)| if d == configuration { Some(n) } else { None })
     }
 
+    /// Returns an iterator over the datapoints in this dataset.
+    ///
+    /// # Examples
+    /// ```
+    /// use mcm_finder_lib::dataset::{SimpleDataset, DataVec, DefaultState};
+    /// use fixedbitset::FixedBitSet;
+    /// use std::collections::HashMap;
+    ///
+    /// let mut bitset1 = FixedBitSet::with_capacity(3);
+    /// bitset1.set(0, true);
+    ///
+    /// let mut bitset2 = FixedBitSet::with_capacity(3);
+    /// bitset2.set(0, true);
+    /// bitset2.set(1, true);
+    ///
+    /// let data = DataVec::from(HashMap::from([
+    ///     (bitset1.clone(), 10),
+    ///     (bitset2.clone(), 20),
+    /// ]));
+    /// let dataset = SimpleDataset::<DataVec<DefaultState>, DefaultState>::new(data, 2);
+    ///
+    /// // Demonstrate iteration over the dataset and collecting results into a vector
+    /// let results: Vec<(&FixedBitSet, usize)> = dataset.iter().collect();
+    ///
+    /// // Include assertion checking iteration length equals dataset size
+    /// assert_eq!(results.len(), 2);
+    /// ```
     pub fn iter(&self) -> impl ExactSizeIterator<Item = (&FixedBitSet, usize)> {
         self.data.iter()
     }
 
     /// Return the histogram of data for the given ICC.
+    ///
+    /// This method transforms the dataset into a new `SimpleDataset` where each configuration
+    /// is projected onto the bitmask provided by `icc`. If multiple configurations from the
+    /// original dataset project to the same configuration in the new one, their counts are summed.
+    ///
+    /// # Examples
+    /// ```
+    /// use mcm_finder_lib::dataset::{SimpleDataset, DataVec, DefaultState};
+    /// use fixedbitset::FixedBitSet;
+    /// use std::collections::HashMap;
+    ///
+    /// let mut bitset1 = FixedBitSet::with_capacity(3);
+    /// bitset1.set(0, true); // bits: {0}
+    ///
+    /// let mut bitset2 = FixedBitSet::with_capacity(3);
+    /// bitset2.set(1, true); // bits: {1}
+    ///
+    /// let mut bitset3 = FixedBitSet::with_capacity(3);
+    /// bitset3.set(0, true);
+    /// bitset3.set(2, true); // bits: {0, 2}
+    ///
+    /// let data = DataVec::from(HashMap::from([
+    ///     (bitset1.clone(), 10),
+    ///     (bitset2.clone(), 20),
+    ///     (bitset3.clone(), 10),
+    /// ]));
+    /// let dataset = SimpleDataset::<DataVec<DefaultState>, DefaultState>::new(data, 2);
+    ///
+    /// // Transform to ICC with bits {0, 1} set
+    /// let mut icc = FixedBitSet::with_capacity(3);
+    /// icc.set(0, true);
+    /// icc.set(1, true);
+    ///
+    /// let transformed = dataset.transform_to_icc(&icc);
+    ///
+    /// // The transformed dataset contains configurations within the ICC.
+    /// assert_eq!(transformed.get(&bitset1), Some(20));
+    /// assert_eq!(transformed.get(&bitset2), Some(20));
+    ///
+    /// // Accessing data via iter() and collecting into a vector
+    /// let results: Vec<(&FixedBitSet, usize)> = transformed.iter().collect();
+    /// assert_eq!(results.len(), 2);
+    /// ```
     pub fn transform_to_icc(&self, icc: &FixedBitSet) -> SimpleDataset<C, S> {
         SimpleDataset::new(self.data.to_icc(icc), self.datapoints)
     }
 }
 
-impl<C: DataContainter<S>, S: BuildHasher + Default> Dataset for SimpleDataset<C, S> {
+impl<C: DataContainer<S>, S: BuildHasher + Default> Dataset for SimpleDataset<C, S> {
     fn variables(&self) -> usize {
         self.data.iter().map(|d| d.0.len()).next().unwrap()
     }
@@ -218,16 +331,7 @@ impl<C: DataContainter<S>, S: BuildHasher + Default> Dataset for SimpleDataset<C
     }
 }
 
-// impl<C: DataContainter> IntoIterator for VecDataset<C> {
-//     type Item = (FixedBitSet, usize);
-//     type IntoIter = IntoIter<(FixedBitSet, usize)>;
-
-//     fn into_iter(self) -> Self::IntoIter {
-//         self.data.into_iter()
-//     }
-// }
-
-impl<C: DataContainter<S>, S: BuildHasher + Default> Display for SimpleDataset<C, S> {
+impl<C: DataContainer<S>, S: BuildHasher + Default> Display for SimpleDataset<C, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "VecDataset: {{")?;
         writeln!(f, "   data: [")?;
@@ -275,14 +379,25 @@ pub(crate) fn verify_ascii(
 }
 
 #[derive(Debug, Clone)]
-pub struct EndsCachedDataset<C: DataContainter<S>, S: BuildHasher + Default> {
+/// A simple dataset without any caching or optimization.
+///
+/// # Examples
+/// ```
+/// use mcm_finder_lib::dataset::{SimpleDataset, DataVec, DefaultState, Dataset};
+/// let dataset = SimpleDataset::<DataVec<DefaultState>, DefaultState>::read_from_file(
+///     std::path::Path::new("tests/data/SCOTUS_n9_N895_Data.dat"),
+/// ).unwrap();
+/// assert_eq!(dataset.datapoints(), 895);
+/// assert_eq!(dataset.variables(), 9);
+/// ```
+pub struct EndsCachedDataset<C: DataContainer<S>, S: BuildHasher + Default> {
     pub data: Vec<Option<C>>,
     variables: usize,
     datapoints: usize,
     _build_hasher: PhantomData<S>,
 }
 
-impl<C: DataContainter<S>, S: BuildHasher + Default> Dataset for EndsCachedDataset<C, S> {
+impl<C: DataContainer<S>, S: BuildHasher + Default> Dataset for EndsCachedDataset<C, S> {
     fn variables(&self) -> usize {
         self.variables
     }
@@ -375,7 +490,7 @@ impl<C: DataContainter<S>, S: BuildHasher + Default> Dataset for EndsCachedDatas
     }
 }
 
-impl<C: DataContainter<S>, S: BuildHasher + Default> Display for EndsCachedDataset<C, S> {
+impl<C: DataContainer<S>, S: BuildHasher + Default> Display for EndsCachedDataset<C, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut icc = FixedBitSet::with_capacity_and_blocks(self.variables(), [0]);
         let mut data_iter = self.data.iter();
@@ -418,7 +533,26 @@ impl<C: DataContainter<S>, S: BuildHasher + Default> Display for EndsCachedDatas
     }
 }
 
-impl<C: DataContainter<S>, S: BuildHasher + Default> EndsCachedDataset<C, S> {
+impl<C: DataContainer<S>, S: BuildHasher + Default> EndsCachedDataset<C, S> {
+    /// Get the amount of counts for this ICC.
+    ///
+    /// Returns `None` when the dataset is empty.
+    ///
+    /// # Examples
+    /// ```
+    /// use mcm_finder_lib::dataset::{EndsCachedVecDataset, DefaultState, Dataset, DataContainer, DataVec};
+    /// use fixedbitset::FixedBitSet;
+    ///
+    /// let dataset = EndsCachedVecDataset::read_from_file(
+    ///     std::path::Path::new("tests/data/SCOTUS_n9_N895_Data.dat")
+    /// ).unwrap();
+    ///
+    /// let mut icc = FixedBitSet::with_capacity(9);
+    /// icc.set(2, true);
+    ///
+    /// let selection = dataset.get_icc(&icc).unwrap();
+    /// assert_eq!(selection, 1);
+    /// ```
     pub fn get_icc(&self, configuration: &FixedBitSet) -> Option<usize> {
         self.data[0]
             .as_ref()
@@ -430,6 +564,22 @@ impl<C: DataContainter<S>, S: BuildHasher + Default> EndsCachedDataset<C, S> {
     /// Get the first best dataset for this `get_ends_cache_location` index.
     ///
     /// Returns `None` when the dataset is empty.
+    ///
+    /// # Examples
+    /// ```
+    /// use mcm_finder_lib::dataset::{EndsCachedVecDataset, DefaultState, Dataset, DataContainer, DataVec};
+    /// use fixedbitset::FixedBitSet;
+    ///
+    /// let dataset = EndsCachedVecDataset::read_from_file(
+    ///     std::path::Path::new("tests/data/SCOTUS_n9_N895_Data.dat")
+    /// ).unwrap();
+    ///
+    /// let selection = dataset.get(27).unwrap();
+    /// assert_eq!(selection.bins(), 8);
+    ///
+    /// let none_selection = dataset.get(0).unwrap();
+    /// assert_eq!(none_selection.bins(), 128);
+    /// ```
     pub fn get(&self, index: usize) -> Option<&C> {
         if self.data.is_empty() {
             return None;
@@ -438,6 +588,26 @@ impl<C: DataContainter<S>, S: BuildHasher + Default> EndsCachedDataset<C, S> {
     }
 
     /// Turns this EndsCachedDataset into a SimpleDataset, transformed for the given ICC.
+    ///
+    /// # Examples
+    /// ```
+    /// use mcm_finder_lib::dataset::{EndsCachedVecDataset, DefaultState, Dataset};
+    /// use fixedbitset::FixedBitSet;
+    ///
+    /// let dataset = EndsCachedVecDataset::read_from_file(
+    ///     std::path::Path::new("tests/data/SCOTUS_n9_N895_Data.dat")
+    /// ).unwrap();
+    ///
+    /// let mut icc = FixedBitSet::with_capacity(10);
+    /// icc.set(0, true);
+    /// icc.set(1, true);
+    ///
+    /// let transformed = dataset.transform_to_icc(&icc);
+    ///
+    /// for (data, count) in transformed.iter() {
+    ///     assert!(count > 0);
+    /// }
+    /// ```
     pub fn transform_to_icc(&self, partition: &FixedBitSet) -> SimpleDataset<C, S> {
         let ends = Ends::from_icc(partition);
         let location = get_ends_cache_location(ends.as_ref().cloned(), self.variables);
