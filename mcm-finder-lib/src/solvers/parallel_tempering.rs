@@ -9,7 +9,11 @@ use std::{
 use dashmap::DashMap;
 use fixedbitset::FixedBitSet;
 use kdam::{Bar, BarExt, par_tqdm};
-use rand::{RngExt, rngs::ThreadRng};
+use rand::{
+    RngExt,
+    rngs::ThreadRng,
+    seq::{IteratorRandom, SliceRandom},
+};
 use rayon::prelude::*;
 
 use crate::{
@@ -51,6 +55,7 @@ pub struct ParallelTemperingSolver {
     steps_per_shuffle: usize,
     shuffles: usize,
     acception_fraction: f64,
+    arbitrary_swaps: bool,
 }
 
 impl ParallelTemperingSolver {
@@ -76,6 +81,11 @@ impl ParallelTemperingSolver {
     ///
     /// Ignored if `self.set_temperature_curve(ParallelTemperatureCurve::Custom)` is set.
     pub fn set_max_temperature(mut self, temp: f64) -> Self {
+        assert!(temp >= 0.0, "Maximum temperature cannot be negative.");
+        assert!(
+            temp >= self.min_temperature || temp == 0.0,
+            "Maximum temperature should be greater than minimum temperature."
+        );
         self.max_temperature = temp;
         self
     }
@@ -101,7 +111,7 @@ impl ParallelTemperingSolver {
     /// Sets the amount of tempering pools used.
     ///
     /// Default is set to the number of CPU threads, but you could also set this
-    /// higher, as the threads wait a lot for access to the log_e_cache.
+    /// higher.
     ///
     /// Ignored if `self.temperature_curve == ParallelTemperatureCurve::Custom`
     /// is set.
@@ -130,6 +140,13 @@ impl ParallelTemperingSolver {
     /// Ignored when `self.max_temperature()` is set to a non-zero value.
     pub fn set_acception_fraction(mut self, fraction: f64) -> Self {
         self.acception_fraction = fraction;
+        self
+    }
+
+    /// Sets whether MCMs can attempt to swap between arbitrary pools, or only
+    /// their direct neighbors.
+    pub fn set_arbitrary_swaps(mut self, arbitrary: bool) -> Self {
+        self.arbitrary_swaps = arbitrary;
         self
     }
 
@@ -164,39 +181,40 @@ impl ParallelTemperingSolver {
     }
 
     fn linear_temperatures(&self, max_temp: f64) -> Vec<f64> {
-        (0..=self.pool_amount)
+        (0..self.pool_amount)
             .map(|i| {
                 self.min_temperature
-                    + (max_temp - self.min_temperature) * (i as f64) / (self.pool_amount as f64)
+                    + (max_temp - self.min_temperature) * (i as f64)
+                        / ((self.pool_amount - 1) as f64)
             })
             .collect()
     }
 
     fn inverse_linear_temperatures(&self, max_temp: f64) -> Vec<f64> {
-        (0..=self.pool_amount)
+        (0..self.pool_amount)
             .map(|i| {
                 1.0 / max_temp
                     + (1.0 / self.min_temperature - 1.0 / max_temp) * (i as f64)
-                        / (self.pool_amount as f64)
+                        / ((self.pool_amount - 1) as f64)
             })
             .map(|t| 1.0 / t)
             .collect()
     }
 
     fn geometric_temperatures(&self, max_temp: f64) -> Vec<f64> {
-        let r = (max_temp / self.min_temperature).powf(1.0 / (self.pool_amount as f64));
+        let r = (max_temp / self.min_temperature).powf(1.0 / ((self.pool_amount - 1) as f64));
 
-        (0..=(self.pool_amount as i32))
+        (0..(self.pool_amount as i32))
             .map(|i| self.min_temperature * r.powi(i))
             .collect()
     }
 
     fn exponential_temperatures(&self, max_temp: f64) -> Vec<f64> {
-        (0..=(self.pool_amount as i32))
+        (0..(self.pool_amount as i32))
             .map(|i| {
                 (self.min_temperature.ln()
                     + (max_temp.ln() - self.min_temperature.ln()) * (i as f64)
-                        / (self.pool_amount as f64))
+                        / ((self.pool_amount - 1) as f64))
                     .exp()
             })
             .collect()
@@ -237,6 +255,30 @@ impl ParallelTemperingSolver {
         temperatures.sort_by(|a, b| b.total_cmp(a));
         temperatures
     }
+
+    fn get_swaps(&self, turn: usize) -> Vec<(usize, usize)> {
+        let mut output = vec![];
+        if self.arbitrary_swaps {
+            let mut rng = rand::rng();
+            let mut pools: Vec<_> = (0..self.pool_amount).collect();
+            pools.shuffle(&mut rng);
+            output = pools.chunks_exact(2).map(|a| (a[0], a[1])).collect();
+        } else {
+            if turn.is_multiple_of(2) {
+                for i in 0..self.pool_amount / 2 {
+                    output.push((i * 2, i * 2 + 1));
+                }
+            } else {
+                for i in 0..self.pool_amount / 2 {
+                    if i * 2 + 2 >= self.pool_amount {
+                        break;
+                    };
+                    output.push((i * 2 + 1, i * 2 + 2));
+                }
+            }
+        }
+        output
+    }
 }
 
 impl Solver for ParallelTemperingSolver {
@@ -255,6 +297,7 @@ impl Solver for ParallelTemperingSolver {
             steps_per_shuffle: 100,
             shuffles: 200,
             acception_fraction: 0.23,
+            arbitrary_swaps: false,
         })
     }
 
@@ -294,13 +337,15 @@ impl Solver for ParallelTemperingSolver {
                 .unwrap()
                 .set_description(format!("Best Log(E): {:.0}", best_pool.best_log_e));
 
-            if i % 2 == 0 {
-                pools
-                    .par_chunks_exact_mut(2)
-                    .for_each_init(rand::rng, |rng, p| {
-                        let (p_one, p_two) = p.split_at_mut(1);
-                        p_one[0].swap(&mut p_two[0], rng);
-                    });
+            let swaps = self.get_swaps(i);
+            let mut rng = rand::rng();
+            for (i, j) in swaps {
+                let highest = i.max(j);
+                let lowest = i.min(j);
+                let (start, end) = pools.split_at_mut(highest);
+                let p_one = start.get_mut(lowest).unwrap();
+                let p_two = end.get_mut(0).unwrap();
+                p_one.swap(p_two, &mut rng);
             }
         }
 

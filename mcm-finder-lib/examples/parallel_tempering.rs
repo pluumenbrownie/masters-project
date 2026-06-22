@@ -13,10 +13,11 @@ fn main() -> Result<()> {
 
     let solver = ParallelTemperingSolver::from_file(filepath)?
         .set_starter(AnnealingStarter::Trivial)
-        .set_temperature_curve(ParallelTemperatureCurve::Linear)
-        .set_steps_per_shuffle(20)
-        .set_shuffles(500)
-        .set_pools(12);
+        .set_temperature_curve(ParallelTemperatureCurve::Geometric)
+        .set_min_temperature(0.1)
+        .set_steps_per_shuffle(50)
+        .set_shuffles(1500)
+        .set_arbitrary_swaps(false);
     // .set_starter(AnnealingStarter::Single);
     let result = solver.solve();
     println!("{}", result);
