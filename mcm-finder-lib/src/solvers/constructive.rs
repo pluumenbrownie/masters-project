@@ -1,8 +1,13 @@
-use std::{collections::HashMap, marker::Sized, path::Path};
+use std::{
+    collections::{HashMap, VecDeque},
+    marker::Sized,
+    ops::{Add, Div},
+    path::Path,
+};
 
 use fixedbitset::FixedBitSet;
-use kdam::tqdm;
-use rand::seq::SliceRandom;
+use kdam::{BarExt, tqdm};
+use rand::{RngExt, rngs::ThreadRng, seq::SliceRandom};
 
 use crate::{
     dataset::{Dataset, VecDataset},
@@ -26,6 +31,11 @@ pub enum ConstructiveStrategy {
     GreedyOrder,
     VarianceFirst,
     VarianceLast,
+    /// Iteratively constructs MCM in a random order, while building a tabu list
+    /// for good and bad variable combinations.
+    Tabu {
+        steps: usize,
+    },
 }
 
 #[derive(Clone)]
@@ -75,6 +85,9 @@ impl Solver for ConstructiveSolver {
             }
             ConstructiveStrategy::VarianceLast => {
                 self.solve_variance_last(&mut log_e_cache, &mut current_solution)
+            }
+            ConstructiveStrategy::Tabu { steps } => {
+                self.solve_tabu(&mut log_e_cache, &mut current_solution, steps)
             }
         }
 
@@ -186,6 +199,99 @@ impl ConstructiveSolver {
         );
     }
 
+    fn solve_tabu(
+        &self,
+        log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
+        current_solution: &mut MinimallyComplexModel,
+        steps: usize,
+    ) {
+        let rng = &mut rand::rng();
+        let mut order_vector = (0..self.dataset.variables()).collect::<Vec<usize>>();
+
+        let mut tabu_list = vec![vec![0i8; self.dataset.variables()]; self.dataset.variables()];
+        let mut past_log_e = LogEQueue::default();
+
+        let mut bar = tqdm!(total = steps, position = 1);
+        for _step in 0..steps {
+            *current_solution =
+                MinimallyComplexModel::empty(self.dataset.variables().try_into().unwrap());
+            order_vector.shuffle(rng);
+            self.solve_in_order_tabu(
+                log_e_cache,
+                current_solution,
+                &order_vector,
+                &tabu_list,
+                rng,
+            );
+            let improvement =
+                past_log_e.improvement(current_solution.log_e(&self.dataset, log_e_cache));
+            if let Some(imp) = improvement {
+                update_tabu(&mut tabu_list, current_solution, imp);
+            }
+            // println!("{:?}", tabu_list);
+            bar.set_description(format!(
+                "Log E: {:.0}",
+                current_solution.log_e(&self.dataset, log_e_cache)
+            ));
+            bar.update(1).unwrap();
+        }
+    }
+
+    fn solve_in_order_tabu(
+        &self,
+        log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
+        current_solution: &mut MinimallyComplexModel,
+        iterator: &[usize],
+        tabu_list: &[Vec<i8>],
+        rng: &mut ThreadRng,
+    ) {
+        for var in tqdm!(iterator.iter()) {
+            let vec_rep = current_solution.to_vector();
+            let max_icc = vec_rep.iter().max().unwrap() + 1;
+            let var_amount = vec_rep.iter().filter(|x| **x != 0).count() + 1;
+
+            let mut candidates: Vec<(MinimallyComplexModel, f64, f64)> = (1..=max_icc)
+                .map(|new_icc| {
+                    let mut new_candidate = vec_rep.clone();
+                    new_candidate[*var] = new_icc;
+                    let mcm = MinimallyComplexModel::from_vector(new_candidate);
+                    let log_e = mcm.log_e(&self.dataset, log_e_cache);
+                    let tabu_count: f64 = vec_rep
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(v, icc)| {
+                            if icc == &new_icc {
+                                Some(tabu_list[*var][v] as f64)
+                            } else {
+                                None
+                            }
+                        })
+                        .sum();
+                    let goodness = 1.0 + (tabu_count / 2.0).tanh().min(0.0);
+                    (mcm, log_e, goodness)
+                })
+                .collect();
+
+            candidates.sort_by(|(_, a, _), (_, b, _)| b.total_cmp(a));
+            let goodness_vec: Vec<f64> = candidates.iter().map(|x| x.2).collect();
+            if var_amount == 61 {
+                println!("{:?}", goodness_vec);
+            }
+
+            let mut counter = 0;
+            *current_solution = loop {
+                if counter >= max_icc {
+                    counter = 0
+                };
+                let goodness = candidates[counter].2;
+                if rng.random_bool(goodness) {
+                    break candidates[counter].0.to_owned();
+                }
+                counter += 1;
+            };
+        }
+    }
+
     fn get_variable_variance(&self) -> Vec<(usize, Vec<usize>, f64)> {
         let mut pairs = vec![];
         for i in 0..self.dataset.variables() {
@@ -201,5 +307,43 @@ impl ConstructiveSolver {
         }
         pairs.sort_by(|a, b| a.2.total_cmp(&b.2));
         pairs
+    }
+}
+
+fn update_tabu(tabu_list: &mut [Vec<i8>], current_solution: &MinimallyComplexModel, imp: bool) {
+    let matrix = current_solution.to_matrix();
+    for (tabu_row, mcm_row) in tabu_list.iter_mut().zip(matrix.iter()) {
+        for c in mcm_row.ones() {
+            tabu_row[c] = tabu_row[c].add(if imp { 1 } else { -1 }).clamp(-3, 3);
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct LogEQueue {
+    data: [Option<f64>; 16],
+    counter: u8,
+}
+
+impl LogEQueue {
+    fn add(&mut self, value: f64) {
+        self.data[(self.counter % 16) as usize] = Some(value);
+        self.counter = self.counter.wrapping_add(1);
+    }
+
+    fn avg(&self) -> Option<f64> {
+        self.data[0]?;
+        let total: f64 = self.data.iter().filter_map(|x| *x).sum();
+        Some(total / self.data.iter().filter(|x| x.is_some()).count() as f64)
+    }
+
+    /// Adds the new log E, returns if the new value is better or worse than average.
+    ///
+    /// Returns `None` when the new value is the first one added.
+    #[must_use]
+    fn improvement(&mut self, value: f64) -> Option<bool> {
+        let avg = self.avg();
+        self.add(value);
+        avg.map(|a| value.total_cmp(&a).is_gt())
     }
 }
