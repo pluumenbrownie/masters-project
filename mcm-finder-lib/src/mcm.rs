@@ -495,7 +495,9 @@ impl MinimallyComplexModel {
         MinimallyComplexModel::new_remove_empty(iccs)
     }
 
-    /// Swaps the given variable from the basis ICC into the destination ICC
+    /// Swaps the given variable from the basis ICC into the destination ICC.
+    ///
+    /// Swapping a variable into a non-existant ICC adds a new ICC.
     ///
     /// # Examples
     /// ```
