@@ -4,7 +4,7 @@ use fixedbitset::FixedBitSet;
 use kdam::tqdm;
 
 use crate::{
-    dataset::{Dataset, VecDataset},
+    dataset::{Dataset, simple::VecDataset},
     mcm::MinimallyComplexModel,
     mcm_error::MCMError,
     solvers::solvers_base::{Solver, SolverReport},

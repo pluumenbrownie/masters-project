@@ -1,10 +1,12 @@
 use std::{hash::BuildHasher, path::Path};
 
 use fixedbitset::FixedBitSet;
-use mcm_finder_lib::dataset::{
-    DataContainer, DataMap, DataVec, Dataset, DefaultState, SimpleDataset, VecDataset,
-};
 use pretty_assertions::assert_eq;
+
+use mcm_finder_lib::dataset::{
+    Dataset, DefaultState, datacontainer::DataContainer, datacontainer::DataMap,
+    datacontainer::DataVec, simple::SimpleDataset, simple::VecDataset,
+};
 
 #[test]
 fn partition_vec() {

@@ -1,7 +1,8 @@
 use std::path::Path;
 
 use fixedbitset::FixedBitSet;
-use mcm_finder_lib::dataset::{Dataset, VecDataset};
+
+use mcm_finder_lib::dataset::{Dataset, simple::VecDataset};
 
 #[test]
 fn read_data() {

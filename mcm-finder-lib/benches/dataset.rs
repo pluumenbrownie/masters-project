@@ -1,4 +1,3 @@
-use rand::seq::IndexedRandom;
 use std::{
     any::{type_name, type_name_of_val},
     hash::BuildHasher,
@@ -9,11 +8,14 @@ use std::{
 use criterion::{
     BatchSize, BenchmarkId, Criterion, SamplingMode::Linear, criterion_group, criterion_main,
 };
-
 use fixedbitset::FixedBitSet;
+use rand::seq::IndexedRandom;
+
 use mcm_finder_lib::dataset::{
-    AhashState, DataContainer, DataMap, DataVec, Dataset, DefaultState, EndsCachedDataset,
-    EndsCachedVecDataset, FxState, RapidStateFast, RapidStateQuality, SimpleDataset, VecDataset,
+    AhashState, Dataset, DefaultState, FxState, RapidStateFast, RapidStateQuality,
+    datacontainer::{DataContainer, DataMap, DataVec},
+    ends_cached::EndsCachedDataset,
+    simple::SimpleDataset,
 };
 
 fn criterion_benchmark(c: &mut Criterion) {

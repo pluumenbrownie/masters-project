@@ -8,7 +8,7 @@ use kdam::{Bar, BarExt, tqdm};
 use rand::seq::{IteratorRandom, SliceRandom};
 
 use crate::{
-    dataset::{Dataset, VecDataset},
+    dataset::{Dataset, simple::VecDataset},
     mcm::MinimallyComplexModel,
     mcm_error::MCMError,
     solvers::{

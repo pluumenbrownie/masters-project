@@ -3,7 +3,7 @@ use std::path::Path;
 use miette::Result;
 
 use mcm_finder_lib::{
-    dataset::VecDataset,
+    dataset::simple::VecDataset,
     solvers::{
         AnnealingStarter, SimulatedAnnealingSolver, Solver, anneal_temps::AnnealingTemperature,
     },

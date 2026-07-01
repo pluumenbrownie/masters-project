@@ -2,10 +2,15 @@ use std::{hash::BuildHasher, path::Path};
 
 use approx::assert_relative_eq;
 use fixedbitset::FixedBitSet;
-use mcm_finder_lib::dataset::{
-    DataContainer, DataMap, DataVec, Dataset, DefaultState, EndsCachedDataset, SimpleDataset,
-};
 use pretty_assertions::assert_eq;
+
+use mcm_finder_lib::dataset::{
+    Dataset, DefaultState,
+    datacontainer::DataContainer,
+    datacontainer::{DataMap, DataVec},
+    ends_cached::EndsCachedDataset,
+    simple::SimpleDataset,
+};
 
 #[test]
 fn ends_cache_partition_vec() {

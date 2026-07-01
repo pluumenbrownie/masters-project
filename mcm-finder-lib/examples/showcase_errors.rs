@@ -1,7 +1,8 @@
 use std::path::Path;
 
-use mcm_finder_lib::dataset::{Dataset, VecDataset};
 use miette::{ErrReport, Result};
+
+use mcm_finder_lib::dataset::{Dataset, simple::VecDataset};
 
 fn main() -> Result<()> {
     {

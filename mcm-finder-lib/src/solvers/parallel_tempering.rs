@@ -17,7 +17,7 @@ use rand::{
 use rayon::prelude::*;
 
 use crate::{
-    dataset::{Dataset, VecDataset},
+    dataset::{Dataset, simple::VecDataset},
     mcm::MinimallyComplexModel,
     mcm_error::MCMError,
     solvers::{

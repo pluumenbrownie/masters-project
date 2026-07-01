@@ -9,7 +9,7 @@ use rand::{
 };
 
 use crate::{
-    dataset::{Dataset, VecDataset},
+    dataset::{Dataset, simple::VecDataset},
     mcm::MinimallyComplexModel,
     solvers::{Solver, SolverReport, get_log_e_cache},
 };

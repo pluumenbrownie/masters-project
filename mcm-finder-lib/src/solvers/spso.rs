@@ -5,7 +5,7 @@ use kdam::{BarExt, tqdm};
 use rand::{RngExt, rngs::ThreadRng};
 
 use crate::{
-    dataset::{Dataset, VecDataset},
+    dataset::{Dataset, simple::VecDataset},
     mcm::MinimallyComplexModel,
     solvers::{Solver, SolverReport, get_log_e_cache},
 };

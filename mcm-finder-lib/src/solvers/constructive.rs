@@ -10,7 +10,7 @@ use kdam::{BarExt, tqdm};
 use rand::{RngExt, rngs::ThreadRng, seq::SliceRandom};
 
 use crate::{
-    dataset::{Dataset, VecDataset},
+    dataset::{Dataset, simple::VecDataset},
     mcm::MinimallyComplexModel,
     mcm_error::MCMError,
     solvers::{

@@ -1,6 +1,5 @@
-use mcm_finder_lib::dataset::VecDataset;
-
 use crate::app::App;
+use mcm_finder_lib::dataset::simple::VecDataset;
 
 pub mod app;
 pub mod event;
