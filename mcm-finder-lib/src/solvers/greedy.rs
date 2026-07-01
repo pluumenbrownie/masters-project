@@ -1,5 +1,6 @@
 use std::{
-    collections::HashMap, default, marker::Sized, num::NonZero, ops::RangeBounds, path::Path,
+    char::ToLowercase, collections::HashMap, default, marker::Sized, num::NonZero,
+    ops::RangeBounds, path::Path,
 };
 
 use fixedbitset::FixedBitSet;
@@ -201,6 +202,8 @@ impl GreedySolver {
 
         let selection = (0..original.mcm.variables()).sample(&mut rng, amount);
         let icc_iterator = ProductIterator::new(amount, icc_amount);
+        let total_length = icc_iterator.len();
+        progress.total += total_length;
 
         let mut gen_best = None;
         for into_vec in icc_iterator {
@@ -526,8 +529,8 @@ impl Solver for GreedySolver {
                 Refinements::Local => {
                     self.solve_local(&mut log_e_cache, &mut best_mcm, &mut progress)
                 }
-                Refinements::ChooseN { n: N, max_fails } => self.solve_check_amount(
-                    *N,
+                Refinements::ChooseN { n, max_fails } => self.solve_check_amount(
+                    *n,
                     *max_fails,
                     &mut log_e_cache,
                     &mut best_mcm,
@@ -560,6 +563,10 @@ impl ProductIterator {
             first: true,
             current: vec![0; amount],
         }
+    }
+
+    fn len(&self) -> usize {
+        (self.range + 1).pow(self.current.len() as u32)
     }
 }
 

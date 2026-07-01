@@ -18,12 +18,11 @@ fn main() -> Result<()> {
 
     let solver = GreedySolver::from_file(filepath)?
         .lookahead(0)
-        .set_initial_solver(Merge)
+        .set_initial_solver(Construct)
         .set_refinement_sequence(vec![
-            Refinements::Local,
             Refinements::ChooseN {
-                n: 2,
-                max_fails: 1000,
+                n: 4,
+                max_fails: 500,
             },
             Refinements::Local,
         ]);
