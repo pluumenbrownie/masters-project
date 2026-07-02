@@ -80,7 +80,7 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> SimpleDataset<C, S> {
     pub fn get(&self, configuration: &FixedBitSet) -> Option<usize> {
         self.data
             .iter()
-            .find_map(|(d, n)| if d == configuration { Some(n) } else { None })
+            .find_map(|(d, n)| if &d == configuration { Some(n) } else { None })
     }
 
     /// Returns an iterator over the datapoints in this dataset.
@@ -110,7 +110,7 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> SimpleDataset<C, S> {
     /// // Include assertion checking iteration length equals dataset size
     /// assert_eq!(results.len(), 2);
     /// ```
-    pub fn iter(&self) -> impl ExactSizeIterator<Item = (&FixedBitSet, usize)> {
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = (FixedBitSet, usize)> {
         self.data.iter()
     }
 

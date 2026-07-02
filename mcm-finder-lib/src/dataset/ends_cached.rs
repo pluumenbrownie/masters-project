@@ -200,7 +200,7 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> EndsCachedDataset<C, S> {
             .as_ref()
             .unwrap()
             .iter()
-            .find_map(|(d, n)| if d == configuration { Some(n) } else { None })
+            .find_map(|(d, n)| if &d == configuration { Some(n) } else { None })
     }
 
     /// Get the first best dataset for this `get_ends_cache_location` index.

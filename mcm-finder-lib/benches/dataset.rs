@@ -13,7 +13,7 @@ use rand::seq::IndexedRandom;
 
 use mcm_finder_lib::dataset::{
     AhashState, Dataset, DefaultState, FxState, RapidStateFast, RapidStateQuality,
-    datacontainer::{DataContainer, DataMap, DataVec},
+    datacontainer::{DataContainer, DataMap, DataVec, DataVecSoA},
     ends_cached::EndsCachedDataset,
     simple::SimpleDataset,
 };
@@ -49,6 +49,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 "FxState".into(),
                 c,
             );
+
             c = simple_dataset_loading_bench::<DataMap<DefaultState>, DefaultState>(
                 data,
                 "DefaultState".into(),
@@ -74,6 +75,33 @@ fn criterion_benchmark(c: &mut Criterion) {
                 "FxState".into(),
                 c,
             );
+
+            c = simple_dataset_loading_bench::<DataVecSoA<DefaultState>, DefaultState>(
+                data,
+                "DefaultState".into(),
+                c,
+            );
+            c = simple_dataset_loading_bench::<DataVecSoA<AhashState>, AhashState>(
+                data,
+                "AhashState".into(),
+                c,
+            );
+            c = simple_dataset_loading_bench::<DataVecSoA<RapidStateFast>, RapidStateFast>(
+                data,
+                "RapidStateFast".into(),
+                c,
+            );
+            c = simple_dataset_loading_bench::<DataVecSoA<RapidStateQuality>, RapidStateQuality>(
+                data,
+                "RapidStateQuality".into(),
+                c,
+            );
+            c = simple_dataset_loading_bench::<DataVecSoA<FxState>, FxState>(
+                data,
+                "FxState".into(),
+                c,
+            );
+
             c.finish();
         }
     }
@@ -106,6 +134,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 c,
             );
             c = simple_dataset_log_e_bench::<DataVec<FxState>, FxState>(data, "FxState".into(), c);
+
             c = simple_dataset_log_e_bench::<DataMap<DefaultState>, DefaultState>(
                 data,
                 "DefaultState".into(),
@@ -127,6 +156,33 @@ fn criterion_benchmark(c: &mut Criterion) {
                 c,
             );
             c = simple_dataset_log_e_bench::<DataMap<FxState>, FxState>(data, "FxState".into(), c);
+
+            c = simple_dataset_log_e_bench::<DataVecSoA<DefaultState>, DefaultState>(
+                data,
+                "DefaultState".into(),
+                c,
+            );
+            c = simple_dataset_log_e_bench::<DataVecSoA<AhashState>, AhashState>(
+                data,
+                "AhashState".into(),
+                c,
+            );
+            c = simple_dataset_log_e_bench::<DataVecSoA<RapidStateFast>, RapidStateFast>(
+                data,
+                "RapidStateFast".into(),
+                c,
+            );
+            c = simple_dataset_log_e_bench::<DataVecSoA<RapidStateQuality>, RapidStateQuality>(
+                data,
+                "RapidStateQuality".into(),
+                c,
+            );
+            c = simple_dataset_log_e_bench::<DataVecSoA<FxState>, FxState>(
+                data,
+                "FxState".into(),
+                c,
+            );
+
             c.finish();
         }
     }
@@ -160,6 +216,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 "FxState".into(),
                 c,
             );
+
             c = ends_cached_dataset_loading_bench::<DataMap<DefaultState>, DefaultState>(
                 data,
                 "DefaultState".into(),
@@ -185,6 +242,33 @@ fn criterion_benchmark(c: &mut Criterion) {
                 "FxState".into(),
                 c,
             );
+
+            c = ends_cached_dataset_loading_bench::<DataVecSoA<DefaultState>, DefaultState>(
+                data,
+                "DefaultState".into(),
+                c,
+            );
+            c = ends_cached_dataset_loading_bench::<DataVecSoA<AhashState>, AhashState>(
+                data,
+                "AhashState".into(),
+                c,
+            );
+            c = ends_cached_dataset_loading_bench::<DataVecSoA<RapidStateFast>, RapidStateFast>(
+                data,
+                "RapidStateFast".into(),
+                c,
+            );
+            c = ends_cached_dataset_loading_bench::<DataVecSoA<RapidStateQuality>, RapidStateQuality>(
+                data,
+                "RapidStateQuality".into(),
+                c,
+            );
+            c = ends_cached_dataset_loading_bench::<DataVecSoA<FxState>, FxState>(
+                data,
+                "FxState".into(),
+                c,
+            );
+
             c.finish();
         }
     }
@@ -221,6 +305,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 "FxState".into(),
                 c,
             );
+
             c = ends_cached_dataset_log_e_bench::<DataMap<DefaultState>, DefaultState>(
                 data,
                 "DefaultState".into(),
@@ -246,6 +331,33 @@ fn criterion_benchmark(c: &mut Criterion) {
                 "FxState".into(),
                 c,
             );
+
+            c = ends_cached_dataset_log_e_bench::<DataVecSoA<DefaultState>, DefaultState>(
+                data,
+                "DefaultState".into(),
+                c,
+            );
+            c = ends_cached_dataset_log_e_bench::<DataVecSoA<AhashState>, AhashState>(
+                data,
+                "AhashState".into(),
+                c,
+            );
+            c = ends_cached_dataset_log_e_bench::<DataVecSoA<RapidStateFast>, RapidStateFast>(
+                data,
+                "RapidStateFast".into(),
+                c,
+            );
+            c = ends_cached_dataset_log_e_bench::<DataVecSoA<RapidStateQuality>, RapidStateQuality>(
+                data,
+                "RapidStateQuality".into(),
+                c,
+            );
+            c = ends_cached_dataset_log_e_bench::<DataVecSoA<FxState>, FxState>(
+                data,
+                "FxState".into(),
+                c,
+            );
+
             c.finish();
         }
     }
