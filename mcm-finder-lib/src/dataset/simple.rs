@@ -23,7 +23,7 @@ use crate::{
 ///
 /// # Examples
 /// ```
-/// use mcm_finder_lib::dataset::{SimpleDataset, DataVec, DefaultState, Dataset};
+/// use mcm_finder_lib::dataset::{SimpleDataset, datacontainer::DataVec, DefaultState, Dataset};
 /// let dataset = SimpleDataset::<DataVec<DefaultState>, DefaultState>::read_from_file(
 ///     std::path::Path::new("tests/data/SCOTUS_n9_N895_Data.dat"),
 /// ).unwrap();
@@ -32,12 +32,11 @@ use crate::{
 /// ```
 pub struct SimpleDataset<C: DataContainer<S>, S: BuildHasher + Default> {
     pub(crate) data: C,
-    pub(crate) datapoints: usize,
-    pub(crate) _build_hasher: PhantomData<S>,
+    datapoints: usize,
+    _build_hasher: PhantomData<S>,
 }
 
 pub type VecDataset = SimpleDataset<DataVec<DefaultState>, DefaultState>;
-
 pub type MapDataset = SimpleDataset<DataMap<DefaultState>, DefaultState>;
 
 impl<C: DataContainer<S>, S: BuildHasher + Default> SimpleDataset<C, S> {
@@ -53,7 +52,7 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> SimpleDataset<C, S> {
     ///
     /// # Examples
     /// ```
-    /// use mcm_finder_lib::dataset::{SimpleDataset, DataVec, DefaultState};
+    /// use mcm_finder_lib::dataset::{SimpleDataset, datacontainer::DataVec, DefaultState};
     /// use fixedbitset::FixedBitSet;
     /// use std::collections::HashMap;
     ///
@@ -88,7 +87,7 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> SimpleDataset<C, S> {
     ///
     /// # Examples
     /// ```
-    /// use mcm_finder_lib::dataset::{SimpleDataset, DataVec, DefaultState};
+    /// use mcm_finder_lib::dataset::{SimpleDataset, datacontainer::DataVec, DefaultState};
     /// use fixedbitset::FixedBitSet;
     /// use std::collections::HashMap;
     ///
@@ -123,7 +122,7 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> SimpleDataset<C, S> {
     ///
     /// # Examples
     /// ```
-    /// use mcm_finder_lib::dataset::{SimpleDataset, DataVec, DefaultState};
+    /// use mcm_finder_lib::dataset::{SimpleDataset, datacontainer::DataVec, DefaultState};
     /// use fixedbitset::FixedBitSet;
     /// use std::collections::HashMap;
     ///

@@ -22,7 +22,7 @@ use crate::{
 ///
 /// # Examples
 /// ```
-/// use mcm_finder_lib::dataset::{SimpleDataset, DataVec, DefaultState, Dataset};
+/// use mcm_finder_lib::dataset::{SimpleDataset, datacontainer::DataVec, DefaultState, Dataset};
 /// let dataset = SimpleDataset::<DataVec<DefaultState>, DefaultState>::read_from_file(
 ///     std::path::Path::new("tests/data/SCOTUS_n9_N895_Data.dat"),
 /// ).unwrap();
@@ -181,7 +181,8 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> EndsCachedDataset<C, S> {
     ///
     /// # Examples
     /// ```
-    /// use mcm_finder_lib::dataset::{EndsCachedVecDataset, DefaultState, Dataset, DataContainer, DataVec};
+    /// use mcm_finder_lib::dataset::{EndsCachedVecDataset, DefaultState, Dataset,
+    /// datacontainer::{DataContainer, DataVec}};
     /// use fixedbitset::FixedBitSet;
     ///
     /// let dataset = EndsCachedVecDataset::read_from_file(
@@ -208,7 +209,8 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> EndsCachedDataset<C, S> {
     ///
     /// # Examples
     /// ```
-    /// use mcm_finder_lib::dataset::{EndsCachedVecDataset, DefaultState, Dataset, DataContainer, DataVec};
+    /// use mcm_finder_lib::dataset::{EndsCachedVecDataset, DefaultState, Dataset,
+    /// datacontainer::{DataContainer, DataVec}};
     /// use fixedbitset::FixedBitSet;
     ///
     /// let dataset = EndsCachedVecDataset::read_from_file(

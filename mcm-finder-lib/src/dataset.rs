@@ -7,6 +7,8 @@ use fixedbitset::FixedBitSet;
 use miette::NamedSource;
 
 use crate::mcm_error::MCMError;
+pub use ends_cached::*;
+pub use simple::*;
 
 pub mod datacontainer;
 mod ends;
