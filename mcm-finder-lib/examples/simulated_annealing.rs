@@ -3,7 +3,11 @@ use std::path::Path;
 use miette::Result;
 
 use mcm_finder_lib::{
-    dataset::simple::VecDataset,
+    dataset::{
+        AhashState, SimpleDataset,
+        datacontainer::{DataMap, DataVec, DataVecSoA},
+        simple::VecDataset,
+    },
     solvers::{
         AnnealingStarter, SimulatedAnnealingSolver, Solver, anneal_temps::AnnealingTemperature,
     },
@@ -14,9 +18,12 @@ fn main() -> Result<()> {
     let filepath = Path::new("mcm-finder-lib/tests/data/MNIST11.sorted");
     // let filepath = Path::new("mcm-finder-lib/tests/data/Big5PT.sorted");
 
-    let solver = SimulatedAnnealingSolver::<VecDataset>::from_file(filepath)?
+    let solver =
+        SimulatedAnnealingSolver::<SimpleDataset<DataVec<AhashState>, AhashState>>::from_file(
+            filepath,
+        )?
         .set_temperature(
-            AnnealingTemperature::logarithmic(1_000_000.0, 1_000.0)
+            AnnealingTemperature::logarithmic(1_000_000.0, 1_000.0) //
                 .then_constant(10_000)
                 .then_exponential(0.0001, 0.002),
             // AnnealingTemperature::logarithmic(1_000_000.0, 1.0),

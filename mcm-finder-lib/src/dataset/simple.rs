@@ -182,8 +182,8 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> Dataset for SimpleDataset<C,
     fn log_e(&self, icc: &FixedBitSet) -> f64 {
         self.data
             .to_icc(icc)
-            .iter()
-            .map(|(_, k)| ln_gamma((k) as f64 + 0.5) - ln_gamma(0.5))
+            .iter_counts()
+            .map(|k| ln_gamma((k) as f64 + 0.5) - ln_gamma(0.5))
             .sum::<f64>()
     }
 

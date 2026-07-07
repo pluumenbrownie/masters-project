@@ -5,6 +5,8 @@ use fixedbitset::FixedBitSet;
 pub trait DataContainer<S: BuildHasher + Default>: From<HashMap<FixedBitSet, usize, S>> {
     fn iter(&self) -> impl ExactSizeIterator<Item = (FixedBitSet, usize)>;
 
+    fn iter_counts(&self) -> impl ExactSizeIterator<Item = usize>;
+
     fn name() -> String;
 
     fn to_icc(&self, icc: &FixedBitSet) -> Self {
@@ -43,6 +45,10 @@ impl<S: BuildHasher + Default> DataContainer<S> for DataVec<S> {
         self.data.iter().map(|(v, n)| (v.clone(), *n))
     }
 
+    fn iter_counts(&self) -> impl ExactSizeIterator<Item = usize> {
+        self.data.iter().map(|(_, n)| *n)
+    }
+
     fn name() -> String {
         "DataVec".into()
     }
@@ -62,6 +68,10 @@ impl<S: BuildHasher> From<HashMap<FixedBitSet, usize, S>> for DataMap<S> {
 impl<S: BuildHasher + Default> DataContainer<S> for DataMap<S> {
     fn iter(&self) -> impl ExactSizeIterator<Item = (FixedBitSet, usize)> {
         self.data.iter().map(|(v, n)| (v.clone(), *n))
+    }
+
+    fn iter_counts(&self) -> impl ExactSizeIterator<Item = usize> {
+        self.data.values().copied()
     }
 
     fn name() -> String {
@@ -157,6 +167,10 @@ impl<S: BuildHasher + Default> DataContainer<S> for DataVecSoA<S> {
                     *n,
                 )
             })
+    }
+
+    fn iter_counts(&self) -> impl ExactSizeIterator<Item = usize> {
+        self.counts.iter().copied()
     }
 
     fn to_icc(&self, icc: &FixedBitSet) -> Self {
