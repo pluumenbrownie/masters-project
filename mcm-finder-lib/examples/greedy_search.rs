@@ -3,8 +3,8 @@ use std::path::Path;
 use miette::Result;
 
 use mcm_finder_lib::solvers::{
-    GreedySolver,
-    InitialSolver::{Construct, Merge, MergeBeam, None},
+    ConstructiveStrategy, GreedySolver,
+    InitialSolver::{Construct, ConstructBeam, Merge, MergeBeam, None},
     Refinements, Solver,
 };
 
@@ -17,9 +17,9 @@ fn main() -> Result<()> {
     // let filepath = Path::new("mcm-finder-lib/tests/data/Big5PT.sorted");
 
     let solver = GreedySolver::from_file(filepath)?
-        .set_initial_solver(MergeBeam{amount: 5})
+        .set_initial_solver(Merge)
         .set_refinement_sequence(vec![
-            Refinements::Local
+            Refinements::LocalBeam { beam_size: 5 }
         ])
         // .set_refinement_sequence(vec![
         //     Refinements::ChooseN {

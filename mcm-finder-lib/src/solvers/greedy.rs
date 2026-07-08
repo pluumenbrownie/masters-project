@@ -60,15 +60,19 @@ pub enum InitialSolver {
     #[default]
     Merge,
     MergeBeam {
-        amount: usize,
+        beam_size: usize,
     },
     Construct,
+    ConstructBeam {
+        beam_size: usize,
+    },
     None,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Refinements {
     Local,
+    LocalBeam { beam_size: usize },
     ChooseN { n: usize, max_fails: usize },
 }
 
@@ -105,6 +109,12 @@ impl GreedySolver {
         self
     }
 
+    /// What search algorithms should be used after the initial construction algorithm.
+    pub fn set_constructive_strategy(mut self, strategy: ConstructiveStrategy) -> Self {
+        self.constructive_strategy = strategy;
+        self
+    }
+
     fn update_global_best(&self, best_mcm: &mut LogeMCM, candidate: &LogeMCM) -> bool {
         if candidate.log_e.total_cmp(&best_mcm.log_e).is_gt() {
             *best_mcm = candidate.clone();
@@ -112,48 +122,6 @@ impl GreedySolver {
         };
         false
     }
-
-    // #[must_use]
-    // fn find_best_merge(
-    //     &self,
-    //     log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
-    //     progress: &mut Bar,
-    //     iccs_left: usize,
-    //     original: &LogeMCM,
-    //     depth: usize,
-    // ) -> Option<LogeMCM> {
-    //     if depth > self.lookahead_depth || iccs_left == 0 {
-    //         None
-    //     } else {
-    //         let mut gen_best: Option<LogeMCM> = None;
-    //         for basis in 1..=iccs_left {
-    //             for into in 0..basis {
-    //                 let mut candidate = LogeMCM::calculate(
-    //                     original.mcm.merge(basis, into),
-    //                     &self.dataset,
-    //                     log_e_cache,
-    //                 );
-
-    //                 // lookahead
-    //                 if let Some(deep_best) = self.find_best_merge(
-    //                     log_e_cache,
-    //                     progress,
-    //                     iccs_left - 1,
-    //                     &candidate,
-    //                     depth + 1,
-    //                 ) {
-    //                     let deep_log_e = deep_best.deep_log_e;
-    //                     candidate = update_deep_log_e_only(candidate, deep_log_e);
-    //                 }
-
-    //                 gen_best = update_if_deep_log_e_better(gen_best, &candidate);
-
-    //                 let _ = progress.update(1);
-    //             }
-    //         }
-    //         gen_best
-    //     }
-    // }
 
     #[must_use]
     fn find_best_merge(
@@ -202,23 +170,42 @@ impl GreedySolver {
         &self,
         log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
         progress: &mut Bar,
-        original: &LogeMCM,
+        gen_best_vec: &mut Vec<LogeMCM>,
+        beam_size: usize,
     ) -> Option<LogeMCM> {
-        let icc_amount = original.mcm.count_icc();
-
+        let icc_amount = gen_best_vec[0].mcm.count_icc();
+        let mut next_gen: Vec<LogeMCM> = vec![];
         let mut gen_best = None;
-        for variable in 0..original.mcm.variables() {
-            for into in 0..=icc_amount {
-                let candidate = LogeMCM::calculate(
-                    original.mcm.swap(variable, into),
-                    &self.dataset,
-                    log_e_cache,
-                );
 
-                gen_best = update_if_deep_log_e_better(gen_best, &candidate);
-                let _ = progress.update(1);
+        for original in gen_best_vec.drain(..) {
+            for variable in 0..original.mcm.variables() {
+                for into in 0..=icc_amount {
+                    let candidate = LogeMCM::calculate(
+                        original.mcm.swap(variable, into),
+                        &self.dataset,
+                        log_e_cache,
+                    );
+
+                    gen_best = update_if_deep_log_e_better(gen_best, &candidate);
+
+                    if next_gen
+                        .last()
+                        .is_none_or(|o| o.log_e.total_cmp(&candidate.log_e).is_lt())
+                        & next_gen.iter().all(|o| o.mcm != candidate.mcm)
+                    {
+                        if next_gen.len() >= beam_size {
+                            next_gen.pop();
+                        }
+                        next_gen.push(candidate);
+                        next_gen.sort_by(|a, b| a.log_e.total_cmp(&b.log_e).reverse());
+                    }
+
+                    let _ = progress.update(1);
+                }
             }
         }
+
+        *gen_best_vec = next_gen;
 
         gen_best
     }
@@ -293,15 +280,19 @@ impl GreedySolver {
         log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
         best_mcm: &mut LogeMCM,
         progress: &mut Bar,
+        beam_size: usize,
     ) {
         if self.initial_solver != InitialSolver::None {
             println!("{}", best_mcm.mcm);
         }
+
+        let mut gen_best_vec = vec![best_mcm.clone()];
+
         loop {
-            let original = best_mcm.clone();
             progress.set_description(format!("Local - {:.0}", best_mcm.log_e));
+
             if self
-                .find_best_local(log_e_cache, progress, &original)
+                .find_best_local(log_e_cache, progress, &mut gen_best_vec, beam_size)
                 .and_then(|c| self.update_global_best(best_mcm, &c).then_some(()))
                 .is_none()
             {
@@ -345,6 +336,7 @@ impl GreedySolver {
         &self,
         log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
         best_mcm: &mut LogeMCM,
+        beam_size: usize,
     ) -> Bar {
         let mut current_solution =
             MinimallyComplexModel::empty(self.dataset.variables().try_into().unwrap());
@@ -354,25 +346,27 @@ impl GreedySolver {
                 log_e_cache,
                 &mut current_solution,
                 (0..self.dataset.variables()).collect::<Vec<usize>>(),
+                beam_size,
             ),
             ConstructiveStrategy::BackToFront => self.solve_in_order(
                 log_e_cache,
                 &mut current_solution,
                 (0..self.dataset.variables()).rev().collect::<Vec<usize>>(),
+                beam_size,
             ),
             ConstructiveStrategy::RandomOrder => {
                 let mut vector = (0..self.dataset.variables()).collect::<Vec<usize>>();
                 vector.shuffle(&mut rand::rng());
-                self.solve_in_order(log_e_cache, &mut current_solution, vector)
+                self.solve_in_order(log_e_cache, &mut current_solution, vector, beam_size)
             }
             ConstructiveStrategy::GreedyOrder => {
-                self.solve_greedy_order(log_e_cache, &mut current_solution)
+                self.solve_greedy_order(log_e_cache, &mut current_solution, beam_size)
             }
             ConstructiveStrategy::VarianceFirst => {
-                self.solve_variance_first(log_e_cache, &mut current_solution)
+                self.solve_variance_first(log_e_cache, &mut current_solution, beam_size)
             }
             ConstructiveStrategy::VarianceLast => {
-                self.solve_variance_last(log_e_cache, &mut current_solution)
+                self.solve_variance_last(log_e_cache, &mut current_solution, beam_size)
             }
             _ => panic!("Dont use that one!"),
         };
@@ -385,34 +379,52 @@ impl GreedySolver {
         log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
         current_solution: &mut MinimallyComplexModel,
         iterator: Vec<usize>,
+        beam_size: usize,
     ) -> Bar {
-        let mut progress = tqdm!(total = iterator.len());
+        let mut progress = tqdm!(total = iterator.len() * beam_size);
+        let mut current_gen = vec![(current_solution.clone(), 0.0)];
+
         for var in iterator {
-            let vec_rep = current_solution.to_vector();
-            let max_icc = vec_rep.iter().max().unwrap() + 1;
+            let mut next_gen = vec![];
+            for (current_solution, _) in current_gen.drain(..) {
+                let vec_rep = current_solution.to_vector();
+                let max_icc = vec_rep.iter().max().unwrap() + 1;
 
-            let candidates: Vec<(MinimallyComplexModel, f64)> = (1..=max_icc)
-                .map(|c| {
-                    let mut new_candidate = vec_rep.clone();
-                    new_candidate[var] = c;
-                    let mcm = MinimallyComplexModel::from_vector(new_candidate);
-                    let log_e = mcm.log_e(&self.dataset, log_e_cache);
-                    (mcm, log_e)
-                })
-                .collect();
+                let candidates: Vec<(MinimallyComplexModel, f64)> = (1..=max_icc)
+                    .map(|c| {
+                        let mut new_candidate = vec_rep.clone();
+                        new_candidate[var] = c;
+                        let mcm = MinimallyComplexModel::from_vector(new_candidate);
+                        let log_e = mcm.log_e(&self.dataset, log_e_cache);
+                        (mcm, log_e)
+                    })
+                    .collect();
 
-            *current_solution = candidates
-                .into_iter()
-                .max_by(|a, b| a.1.total_cmp(&b.1))
-                .unwrap()
-                .0;
+                for candidate in candidates {
+                    if next_gen
+                        .last()
+                        .is_none_or(|o: &(MinimallyComplexModel, f64)| {
+                            o.1.total_cmp(&candidate.1).is_lt()
+                        })
+                        & next_gen.iter().all(|o| o.0 != candidate.0)
+                    {
+                        if next_gen.len() >= beam_size {
+                            next_gen.pop();
+                        }
+                        next_gen.push(candidate);
+                        next_gen.sort_by(|a, b| a.1.total_cmp(&b.1).reverse());
+                    }
+                }
 
+                progress.update(1).unwrap();
+            }
+
+            current_gen = next_gen;
+            *current_solution = current_gen.first().unwrap().clone().0;
             progress.set_description(format!(
                 "Log E: {:.0}",
                 current_solution.log_e(&self.dataset, log_e_cache)
             ));
-
-            progress.update(1).unwrap();
         }
 
         progress
@@ -422,34 +434,58 @@ impl GreedySolver {
         &self,
         log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
         current_solution: &mut MinimallyComplexModel,
+        beam_size: usize,
     ) -> Bar {
-        let mut progress = tqdm!(total = self.dataset.variables());
+        let mut progress = tqdm!(total = self.dataset.variables() * beam_size);
+        let mut current_gen = vec![(current_solution.clone(), 0.0)];
+
         for _ in 0..self.dataset.variables() {
-            let vec_rep = current_solution.to_vector();
-            let max_icc = vec_rep.iter().max().unwrap() + 1;
+            let mut next_gen = vec![];
 
-            let candidates: Vec<(MinimallyComplexModel, f64)> = vec_rep
-                .clone()
-                .into_iter()
-                .enumerate()
-                .filter(|x| x.1 == 0)
-                .flat_map(|(x, _)| (1..=max_icc).map(move |c| (x, c)))
-                .map(|(x, c)| {
-                    let mut new_candidate = vec_rep.clone();
-                    new_candidate[x] = c;
-                    let mcm = MinimallyComplexModel::from_vector(new_candidate);
-                    let log_e = mcm.log_e(&self.dataset, log_e_cache);
-                    (mcm, log_e)
-                })
-                .collect();
+            for (current_solution, _) in current_gen.drain(..) {
+                let vec_rep = current_solution.to_vector();
+                let max_icc = vec_rep.iter().max().unwrap() + 1;
 
-            *current_solution = candidates
-                .into_iter()
-                .max_by(|a, b| a.1.total_cmp(&b.1))
-                .unwrap()
-                .0;
+                let candidates: Vec<(MinimallyComplexModel, f64)> = vec_rep
+                    .clone()
+                    .into_iter()
+                    .enumerate()
+                    .filter(|x| x.1 == 0)
+                    .flat_map(|(x, _)| (1..=max_icc).map(move |c| (x, c)))
+                    .map(|(x, c)| {
+                        let mut new_candidate = vec_rep.clone();
+                        new_candidate[x] = c;
+                        let mcm = MinimallyComplexModel::from_vector(new_candidate);
+                        let log_e = mcm.log_e(&self.dataset, log_e_cache);
+                        (mcm, log_e)
+                    })
+                    .collect();
 
-            progress.update(1).unwrap();
+                for candidate in candidates {
+                    if next_gen
+                        .last()
+                        .is_none_or(|o: &(MinimallyComplexModel, f64)| {
+                            o.1.total_cmp(&candidate.1).is_lt()
+                        })
+                        & next_gen.iter().all(|o| o.0 != candidate.0)
+                    {
+                        if next_gen.len() >= beam_size {
+                            next_gen.pop();
+                        }
+                        next_gen.push(candidate);
+                        next_gen.sort_by(|a, b| a.1.total_cmp(&b.1).reverse());
+                    }
+                }
+
+                progress.update(1).unwrap();
+            }
+
+            current_gen = next_gen;
+            *current_solution = current_gen.first().unwrap().clone().0;
+            progress.set_description(format!(
+                "Log E: {:.0}",
+                current_solution.log_e(&self.dataset, log_e_cache)
+            ));
         }
 
         progress
@@ -476,6 +512,7 @@ impl GreedySolver {
         &self,
         log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
         current_solution: &mut MinimallyComplexModel,
+        beam_size: usize,
     ) -> Bar {
         let pairs = self.get_variable_variance();
         // pairs.iter().for_each(|p| println!("{p:?}"));
@@ -484,6 +521,7 @@ impl GreedySolver {
             log_e_cache,
             current_solution,
             pairs.iter().map(|x| x.0).collect(),
+            beam_size,
         )
     }
 
@@ -491,6 +529,7 @@ impl GreedySolver {
         &self,
         log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
         current_solution: &mut MinimallyComplexModel,
+        beam_size: usize,
     ) -> Bar {
         let pairs = self.get_variable_variance();
         // pairs.iter().for_each(|p| println!("{p:?}"));
@@ -499,6 +538,7 @@ impl GreedySolver {
             log_e_cache,
             current_solution,
             pairs.iter().map(|x| x.0).rev().collect(),
+            beam_size,
         )
     }
 }
@@ -549,17 +589,23 @@ impl Solver for GreedySolver {
 
         let mut progress = match self.initial_solver {
             InitialSolver::Merge => self.solve_merge(&mut log_e_cache, &mut best_mcm, 1),
-            InitialSolver::MergeBeam { amount } => {
-                self.solve_merge(&mut log_e_cache, &mut best_mcm, amount)
+            InitialSolver::MergeBeam { beam_size } => {
+                self.solve_merge(&mut log_e_cache, &mut best_mcm, beam_size)
             }
-            InitialSolver::Construct => self.solve_constructive(&mut log_e_cache, &mut best_mcm),
+            InitialSolver::Construct => self.solve_constructive(&mut log_e_cache, &mut best_mcm, 1),
+            InitialSolver::ConstructBeam { beam_size } => {
+                self.solve_constructive(&mut log_e_cache, &mut best_mcm, beam_size)
+            }
             InitialSolver::None => tqdm!(total = 1),
         };
 
         for refinement in &self.refinement_sequence {
             match refinement {
                 Refinements::Local => {
-                    self.solve_local(&mut log_e_cache, &mut best_mcm, &mut progress)
+                    self.solve_local(&mut log_e_cache, &mut best_mcm, &mut progress, 1)
+                }
+                Refinements::LocalBeam { beam_size } => {
+                    self.solve_local(&mut log_e_cache, &mut best_mcm, &mut progress, *beam_size)
                 }
                 Refinements::ChooseN { n, max_fails } => self.solve_check_amount(
                     *n,
