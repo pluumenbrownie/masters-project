@@ -59,6 +59,9 @@ impl LogeMCM {
 pub enum InitialSolver {
     #[default]
     Merge,
+    MergeBeam {
+        amount: usize,
+    },
     Construct,
     None,
 }
@@ -72,7 +75,6 @@ pub enum Refinements {
 #[derive(Clone)]
 pub struct GreedySolver {
     dataset: VecDataset,
-    lookahead_depth: usize,
     continue_after_minimum: bool,
     initial_solver: InitialSolver,
     constructive_strategy: ConstructiveStrategy,
@@ -84,16 +86,6 @@ impl GreedySolver {
     /// generate a new minimum (default) or should finish all steps.
     pub fn continue_after_minimum(mut self) -> Self {
         self.continue_after_minimum = true;
-        self
-    }
-
-    /// Sets the amount of steps the algorithm is allowed to look ahead to choose the
-    /// next best candidate.
-    ///
-    /// Setting this value will explode the execution time of this algorithm, so use
-    /// with caution.
-    pub fn lookahead(mut self, depth: usize) -> Self {
-        self.lookahead_depth = depth;
         self
     }
 
@@ -121,46 +113,88 @@ impl GreedySolver {
         false
     }
 
+    // #[must_use]
+    // fn find_best_merge(
+    //     &self,
+    //     log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
+    //     progress: &mut Bar,
+    //     iccs_left: usize,
+    //     original: &LogeMCM,
+    //     depth: usize,
+    // ) -> Option<LogeMCM> {
+    //     if depth > self.lookahead_depth || iccs_left == 0 {
+    //         None
+    //     } else {
+    //         let mut gen_best: Option<LogeMCM> = None;
+    //         for basis in 1..=iccs_left {
+    //             for into in 0..basis {
+    //                 let mut candidate = LogeMCM::calculate(
+    //                     original.mcm.merge(basis, into),
+    //                     &self.dataset,
+    //                     log_e_cache,
+    //                 );
+
+    //                 // lookahead
+    //                 if let Some(deep_best) = self.find_best_merge(
+    //                     log_e_cache,
+    //                     progress,
+    //                     iccs_left - 1,
+    //                     &candidate,
+    //                     depth + 1,
+    //                 ) {
+    //                     let deep_log_e = deep_best.deep_log_e;
+    //                     candidate = update_deep_log_e_only(candidate, deep_log_e);
+    //                 }
+
+    //                 gen_best = update_if_deep_log_e_better(gen_best, &candidate);
+
+    //                 let _ = progress.update(1);
+    //             }
+    //         }
+    //         gen_best
+    //     }
+    // }
+
     #[must_use]
     fn find_best_merge(
         &self,
         log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
         progress: &mut Bar,
         iccs_left: usize,
-        original: &LogeMCM,
-        depth: usize,
-    ) -> Option<LogeMCM> {
-        if depth > self.lookahead_depth || iccs_left == 0 {
-            None
-        } else {
-            let mut gen_best: Option<LogeMCM> = None;
+        original_vec: &[LogeMCM],
+        beam_size: usize,
+    ) -> Vec<LogeMCM> {
+        if iccs_left == 0 {
+            return Vec::new();
+        }
+
+        let mut gen_best: Vec<LogeMCM> = vec![];
+        for original in original_vec {
             for basis in 1..=iccs_left {
                 for into in 0..basis {
-                    let mut candidate = LogeMCM::calculate(
+                    let candidate = LogeMCM::calculate(
                         original.mcm.merge(basis, into),
                         &self.dataset,
                         log_e_cache,
                     );
 
-                    // lookahead
-                    if let Some(deep_best) = self.find_best_merge(
-                        log_e_cache,
-                        progress,
-                        iccs_left - 1,
-                        &candidate,
-                        depth + 1,
-                    ) {
-                        let deep_log_e = deep_best.deep_log_e;
-                        candidate = update_deep_log_e_only(candidate, deep_log_e);
+                    if gen_best
+                        .last()
+                        .is_none_or(|o| o.log_e.total_cmp(&candidate.log_e).is_lt())
+                        & gen_best.iter().all(|o| o.mcm != candidate.mcm)
+                    {
+                        if gen_best.len() >= beam_size {
+                            gen_best.pop();
+                        }
+                        gen_best.push(candidate);
+                        gen_best.sort_by(|a, b| a.log_e.total_cmp(&b.log_e).reverse());
                     }
-
-                    gen_best = update_if_deep_log_e_better(gen_best, &candidate);
 
                     let _ = progress.update(1);
                 }
             }
-            gen_best
         }
+        gen_best
     }
 
     #[must_use]
@@ -222,10 +256,9 @@ impl GreedySolver {
 
     fn count_calculations(&self) -> usize {
         let mut length = 0usize;
-        let depth = self.lookahead_depth;
 
         for parts_left in (0usize..self.dataset.variables()).rev() {
-            count_calculations_recursive(&mut length, parts_left, depth);
+            count_calculations(&mut length, parts_left);
         }
         length
     }
@@ -234,19 +267,19 @@ impl GreedySolver {
         &self,
         log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
         best_mcm: &mut LogeMCM,
+        amount: usize,
     ) -> Bar {
-        let mut gen_best = best_mcm.clone();
+        let mut gen_best_vec = vec![best_mcm.clone()];
         let length = self.count_calculations();
 
         // we merge one partition each round
-        let mut progress = tqdm!(total = length);
+        let mut progress = tqdm!(total = length * amount);
         for iccs_left in (1usize..self.dataset.variables()).rev() {
-            let original = gen_best.clone();
-            progress.set_description(format!("{iccs_left} ICCs - {:.0}", gen_best.log_e));
-            gen_best = self
-                .find_best_merge(log_e_cache, &mut progress, iccs_left, &original, 0)
-                .unwrap();
-            let new_best = self.update_global_best(best_mcm, &gen_best);
+            let original_vec = gen_best_vec.clone();
+            progress.set_description(format!("{iccs_left} ICCs - {:.0}", gen_best_vec[0].log_e));
+            gen_best_vec =
+                self.find_best_merge(log_e_cache, &mut progress, iccs_left, &original_vec, amount);
+            let new_best = self.update_global_best(best_mcm, &gen_best_vec[0]);
             if !new_best & !self.continue_after_minimum {
                 break;
             }
@@ -469,13 +502,10 @@ impl GreedySolver {
         )
     }
 }
-fn count_calculations_recursive(length: &mut usize, parts_left: usize, depth: usize) {
+fn count_calculations(length: &mut usize, parts_left: usize) {
     for basis in 1..=parts_left {
         for _ in 0..basis {
             *length += 1;
-            if depth > 0 {
-                count_calculations_recursive(length, parts_left - 1, depth - 1);
-            }
         }
     }
 }
@@ -501,7 +531,6 @@ impl Solver for GreedySolver {
     {
         Ok(GreedySolver {
             dataset: VecDataset::read_from_file(filepath)?,
-            lookahead_depth: 0,
             continue_after_minimum: false,
             initial_solver: InitialSolver::default(),
             constructive_strategy: ConstructiveStrategy::FrontToBack,
@@ -519,7 +548,10 @@ impl Solver for GreedySolver {
         );
 
         let mut progress = match self.initial_solver {
-            InitialSolver::Merge => self.solve_merge(&mut log_e_cache, &mut best_mcm),
+            InitialSolver::Merge => self.solve_merge(&mut log_e_cache, &mut best_mcm, 1),
+            InitialSolver::MergeBeam { amount } => {
+                self.solve_merge(&mut log_e_cache, &mut best_mcm, amount)
+            }
             InitialSolver::Construct => self.solve_constructive(&mut log_e_cache, &mut best_mcm),
             InitialSolver::None => tqdm!(total = 1),
         };
