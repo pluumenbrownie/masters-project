@@ -30,6 +30,7 @@ pub struct PsoSolver {
     cognitive_weight: f64,
     social_weight: f64,
     steps: usize,
+    particle_max_weight: f64,
 }
 
 impl Solver for PsoSolver {
@@ -46,6 +47,7 @@ impl Solver for PsoSolver {
             cognitive_weight: 1.4,
             social_weight: 1.45,
             steps: 1000,
+            particle_max_weight: 20.0,
         })
     }
 
@@ -123,18 +125,10 @@ impl PsoSolver {
         let mut swarm = vec![];
         for _ in 0..self.swarm_size {
             swarm.push(Particle::new(
-                self.dataset.variables(),
+                self,
                 global_best.clone(),
-                20.0,
-                Weights {
-                    momentum: self.momentum_weight,
-                    cognitive: self.cognitive_weight,
-                    social: self.social_weight,
-                },
                 log_e_cache.clone(),
-                &self.dataset,
                 &mut rng,
-                PsoStrategy::Rounding,
             ));
         }
 
@@ -161,18 +155,10 @@ impl PsoSolver {
         let mut swarm = vec![];
         for _ in 0..self.swarm_size {
             swarm.push(Particle::new(
-                self.dataset.variables(),
+                self,
                 global_best.clone(),
-                20.0,
-                Weights {
-                    momentum: self.momentum_weight,
-                    cognitive: self.cognitive_weight,
-                    social: self.social_weight,
-                },
                 log_e_cache.clone(),
-                &self.dataset,
                 &mut rng,
-                PsoStrategy::ConstructiveOrder,
             ));
         }
 
@@ -211,28 +197,29 @@ struct Particle {
 
 impl Particle {
     fn new(
-        variables: usize,
+        solver: &PsoSolver,
         global_best: Rc<RefCell<Option<Vec<f64>>>>,
-        max_value: f64,
-        weights: Weights,
         cache: Rc<RefCell<Option<HashMap<FixedBitSet, f64>>>>,
-        dataset: &VecDataset,
         rng: &mut ThreadRng,
-        strategy: PsoStrategy,
     ) -> Particle {
-        let numbers =
-            Vec::from_iter((0..variables).map(|_| rng.random_range(max_value..(max_value + 5.0))));
-        // let numbers = vec![5.0f64; variables];
+        let numbers = Vec::from_iter((0..solver.dataset.variables()).map(|_| {
+            rng.random_range(solver.particle_max_weight..(solver.particle_max_weight + 5.0))
+        }));
+        // let numbers = vec![5.0f64; solver.dataset.variables()];
         let mut particle = Particle {
-            weights,
+            weights: Weights {
+                momentum: solver.momentum_weight,
+                cognitive: solver.cognitive_weight,
+                social: solver.social_weight,
+            },
             x: numbers,
             v: None,
             best_x: None,
             global_best_x: global_best,
             cache,
-            strategy,
+            strategy: solver.strategy,
         };
-        particle.evaluate(dataset);
+        particle.evaluate(&solver.dataset);
         particle
     }
 
