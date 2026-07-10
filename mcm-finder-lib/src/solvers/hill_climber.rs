@@ -1,0 +1,130 @@
+use std::{
+    collections::{HashMap, VecDeque},
+    num::NonZero,
+    path::Path,
+};
+
+use kdam::{BarExt, tqdm};
+use rand::RngExt;
+
+use crate::{
+    dataset::{Dataset, simple::VecDataset},
+    mcm::MinimallyComplexModel,
+    mcm_error::MCMError,
+    solvers::{
+        AnnealingStarter, get_log_e_cache,
+        solvers_base::{Solver, SolverReport},
+    },
+};
+
+pub struct HillClimberSolver<T> {
+    dataset: T,
+    starter: AnnealingStarter,
+    max_steps: usize,
+    history_size: usize,
+    stagnation_steps: usize,
+}
+
+impl<T: Dataset> HillClimberSolver<T> {
+    pub fn set_starter(mut self, starter: AnnealingStarter) -> Self {
+        self.starter = starter;
+        self
+    }
+
+    pub fn set_max_steps(mut self, max_steps: usize) -> Self {
+        assert!(max_steps > 0, "max_steps must be greater than zero.");
+        self.max_steps = max_steps;
+        self
+    }
+
+    pub fn set_history_size(mut self, size: usize) -> Self {
+        assert!(size > 0, "max_steps must be greater than zero.");
+        self.history_size = size;
+        self
+    }
+
+    pub fn set_stagnation_steps(mut self, steps: usize) -> Self {
+        self.stagnation_steps = steps;
+        self
+    }
+}
+
+impl<T: Dataset> Solver for HillClimberSolver<T> {
+    fn from_file(filepath: &Path) -> Result<Self, MCMError>
+    where
+        Self: Sized,
+    {
+        Ok(HillClimberSolver {
+            dataset: T::read_from_file(filepath)?,
+            starter: AnnealingStarter::default(),
+            max_steps: 10_000,
+            history_size: 1,
+            stagnation_steps: 1000,
+        })
+    }
+
+    fn solve(&self) -> SolverReport {
+        let mut current = match self.starter {
+            AnnealingStarter::Single => {
+                MinimallyComplexModel::full(NonZero::new(self.dataset.variables()).unwrap())
+            }
+            AnnealingStarter::Trivial => {
+                MinimallyComplexModel::trivial(NonZero::new(self.dataset.variables()).unwrap())
+            }
+        };
+
+        let mut rng = rand::rng();
+        let mut log_e_cache = get_log_e_cache();
+
+        let mut best_mcm = current.clone();
+        let mut best_log_e = current.log_e(&self.dataset, &mut log_e_cache);
+        let mut history = VecDeque::with_capacity(self.history_size);
+        history.push_back(current.clone());
+        let mut stagnation_counter = 0usize;
+
+        let mut progress = tqdm!(total = self.max_steps);
+
+        for _ in 0..self.max_steps {
+            let candidate = current.mutate(&mut rng);
+            let candidate_log_e = candidate.log_e(&self.dataset, &mut log_e_cache);
+            let old_log_e = history
+                .front()
+                .map(|mcm: &MinimallyComplexModel| mcm.log_e(&self.dataset, &mut log_e_cache));
+
+            if old_log_e.is_some()
+                & ((candidate_log_e > old_log_e.unwrap())
+                    | (candidate_log_e > current.log_e(&self.dataset, &mut log_e_cache)))
+            {
+                if candidate_log_e > current.log_e(&self.dataset, &mut log_e_cache) {
+                    if history.len() >= self.history_size {
+                        history.pop_front();
+                    }
+                    history.push_back(candidate.clone());
+                }
+
+                current = candidate.clone();
+                if candidate_log_e > best_log_e {
+                    best_log_e = candidate.log_e(&self.dataset, &mut log_e_cache);
+                    best_mcm = candidate;
+                }
+                stagnation_counter = 0;
+            } else {
+                stagnation_counter += 1;
+                if stagnation_counter > self.stagnation_steps {
+                    break;
+                }
+            }
+
+            progress.set_description(format!("Log E: {:.1}", best_log_e));
+            let _ = progress.update(1);
+        }
+        SolverReport::new(
+            best_mcm,
+            best_log_e,
+            HashMap::from([(
+                "Unique ICCs covered".into(),
+                format!("{}", log_e_cache.unwrap().len()),
+            )]),
+        )
+    }
+}
