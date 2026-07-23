@@ -3,9 +3,10 @@ use std::{
     mem,
     num::NonZero,
     path::Path,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, mpsc::Sender},
 };
 
+use annolog::{Collector, CollectorEvent};
 use dashmap::DashMap;
 use fixedbitset::FixedBitSet;
 use kdam::{Bar, BarExt, par_tqdm};
@@ -15,9 +16,11 @@ use rand::{
     seq::{IteratorRandom, SliceRandom},
 };
 use rayon::prelude::*;
+use serde::Serialize;
 
 use crate::{
     dataset::{Dataset, simple::VecDataset},
+    logger::SolverEvent,
     mcm::MinimallyComplexModel,
     mcm_error::MCMError,
     solvers::{
@@ -56,6 +59,7 @@ pub struct ParallelTemperingSolver {
     shuffles: usize,
     acception_fraction: f64,
     arbitrary_swaps: bool,
+    sender: Option<Sender<CollectorEvent<SolverEvent>>>,
 }
 
 impl ParallelTemperingSolver {
@@ -147,6 +151,12 @@ impl ParallelTemperingSolver {
     /// their direct neighbors.
     pub fn set_arbitrary_swaps(mut self, arbitrary: bool) -> Self {
         self.arbitrary_swaps = arbitrary;
+        self
+    }
+
+    /// Attach a sender for a `Collector` to this solver.
+    pub fn set_sender(mut self, sender: Sender<CollectorEvent<SolverEvent>>) -> Self {
+        self.sender = Some(sender);
         self
     }
 
@@ -298,10 +308,17 @@ impl Solver for ParallelTemperingSolver {
             shuffles: 200,
             acception_fraction: 0.23,
             arbitrary_swaps: false,
+            sender: None,
         })
     }
 
     fn solve(&self) -> SolverReport {
+        // let _par_span = info_span!("parallel_tempering").entered();
+        // info!(
+        //     target: "init",
+        //     amount = self.pool_amount,
+        //     "Started Parallel Tempering Solver.",
+        // );
         let log_e_cache = get_par_log_e_cache();
 
         let mut starter = match self.starter {
@@ -313,12 +330,19 @@ impl Solver for ParallelTemperingSolver {
             }
         };
 
+        // let temp_span = info_span!("Initialize Temperature").entered();
         let temperatures = self.calculate_temperatures(&log_e_cache, &mut starter);
-        println!("{:?}", temperatures);
+        if let Some(tx) = &self.sender {
+            tx.send(ParTempData::InitPoolTemps(temperatures.clone()).into())
+                .unwrap();
+        }
 
         let mut pools: Vec<_> = temperatures
             .iter()
-            .map(|t| TemperPool::new(starter.clone(), *t, &self.dataset))
+            .enumerate()
+            .map(|(nr, t)| {
+                TemperPool::new(starter.clone(), *t, &self.dataset, nr, self.sender.clone())
+            })
             .collect();
 
         let bar = Arc::new(Mutex::new(par_tqdm!(
@@ -326,6 +350,12 @@ impl Solver for ParallelTemperingSolver {
         )));
 
         for i in 0..self.shuffles {
+            if let Some(tx) = &self.sender {
+                tx.send(ParTempData::NextIteration(i).into()).unwrap();
+                let ids = pools.iter().map(|p| p.mcm_id).collect();
+                tx.send(ParTempData::MCMPoolIds(ids).into()).unwrap()
+            }
+
             pools
                 .par_iter_mut()
                 .for_each(|p| p.step_n(&self.dataset, self.steps_per_shuffle, &log_e_cache, &bar));
@@ -338,15 +368,8 @@ impl Solver for ParallelTemperingSolver {
                 .set_description(format!("Best Log(E): {:.0}", best_pool.best_log_e));
 
             let swaps = self.get_swaps(i);
-            let mut rng = rand::rng();
-            for (i, j) in swaps {
-                let highest = i.max(j);
-                let lowest = i.min(j);
-                let (start, end) = pools.split_at_mut(highest);
-                let p_one = start.get_mut(lowest).unwrap();
-                let p_two = end.get_mut(0).unwrap();
-                p_one.swap(p_two, &mut rng);
-            }
+            let rng = rand::rng();
+            swap_pools(&mut pools, swaps, rng);
         }
 
         let best_pool = pools
@@ -365,16 +388,36 @@ impl Solver for ParallelTemperingSolver {
     }
 }
 
+fn swap_pools(pools: &mut [TemperPool], swaps: Vec<(usize, usize)>, mut rng: ThreadRng) {
+    for (i, j) in swaps {
+        let highest = i.max(j);
+        let lowest = i.min(j);
+        let (start, end) = pools.split_at_mut(highest);
+        let p_one = start.get_mut(lowest).unwrap();
+        let p_two = end.get_mut(0).unwrap();
+        p_one.swap(p_two, &mut rng);
+    }
+}
+
 pub struct TemperPool {
     mcm: MinimallyComplexModel,
     log_e: f64,
     temperature: f64,
     best_mcm: MinimallyComplexModel,
     best_log_e: f64,
+    id: usize,
+    mcm_id: usize,
+    sender: Option<Sender<CollectorEvent<SolverEvent>>>,
 }
 
 impl TemperPool {
-    pub fn new(mcm: MinimallyComplexModel, temperature: f64, dataset: &VecDataset) -> Self {
+    pub fn new(
+        mcm: MinimallyComplexModel,
+        temperature: f64,
+        dataset: &VecDataset,
+        id: usize,
+        sender: Option<Sender<CollectorEvent<SolverEvent>>>,
+    ) -> Self {
         let log_e = mcm.log_e(dataset, &mut None);
         Self {
             best_mcm: mcm.clone(),
@@ -382,6 +425,9 @@ impl TemperPool {
             mcm,
             log_e,
             temperature,
+            id,
+            mcm_id: id,
+            sender,
         }
     }
 
@@ -426,16 +472,49 @@ impl TemperPool {
         }
     }
 
-    /// Stochatically swaps the `MinimallyComplesModel`s between this and the supplied
+    /// Stochastically swaps the `MinimallyComplesModel`s between this and the supplied
     /// `TemperPool`.
     fn swap(&mut self, other: &mut TemperPool, rng: &mut ThreadRng) {
         let probability = ((1.0 / other.temperature - 1.0 / self.temperature)
             * (other.log_e - self.log_e))
             .exp()
             .min(1.0);
-        if rng.random_bool(probability) {
+        let accepted = rng.random_bool(probability);
+        if accepted {
             mem::swap(&mut self.mcm, &mut other.mcm);
             mem::swap(&mut self.log_e, &mut other.log_e);
+            mem::swap(&mut self.mcm_id, &mut other.mcm_id);
         }
+        if let Some(tx) = &self.sender {
+            let swap_event = SwapEvent {
+                first_pool: self.id as u64,
+                second_pool: other.id as u64,
+                probability,
+                accepted,
+            };
+            tx.send(ParTempData::Swap(swap_event).into()).unwrap();
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct SwapEvent {
+    first_pool: u64,
+    second_pool: u64,
+    probability: f64,
+    accepted: bool,
+}
+
+#[derive(Debug, Clone)]
+pub enum ParTempData {
+    InitPoolTemps(Vec<f64>),
+    Swap(SwapEvent),
+    MCMPoolIds(Vec<usize>),
+    NextIteration(usize),
+}
+
+impl From<ParTempData> for CollectorEvent<SolverEvent> {
+    fn from(value: ParTempData) -> Self {
+        CollectorEvent::Data(SolverEvent::ParTemp(value))
     }
 }

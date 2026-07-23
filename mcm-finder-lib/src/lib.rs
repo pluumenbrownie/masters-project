@@ -1,4 +1,5 @@
 pub mod dataset;
+pub mod logger;
 pub mod mcm;
 mod mcm_error;
 pub mod solvers;

@@ -8,3 +8,4 @@ flamegraph.svg
 *.log
 reports/
 .aider*
+*.db*
