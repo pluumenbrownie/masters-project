@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["annolog","mcm-finder-lib", "mcm-finder-tui", "playground"]
+members = ["annolog", "mcm-finder-lib", "mcm-finder-tui"]
 
 [profile.release]
 debug = true
