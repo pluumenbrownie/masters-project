@@ -16,6 +16,7 @@ use std::{
     fs::File,
     io::{BufReader, Read},
     num::{NonZeroU32, NonZeroUsize},
+    ops::Deref,
     path::Path,
     sync::Arc,
 };
@@ -106,6 +107,18 @@ pub fn parameter_complexity_icc(spin_variables: NonZeroU32, n: usize) -> f64 {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MinimallyComplexModel {
     partition: Vec<IndependentCompleteComponent>,
+}
+
+pub struct ParLogEResult {
+    pub value: f64,
+    pub new_icc_count: usize,
+}
+
+impl Deref for ParLogEResult {
+    type Target = f64;
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
 }
 
 impl MinimallyComplexModel {
@@ -672,28 +685,34 @@ impl MinimallyComplexModel {
         &self,
         dataset: &T,
         log_e_cache: &Option<Arc<DashMap<FixedBitSet, f64>>>,
-    ) -> f64 {
-        let log_e: f64 = self
+    ) -> ParLogEResult {
+        let log_e: (f64, usize) = self
             .partition
             .par_iter()
             .map(|icc| {
                 if let Some(cache) = log_e_cache {
                     if let Some(icc_log_e) = icc.log_e.get() {
-                        *icc_log_e
+                        (*icc_log_e, 0)
                     } else {
-                        *cache
-                            .entry(icc.bits.clone())
-                            .or_insert_with(|| icc.log_e(dataset))
+                        let mut hit = 1;
+                        let result = *cache.entry(icc.bits.clone()).or_insert_with(|| {
+                            hit -= 1;
+                            icc.log_e(dataset)
+                        });
+                        (result, hit)
                     }
                 } else {
-                    icc.log_e(dataset)
+                    (icc.log_e(dataset), 1)
                 }
             })
-            .sum();
+            .reduce(|| (0.0, 0), |a, b| (a.0 + b.0, a.1 + b.1));
 
         let front_constant: f64 =
             (dataset.datapoints() * (self.variables() - self.rank())) as f64 * LN_2;
-        log_e - front_constant
+        ParLogEResult {
+            value: log_e.0 - front_constant,
+            new_icc_count: log_e.1,
+        }
     }
 
     pub fn read_from_file(path: &Path) -> Result<MinimallyComplexModel, MCMError> {

@@ -43,6 +43,7 @@
                   with pypkgs; [
                     torch
                     numpy
+                    matplotlib
                   ]))
             ];
 

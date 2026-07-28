@@ -48,11 +48,6 @@ impl Handler<SolverEvent> for ParTempHandler {
                     self.swap_history_file.flush().unwrap();
                 }
                 ParTempData::MCMPoolIds(ids) => {
-                    // let iteration = [self.iteration];
-                    // let record = iteration
-                    //     .into_iter()
-                    //     .chain(ids.iter().copied())
-                    //     .map(|i| format!("{i}"));
                     self.mcm_id_file
                         .write_record(ids.iter().map(|i| format!("{i}")))
                         .unwrap();

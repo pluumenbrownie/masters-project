@@ -21,7 +21,7 @@ use serde::Serialize;
 use crate::{
     dataset::{Dataset, simple::VecDataset},
     logger::SolverEvent,
-    mcm::MinimallyComplexModel,
+    mcm::{MinimallyComplexModel, ParLogEResult},
     mcm_error::MCMError,
     solvers::{
         AnnealingStarter, get_par_log_e_cache,
@@ -59,6 +59,7 @@ pub struct ParallelTemperingSolver {
     shuffles: usize,
     acception_fraction: f64,
     arbitrary_swaps: bool,
+    count_non_cached: bool,
     sender: Option<Sender<CollectorEvent<SolverEvent>>>,
 }
 
@@ -132,6 +133,15 @@ impl ParallelTemperingSolver {
         self
     }
 
+    /// Whether to count the calculation of non-cached ICC values as a "step", rather than
+    /// the calculation of the whole MCM.
+    ///
+    /// Enabling this option could lead to more efficient resource utilization.
+    pub fn set_count_non_cached(mut self, count_non_cached: bool) -> Self {
+        self.count_non_cached = count_non_cached;
+        self
+    }
+
     /// How many times the MCMs should be exchanged between tempering pools.
     pub fn set_shuffles(mut self, shuffles: usize) -> Self {
         self.shuffles = shuffles;
@@ -176,7 +186,7 @@ impl ParallelTemperingSolver {
             let new_log_e = current.par_log_e(&self.dataset, log_e_cache);
 
             if new_log_e.total_cmp(&old_log_e).is_lt() {
-                deltas_log_e_regressions.push(new_log_e - old_log_e);
+                deltas_log_e_regressions.push(new_log_e.value - old_log_e.value);
                 let _ = progress.update(1);
             }
         }
@@ -308,6 +318,7 @@ impl Solver for ParallelTemperingSolver {
             shuffles: 200,
             acception_fraction: 0.23,
             arbitrary_swaps: false,
+            count_non_cached: false,
             sender: None,
         })
     }
@@ -341,7 +352,14 @@ impl Solver for ParallelTemperingSolver {
             .iter()
             .enumerate()
             .map(|(nr, t)| {
-                TemperPool::new(starter.clone(), *t, &self.dataset, nr, self.sender.clone())
+                TemperPool::new(
+                    starter.clone(),
+                    *t,
+                    &self.dataset,
+                    nr,
+                    self.count_non_cached,
+                    self.sender.clone(),
+                )
             })
             .collect();
 
@@ -407,6 +425,7 @@ pub struct TemperPool {
     best_log_e: f64,
     id: usize,
     mcm_id: usize,
+    count_new_iccs: bool,
     sender: Option<Sender<CollectorEvent<SolverEvent>>>,
 }
 
@@ -416,6 +435,7 @@ impl TemperPool {
         temperature: f64,
         dataset: &VecDataset,
         id: usize,
+        count_new_iccs: bool,
         sender: Option<Sender<CollectorEvent<SolverEvent>>>,
     ) -> Self {
         let log_e = mcm.log_e(dataset, &mut None);
@@ -427,6 +447,7 @@ impl TemperPool {
             temperature,
             id,
             mcm_id: id,
+            count_new_iccs,
             sender,
         }
     }
@@ -437,9 +458,10 @@ impl TemperPool {
         dataset: &VecDataset,
         rng: &mut ThreadRng,
         log_e_cache: &Option<Arc<DashMap<FixedBitSet, f64>>>,
-    ) {
+    ) -> usize {
         let new_mcm = self.mcm.mutate(rng);
-        let new_log_e = new_mcm.par_log_e(dataset, log_e_cache);
+        let result = new_mcm.par_log_e(dataset, log_e_cache);
+        let new_log_e = result.value;
         if new_log_e.total_cmp(&self.log_e).is_gt()
             || rng.random_bool(((new_log_e - self.log_e) / self.temperature).exp())
         {
@@ -451,6 +473,7 @@ impl TemperPool {
             self.mcm = new_mcm;
             self.log_e = new_log_e;
         }
+        result.new_icc_count
     }
 
     /// Perform n Metropolis steps. Also updates the progress bar.
@@ -461,14 +484,17 @@ impl TemperPool {
         log_e_cache: &Option<Arc<DashMap<FixedBitSet, f64>>>,
         bar: &Arc<Mutex<Bar>>,
     ) {
-        for _ in 0..n {
-            rayon::join(
-                || {
-                    let mut rng = rand::rng();
-                    self.step(dataset, &mut rng, log_e_cache);
-                },
-                || bar.lock().unwrap().update(1).unwrap(),
-            );
+        let mut steps = 0;
+        while steps < n {
+            let mut rng = rand::rng();
+            let new_iccs = self.step(dataset, &mut rng, log_e_cache);
+            if self.count_new_iccs {
+                steps += new_iccs;
+                bar.lock().unwrap().update(new_iccs).unwrap();
+            } else {
+                steps += 1;
+                bar.lock().unwrap().update(1).unwrap();
+            }
         }
     }
 
