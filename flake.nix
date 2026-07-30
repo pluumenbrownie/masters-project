@@ -38,6 +38,9 @@
               cargo-flamegraph
               gnuplot
 
+              vulkan-tools
+              vulkan-loader
+
               (python.withPackages
                 (pypkgs:
                   with pypkgs; [
@@ -47,10 +50,9 @@
                   ]))
             ];
 
-            shellHook = ''
-              alias ls=eza
-              alias find=fd
-            '';
+            env = {
+              LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath (with pkgs; [vulkan-loader]);
+            };
           };
       }
     );
