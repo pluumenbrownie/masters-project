@@ -109,6 +109,7 @@ pub struct MinimallyComplexModel {
     partition: Vec<IndependentCompleteComponent>,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct ParLogEResult {
     pub value: f64,
     pub new_icc_count: usize,
