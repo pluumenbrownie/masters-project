@@ -91,7 +91,7 @@ struct PheromoneEnvironment {
     nodes: usize,
     evaporation_rate: f64,
     minimum: f64,
-    excretion_amount: f64,
+    maximum: f64,
 }
 
 impl PheromoneEnvironment {
@@ -116,7 +116,7 @@ impl PheromoneEnvironment {
             nodes,
             evaporation_rate: 0.0,
             minimum: 0.0,
-            excretion_amount: 0.0,
+            maximum: f64::INFINITY,
         }
     }
 
@@ -124,10 +124,9 @@ impl PheromoneEnvironment {
         self.nodes / 2
     }
 
-    fn set_params(mut self, evaporation_rate: f64, minimum: f64, excretion_amount: f64) -> Self {
+    fn set_params(mut self, evaporation_rate: f64, minimum: f64) -> Self {
         self.evaporation_rate = evaporation_rate;
         self.minimum = minimum;
-        self.excretion_amount = excretion_amount;
         self
     }
 
@@ -167,16 +166,16 @@ impl PheromoneEnvironment {
     fn evaporate(&mut self) {
         for x in self.data.iter_mut() {
             if *x != 0.0 {
-                *x = self.minimum.max(*x - *x * self.evaporation_rate);
+                *x = (*x - *x * self.evaporation_rate).clamp(self.minimum, self.maximum);
             }
         }
     }
 
-    fn excrete(&mut self, path: AntPath) {
+    fn excrete(&mut self, path: AntPath, amount: f64) {
         for ends in path.data.windows(2) {
             let from = ends[0];
             let to = ends[1];
-            *self.get_mut(from, to) += self.excretion_amount;
+            *self.get_mut(from, to) += amount;
         }
     }
 }
@@ -187,7 +186,6 @@ impl Debug for PheromoneEnvironment {
             .field(&self.nodes)
             .field(&self.evaporation_rate)
             .field(&self.minimum)
-            .field(&self.excretion_amount)
             .finish_non_exhaustive()?;
         write!(f, "\ndata: ")?;
         for (nr, x) in self.data.iter().enumerate() {
@@ -207,7 +205,7 @@ pub struct AntColonyOptimization<D: Dataset> {
     amount_update: usize,
     evaporation_rate: f64,
     minimum: f64,
-    excretion_amount: f64,
+    excretion_factor: f64,
 }
 
 impl<D: Dataset + Sync> Solver for AntColonyOptimization<D> {
@@ -217,12 +215,12 @@ impl<D: Dataset + Sync> Solver for AntColonyOptimization<D> {
     {
         Ok(AntColonyOptimization {
             dataset: D::read_from_file(filepath)?,
-            steps: 100,
-            ants: 160,
-            amount_update: 30,
-            evaporation_rate: 0.1,
+            steps: 1000,
+            ants: 10,
+            amount_update: 5,
+            evaporation_rate: 0.01,
             minimum: 0.01,
-            excretion_amount: 0.02,
+            excretion_factor: 0.01,
         })
     }
 
@@ -230,15 +228,12 @@ impl<D: Dataset + Sync> Solver for AntColonyOptimization<D> {
         let log_e_cache = get_par_log_e_cache();
         let mut mut_rng = rand::rng();
         let rng = &mut mut_rng;
-        let mut best_mcm_option = None;
+        let mut best_mcm_option: Option<(AntPath, mcm::ParLogEResult)> = None;
 
         let bar = Arc::new(Mutex::new(par_tqdm!(total = self.ants * self.steps)));
 
-        let mut environment = PheromoneEnvironment::new(self.dataset.variables()).set_params(
-            self.evaporation_rate,
-            self.minimum,
-            self.excretion_amount,
-        );
+        let mut environment = PheromoneEnvironment::new(self.dataset.variables())
+            .set_params(self.evaporation_rate, self.minimum);
 
         for _ in 0..self.steps {
             let ant_paths: Vec<AntPath> = (0..self.ants)
@@ -255,17 +250,30 @@ impl<D: Dataset + Sync> Solver for AntColonyOptimization<D> {
                 .collect();
 
             log_e_pairs.sort_by(|a, b| a.1.total_cmp(&b.1).reverse());
-            best_mcm_option = Some(log_e_pairs[0].clone());
-
-            environment.evaporate();
-            for (path, _) in log_e_pairs.into_iter().take(self.amount_update) {
-                environment.excrete(path);
+            println!(
+                "{:?}, {:?}",
+                log_e_pairs.first().unwrap().1,
+                log_e_pairs.last().unwrap().1
+            );
+            if let Some(ref best) = best_mcm_option {
+                if best.1.value < log_e_pairs[0].1.value {
+                    best_mcm_option = Some(log_e_pairs[0].clone());
+                }
+            } else {
+                best_mcm_option = Some(log_e_pairs[0].clone());
             }
+
+            for (nr, (path, _)) in log_e_pairs.into_iter().take(self.amount_update).enumerate() {
+                let excretion = self.excretion_factor * (self.amount_update - nr + 1) as f64;
+                environment.excrete(path, excretion);
+            }
+            environment.evaporate();
         }
 
         println!("{:?}", environment);
 
         let best_mcm = best_mcm_option.unwrap();
+        println!("{:?}", best_mcm);
         SolverReport::new(
             MinimallyComplexModel::from(&best_mcm.0),
             *best_mcm.1,
