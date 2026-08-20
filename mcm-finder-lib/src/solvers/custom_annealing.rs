@@ -38,7 +38,7 @@ impl AdaptiveAnnealingSolver {
 
         while deltas_log_e_regressions.len() < 100 {
             let old_log_e = current.log_e(&self.dataset, log_e_cache);
-            *current = current.mutate(rng);
+            *current = current.mutate(rng).0;
             let new_log_e = current.log_e(&self.dataset, log_e_cache);
 
             if new_log_e.total_cmp(&old_log_e).is_lt() {
@@ -89,7 +89,7 @@ impl Solver for AdaptiveAnnealingSolver {
         let mut adaptive_temperature_iter = self.temperature.borrow_mut().into_iter();
 
         while let Some(temp) = adaptive_temperature_iter.next() {
-            let candidate = current.mutate(&mut rng);
+            let (candidate, _) = current.mutate(&mut rng);
             let candidate_log_e = candidate.log_e(&self.dataset, &mut log_e_cache);
             let current_log_e = current.log_e(&self.dataset, &mut log_e_cache);
 

@@ -21,7 +21,7 @@ use serde::Serialize;
 use crate::{
     dataset::{Dataset, simple::VecDataset},
     logger::SolverEvent,
-    mcm::{MinimallyComplexModel, ParLogEResult},
+    mcm::{MCMData, MinimallyComplexModel, MutationEvent, ParLogEResult},
     mcm_error::MCMError,
     solvers::{
         AnnealingStarter, get_par_log_e_cache,
@@ -182,7 +182,7 @@ impl ParallelTemperingSolver {
 
         while deltas_log_e_regressions.len() < 100 {
             let old_log_e = current.par_log_e(&self.dataset, log_e_cache);
-            *current = current.mutate(rng);
+            *current = current.mutate(rng).0;
             let new_log_e = current.par_log_e(&self.dataset, log_e_cache);
 
             if new_log_e.total_cmp(&old_log_e).is_lt() {
@@ -459,12 +459,13 @@ impl TemperPool {
         rng: &mut ThreadRng,
         log_e_cache: &Option<Arc<DashMap<FixedBitSet, f64>>>,
     ) -> usize {
-        let new_mcm = self.mcm.mutate(rng);
+        let (new_mcm, mut_type) = self.mcm.mutate(rng);
         let result = new_mcm.par_log_e(dataset, log_e_cache);
         let new_log_e = result.value;
-        if new_log_e.total_cmp(&self.log_e).is_gt()
-            || rng.random_bool(((new_log_e - self.log_e) / self.temperature).exp())
-        {
+
+        let accepted = new_log_e.total_cmp(&self.log_e).is_gt()
+            || rng.random_bool(((new_log_e - self.log_e) / self.temperature).exp());
+        if accepted {
             if new_log_e.total_cmp(&self.best_log_e).is_gt() {
                 self.best_log_e = new_log_e;
                 self.best_mcm = new_mcm.clone();
@@ -473,6 +474,12 @@ impl TemperPool {
             self.mcm = new_mcm;
             self.log_e = new_log_e;
         }
+
+        if let Some(tx) = &self.sender {
+            tx.send(MCMData::Mutation(MutationEvent { mut_type, accepted }).into())
+                .unwrap();
+        }
+
         result.new_icc_count
     }
 

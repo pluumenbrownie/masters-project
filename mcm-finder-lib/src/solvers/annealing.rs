@@ -75,7 +75,7 @@ impl<T: Dataset> Solver for SimulatedAnnealingSolver<T> {
 
         // while temp > self.temperature.end {
         for (temp, end) in self.temperature.create_iter() {
-            let candidate = current.mutate(&mut rng);
+            let (candidate, _) = current.mutate(&mut rng);
             let candidate_log_e = candidate.log_e(&self.dataset, &mut log_e_cache);
             let current_log_e = current.log_e(&self.dataset, &mut log_e_cache);
 

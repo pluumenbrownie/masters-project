@@ -10,11 +10,15 @@ use annolog::*;
 use csv::Writer;
 use num_enum::FromPrimitive;
 
-use crate::solvers::{ParTempData, SwapEvent};
+use crate::{
+    mcm::{MCMData, MutationEvent},
+    solvers::{ParTempData, SwapEvent},
+};
 
 #[derive(Debug, Clone)]
 pub enum SolverEvent {
     ParTemp(ParTempData),
+    Mcm(MCMData),
     SomethingElse,
 }
 
@@ -59,8 +63,37 @@ impl Handler<SolverEvent> for ParTempHandler {
     }
 }
 
+struct McmHandler {
+    iteration: usize,
+    mutation_history_file: Writer<File>,
+}
+
+impl Default for McmHandler {
+    fn default() -> Self {
+        McmHandler {
+            iteration: 0,
+            mutation_history_file: csv::Writer::from_path("./results/mutation_history.csv")
+                .unwrap(),
+        }
+    }
+}
+
+impl Handler<SolverEvent> for McmHandler {
+    fn handle(&mut self, event: &SolverEvent) {
+        if let SolverEvent::Mcm(mcm_data) = event {
+            match mcm_data {
+                MCMData::Mutation(mut_event) => {
+                    self.mutation_history_file.serialize(mut_event).unwrap();
+                    self.mutation_history_file.flush().unwrap();
+                }
+            }
+        }
+    }
+}
+
 pub fn get_collector() -> (Collector<SolverEvent>, Sender<CollectorEvent<SolverEvent>>) {
     CollectorBuilder::<SolverEvent>::new()
         .with_handler(ParTempHandler::default())
+        .with_handler(McmHandler::default())
         .build()
 }

@@ -85,7 +85,7 @@ impl<T: Dataset> Solver for HillClimberSolver<T> {
         let mut progress = tqdm!(total = self.max_steps);
 
         for _ in 0..self.max_steps {
-            let candidate = current.mutate(&mut rng);
+            let (candidate, _) = current.mutate(&mut rng);
             let candidate_log_e = candidate.log_e(&self.dataset, &mut log_e_cache);
             let old_log_e = history
                 .front()

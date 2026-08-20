@@ -1,5 +1,6 @@
 //! This module contains the main MinimallyComplexModel type.
 
+use annolog::CollectorEvent;
 use dashmap::DashMap;
 use fixedbitset::FixedBitSet;
 use miette::NamedSource;
@@ -8,6 +9,7 @@ use rand::{
     seq::{IndexedRandom, IteratorRandom},
 };
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use serde::Serialize;
 use statrs::function::gamma::ln_gamma;
 use std::{
     collections::HashMap,
@@ -23,14 +25,15 @@ use std::{
 
 use crate::{
     dataset::{Dataset, line_length_tracker, verify_ascii},
+    logger::SolverEvent,
     mcm::icc::IndependentCompleteComponent,
     mcm_error::MCMError,
 };
 
 pub mod icc;
 
-#[derive(Debug, Clone, Copy)]
-enum MutationType {
+#[derive(Debug, Clone, Copy, Serialize)]
+pub enum MutationType {
     Split,
     Merge,
     Swap,
@@ -49,6 +52,22 @@ impl MutationType {
         .map(|t| t.0)
         .unwrap()
     }
+}
+#[derive(Debug, Clone, Copy)]
+pub enum MCMData {
+    Mutation(MutationEvent),
+}
+
+impl From<MCMData> for CollectorEvent<SolverEvent> {
+    fn from(value: MCMData) -> Self {
+        CollectorEvent::Data(SolverEvent::Mcm(value))
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct MutationEvent {
+    pub mut_type: MutationType,
+    pub accepted: bool,
 }
 
 /// Calculates the geometric complexity of an Independent Complete Component.
@@ -586,7 +605,7 @@ impl MinimallyComplexModel {
     }
 
     /// Returns a new MCM with a random ICC mutation
-    pub fn mutate(&self, rng: &mut rand::rngs::ThreadRng) -> MinimallyComplexModel {
+    pub fn mutate(&self, rng: &mut rand::rngs::ThreadRng) -> (MinimallyComplexModel, MutationType) {
         let mut_type = if self.count_icc() == 1 {
             MutationType::Split
         } else if self.count_nontrivial_icc() == 0 {
@@ -595,7 +614,7 @@ impl MinimallyComplexModel {
             MutationType::rand(rng, 0.1)
         };
 
-        match mut_type {
+        let new_mcm = match mut_type {
             MutationType::Merge => {
                 let targets = (0..self.count_icc()).sample(rng, 2);
                 self.merge(targets[0], targets[1])
@@ -647,7 +666,8 @@ impl MinimallyComplexModel {
 
                 self.swap(choice, destination)
             }
-        }
+        };
+        (new_mcm, mut_type)
     }
 
     /// Calculate the logarithm of the evidence of this MCM, via the equation

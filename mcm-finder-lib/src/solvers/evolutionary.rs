@@ -199,7 +199,7 @@ impl EvolutionarySolver {
         for _ in 0..self.generation_size {
             let mut mcm = MinimallyComplexModel::full(self.dataset.variables().try_into().unwrap());
             for _ in 0..self.shuffle_steps {
-                mcm = mcm.mutate(&mut self.rng.borrow_mut());
+                (mcm, _) = mcm.mutate(&mut self.rng.borrow_mut());
             }
             output.push(mcm);
         }
@@ -250,8 +250,8 @@ impl EvolutionarySolver {
             let mut child_b = parent_b.clone();
 
             for _ in 0..self.mutation_rate {
-                child_a = child_a.mutate(&mut self.rng.borrow_mut());
-                child_b = child_b.mutate(&mut self.rng.borrow_mut());
+                (child_a, _) = child_a.mutate(&mut self.rng.borrow_mut());
+                (child_b, _) = child_b.mutate(&mut self.rng.borrow_mut());
             }
 
             self.crossover(&mut child_a, &mut child_b);

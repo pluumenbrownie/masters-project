@@ -115,8 +115,8 @@ impl Particle {
         let mut mcm = MinimallyComplexModel::full(variables);
         let mut random_mcm = MinimallyComplexModel::full(variables);
         for _ in 0..15 {
-            mcm = mcm.mutate(rng);
-            random_mcm = random_mcm.mutate(rng);
+            (mcm, _) = mcm.mutate(rng);
+            (random_mcm, _) = random_mcm.mutate(rng);
         }
         Particle::new(weights, mcm, random_mcm, None, global_best_x, cache)
     }
@@ -149,7 +149,7 @@ impl Particle {
             .jakkard_difference(&self.global_best_x.borrow().clone().unwrap());
         let mut counter = 0usize;
         self.x = loop {
-            let candidate = self.x.mutate(rng);
+            let (candidate, _) = self.x.mutate(rng);
             let random_closer =
                 distance_random - candidate.jakkard_difference(&self.random_x) < 0.0;
             let best_closer =
@@ -169,7 +169,7 @@ impl Particle {
                 .x
                 .jakkard_difference(&self.global_best_x.borrow().clone().unwrap());
             self.random_x = loop {
-                let candidate = self.random_x.mutate(rng);
+                let (candidate, _) = self.random_x.mutate(rng);
                 if distance_best - candidate.jakkard_difference(self.best_x.as_ref().unwrap()) < 0.0
                     && distance_global
                         - candidate
