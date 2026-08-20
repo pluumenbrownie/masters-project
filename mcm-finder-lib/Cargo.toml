@@ -24,7 +24,7 @@ rapidhash = "4.4.1"
 rayon = "1.12.0"
 rustc-hash = "2.1.2"
 serde = { version = "1.0.229", features = ["derive"] }
-statrs = "0.18.0"
+statrs = { version = "0.19.1", features = ["rand"] }
 thiserror = "2.0.18"
 
 [build-dependencies]

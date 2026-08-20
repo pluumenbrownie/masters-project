@@ -5,12 +5,13 @@ use dashmap::DashMap;
 use fixedbitset::FixedBitSet;
 use miette::NamedSource;
 use rand::{
-    RngExt,
+    RngExt, SeedableRng,
+    distr::Distribution,
     seq::{IndexedRandom, IteratorRandom},
 };
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::Serialize;
-use statrs::function::gamma::ln_gamma;
+use statrs::{distribution::Binomial, function::gamma::ln_gamma};
 use std::{
     collections::HashMap,
     f64::consts::{LN_2, PI},
@@ -611,7 +612,7 @@ impl MinimallyComplexModel {
         } else if self.count_nontrivial_icc() == 0 {
             MutationType::Merge
         } else {
-            MutationType::rand(rng, 0.1)
+            MutationType::rand(rng, 0.333)
         };
 
         let new_mcm = match mut_type {
@@ -633,13 +634,25 @@ impl MinimallyComplexModel {
                     })
                     .collect();
                 let basis = *candidates.choose(rng).unwrap();
-                let mut random_data: Vec<u64> = vec![0; self.variables().div_ceil(32)];
-                rng.fill(&mut random_data);
+                // let mut random_data: Vec<u64> = vec![0; self.variables().div_ceil(32)];
+                // rng.fill(&mut random_data);
 
-                let split = FixedBitSet::with_capacity_and_blocks(
-                    self.variables(),
-                    random_data.into_iter().map(|n| n as usize),
-                );
+                let variable_count = self.partition[basis].count_ones(..);
+                let distribution = Binomial::new(0.5, (variable_count - 2) as u64).unwrap();
+                let sample: u64 = distribution.sample(rng);
+                // let amount = rng.random_range(1..variable_count);
+                let amount = (sample + 1) as usize;
+                let random_variables = self.partition[basis].ones().sample(rng, amount);
+
+                let mut split = FixedBitSet::with_capacity(self.variables());
+                for i in random_variables {
+                    split.insert(i);
+                }
+
+                // let split = FixedBitSet::with_capacity_and_blocks(
+                //     self.variables(),
+                //     random_data.into_iter().map(|n| n as usize),
+                // );
                 self.split(basis, split)
                 // let choice = self.partition[basis].ones().choose(rng).unwrap();
                 // self.split_one(basis, choice)
