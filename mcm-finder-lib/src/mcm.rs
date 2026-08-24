@@ -43,11 +43,11 @@ pub enum MutationType {
 impl MutationType {
     /// Returns a random arm of this enum. `merge_prob` gives the probability of
     /// returning `MutationType::Merge`.
-    fn rand(rng: &mut rand::rngs::ThreadRng, merge_prob: f64) -> MutationType {
+    fn rand(rng: &mut rand::rngs::ThreadRng, merge_prob: [f64; 3]) -> MutationType {
         [
-            (MutationType::Merge, merge_prob),
-            (MutationType::Split, 1.0 - merge_prob / 2.0),
-            (MutationType::Swap, 1.0 - merge_prob / 2.0),
+            (MutationType::Merge, merge_prob[0]),
+            (MutationType::Split, merge_prob[1]),
+            (MutationType::Swap, merge_prob[2]),
         ]
         .choose_weighted(rng, |item| item.1)
         .map(|t| t.0)
@@ -69,6 +69,7 @@ impl From<MCMData> for CollectorEvent<SolverEvent> {
 pub struct MutationEvent {
     pub mut_type: MutationType,
     pub accepted: bool,
+    pub temperature: f64,
 }
 
 /// Calculates the geometric complexity of an Independent Complete Component.
@@ -612,7 +613,7 @@ impl MinimallyComplexModel {
         } else if self.count_nontrivial_icc() == 0 {
             MutationType::Merge
         } else {
-            MutationType::rand(rng, 0.333)
+            MutationType::rand(rng, [1.0, 1.0, 1.0])
         };
 
         let new_mcm = match mut_type {
@@ -658,24 +659,36 @@ impl MinimallyComplexModel {
                 // self.split_one(basis, choice)
             }
             MutationType::Swap => {
-                let basis_candidates: Vec<usize> = self
-                    .partition
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(nr, icc)| {
-                        if icc.count_ones(..) > 1 {
-                            Some(nr)
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-                let basis = *basis_candidates.choose(rng).unwrap();
-                let destination = (0usize..self.count_icc())
-                    .filter(|n| *n != basis)
+                // let basis_candidates: Vec<usize> = self
+                //     .partition
+                //     .iter()
+                //     .enumerate()
+                //     .filter_map(|(nr, icc)| {
+                //         if icc.count_ones(..) > 1 {
+                //             Some(nr)
+                //         } else {
+                //             None
+                //         }
+                //     })
+                //     .collect();
+                // let basis = *basis_candidates.choose(rng).unwrap();
+                // let destination = (0usize..self.count_icc())
+                //     .filter(|n| *n != basis)
+                //     .choose(rng)
+                //     .unwrap();
+                // let choice = self.partition[basis].ones().choose(rng).unwrap();
+
+                let (choice, candidate_index) = loop {
+                    // This will loop forever when the MCM is empty, but don't mutate an empty MCM.
+                    let candidate_variable = (0..self.variables()).choose(rng).unwrap_or_default();
+                    if let Some(index) = self.get_index(candidate_variable) {
+                        break (candidate_variable, index);
+                    }
+                };
+                let destination = (0usize..=self.count_icc())
+                    .filter(|n| *n != candidate_index)
                     .choose(rng)
                     .unwrap();
-                let choice = self.partition[basis].ones().choose(rng).unwrap();
 
                 self.swap(choice, destination)
             }

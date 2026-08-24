@@ -20,7 +20,7 @@ fn main() -> Result<()> {
         .set_starter(AnnealingStarter::Trivial)
         .set_temperature_curve(ParallelTemperatureCurve::Geometric)
         .set_max_temperature(500.0)
-        .set_min_temperature(0.1)
+        .set_min_temperature(2.0)
         .set_steps_per_shuffle(50)
         .set_count_non_cached(false)
         .set_shuffles(1500)

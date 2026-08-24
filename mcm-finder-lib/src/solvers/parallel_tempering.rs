@@ -476,8 +476,15 @@ impl TemperPool {
         }
 
         if let Some(tx) = &self.sender {
-            tx.send(MCMData::Mutation(MutationEvent { mut_type, accepted }).into())
-                .unwrap();
+            tx.send(
+                MCMData::Mutation(MutationEvent {
+                    mut_type,
+                    accepted,
+                    temperature: self.temperature,
+                })
+                .into(),
+            )
+            .unwrap();
         }
 
         result.new_icc_count

@@ -47,6 +47,7 @@
                     torch
                     numpy
                     matplotlib
+                    typer
                   ]))
             ];
 
