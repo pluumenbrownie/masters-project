@@ -9,7 +9,8 @@ use rand::RngExt;
 
 use crate::{
     dataset::{Dataset, simple::VecDataset},
-    mcm::MinimallyComplexModel,
+    logger::SolverEventSender,
+    mcm::{MCMData::LogE, MinimallyComplexModel},
     mcm_error::MCMError,
     solvers::{
         AnnealingStarter, get_log_e_cache,
@@ -23,6 +24,7 @@ pub struct HillClimberSolver<T> {
     max_steps: usize,
     history_size: usize,
     stagnation_steps: usize,
+    sender: Option<SolverEventSender>,
 }
 
 impl<T: Dataset> HillClimberSolver<T> {
@@ -47,6 +49,12 @@ impl<T: Dataset> HillClimberSolver<T> {
         self.stagnation_steps = steps;
         self
     }
+
+    /// Attach a sender for a `Collector` to this solver.
+    pub fn set_sender(mut self, sender: SolverEventSender) -> Self {
+        self.sender = Some(sender);
+        self
+    }
 }
 
 impl<T: Dataset> Solver for HillClimberSolver<T> {
@@ -60,6 +68,7 @@ impl<T: Dataset> Solver for HillClimberSolver<T> {
             max_steps: 10_000,
             history_size: 1,
             stagnation_steps: 1000,
+            sender: None,
         })
     }
 
@@ -116,6 +125,8 @@ impl<T: Dataset> Solver for HillClimberSolver<T> {
             }
 
             progress.set_description(format!("Log E: {:.1}", best_log_e));
+            self.send(LogE(current.log_e(&self.dataset, &mut log_e_cache)))
+                .unwrap();
             let _ = progress.update(1);
         }
         SolverReport::new(
@@ -126,5 +137,9 @@ impl<T: Dataset> Solver for HillClimberSolver<T> {
                 format!("{}", log_e_cache.unwrap().len()),
             )]),
         )
+    }
+
+    fn get_sender(&self) -> Option<&SolverEventSender> {
+        self.sender.as_ref()
     }
 }

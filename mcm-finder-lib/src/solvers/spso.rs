@@ -6,6 +6,7 @@ use rand::{RngExt, rngs::ThreadRng};
 
 use crate::{
     dataset::{Dataset, simple::VecDataset},
+    logger::SolverEventSender,
     mcm::MinimallyComplexModel,
     solvers::{Solver, SolverReport, get_log_e_cache},
 };
@@ -15,6 +16,7 @@ pub struct SpsoSolver {
     swarm_size: usize,
     steps: usize,
     weights: Weights,
+    sender: Option<SolverEventSender>,
 }
 
 impl Solver for SpsoSolver {
@@ -27,6 +29,7 @@ impl Solver for SpsoSolver {
             swarm_size: 64,
             steps: 100000,
             weights: Weights { weight: 0.8 },
+            sender: None,
         })
     }
 
@@ -69,6 +72,10 @@ impl Solver for SpsoSolver {
                 format!("{}", log_e_cache.borrow().as_ref().unwrap().len()),
             )]),
         )
+    }
+
+    fn get_sender(&self) -> Option<&SolverEventSender> {
+        self.sender.as_ref()
     }
 }
 

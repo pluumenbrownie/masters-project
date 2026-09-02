@@ -13,11 +13,12 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::Serialize;
 use statrs::{distribution::Binomial, function::gamma::ln_gamma};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     f64::consts::{LN_2, PI},
     fmt::Display,
     fs::File,
     io::{BufReader, Read},
+    mem,
     num::{NonZeroU32, NonZeroUsize},
     ops::Deref,
     path::Path,
@@ -57,6 +58,7 @@ impl MutationType {
 #[derive(Debug, Clone, Copy)]
 pub enum MCMData {
     Mutation(MutationEvent),
+    LogE(f64),
 }
 
 impl From<MCMData> for CollectorEvent<SolverEvent> {
@@ -564,6 +566,110 @@ impl MinimallyComplexModel {
         MinimallyComplexModel::new_remove_empty(iccs)
     }
 
+    /// Swaps the given variable from the basis ICC into the destination ICC.
+    ///
+    /// Swapping a variable into a non-existant ICC adds a new ICC. This method
+    /// also returns the unchanged affected ICCs, for use in tabu search.
+    ///
+    /// # Examples
+    /// ```
+    /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
+    /// # use fixedbitset::FixedBitSet;
+    /// let mcm = MinimallyComplexModel::from_iccs(vec![
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111001]).into(),
+    /// ]).unwrap();
+    /// let result_mcm = MinimallyComplexModel::from_iccs(vec![
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001010110]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110101001]).into(),
+    /// ]).unwrap();
+    /// assert_eq!(mcm.swap_tabu(4, 1).0, result_mcm);
+    /// ```
+    pub fn swap_tabu(
+        &self,
+        variable: usize,
+        destination: usize,
+    ) -> (
+        MinimallyComplexModel,
+        Option<IndependentCompleteComponent>,
+        Option<IndependentCompleteComponent>,
+    ) {
+        let basis = self.get_index(variable);
+        if let Some(basis) = basis {
+            // null operation
+            if destination == basis {
+                return (self.clone(), None, None);
+            }
+
+            // swap to new ICC
+            if destination >= self.count_icc() {
+                return (
+                    self.split_one(variable),
+                    Some(self.partition[basis].clone()),
+                    None,
+                );
+            }
+
+            let mut iccs: Vec<IndependentCompleteComponent> =
+                self.partition.iter().map(|i| i.full_clone()).collect();
+
+            iccs[basis].set(variable, false);
+            iccs[destination].set(variable, true);
+            return (
+                MinimallyComplexModel::new_remove_empty(iccs),
+                Some(self.partition[basis].clone()),
+                Some(self.partition[destination].clone()),
+            );
+        } else {
+            // missing variable
+            let mut iccs: Vec<IndependentCompleteComponent> =
+                self.partition.iter().map(|i| i.full_clone()).collect();
+            iccs[destination].set(variable, true);
+
+            return (
+                MinimallyComplexModel::new_remove_empty(iccs),
+                None,
+                Some(self.partition[destination].clone()),
+            );
+        };
+    }
+
+    /// Combine the two ICCs, then put the unmasked variables in one ICC and the
+    /// masked variables in the other.
+    ///
+    /// # Examples
+    /// ```
+    /// # use mcm_finder_lib::mcm::MinimallyComplexModel;
+    /// # use fixedbitset::FixedBitSet;
+    /// let mcm = MinimallyComplexModel::from_iccs(vec![
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001000110]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110111001]).into(),
+    /// ]).unwrap();
+    /// let result_mcm = MinimallyComplexModel::from_iccs(vec![
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b001010110]).into(),
+    ///     FixedBitSet::with_capacity_and_blocks(9, [0b110101001]).into(),
+    /// ]).unwrap();
+    /// let mask = dbg!(FixedBitSet::with_capacity_and_blocks(9, [0b001010110]));
+    /// let result = dbg!(mcm.redistribute(0, 1, mask));
+    /// assert_eq!(result, result_mcm);
+    /// ```
+    pub fn redistribute(
+        &self,
+        icc_one: usize,
+        icc_two: usize,
+        mask: FixedBitSet,
+    ) -> MinimallyComplexModel {
+        assert_ne!(icc_one, icc_two);
+        let mut icc_one = icc_one;
+        let mut icc_two = icc_two;
+        if icc_two > icc_one {
+            mem::swap(&mut icc_one, &mut icc_two);
+        }
+
+        let new_mcm = dbg!(self.merge(icc_two, icc_one));
+        new_mcm.split(icc_one, mask)
+    }
+
     /// Returns the amount of ICCs present in this model.
     ///
     /// # Example
@@ -575,6 +681,10 @@ impl MinimallyComplexModel {
     /// ```
     pub fn count_icc(&self) -> usize {
         self.partition.len()
+    }
+
+    pub fn is_tabu(&self, tabu_list: &VecDeque<IndependentCompleteComponent>) -> bool {
+        self.partition.iter().any(|icc| tabu_list.contains(icc))
     }
 
     pub fn complexity_mcm(&self) -> f64 {

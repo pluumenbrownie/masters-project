@@ -10,6 +10,7 @@ use rand::{
 
 use crate::{
     dataset::{Dataset, simple::VecDataset},
+    logger::SolverEventSender,
     mcm::MinimallyComplexModel,
     solvers::{Solver, SolverReport, get_log_e_cache},
 };
@@ -129,6 +130,7 @@ pub struct EvolutionarySolver {
     survivor_selection_type: SelectionType,
     elitism: usize,
     rng: RefCell<ThreadRng>,
+    sender: Option<SolverEventSender>,
 }
 
 impl Solver for EvolutionarySolver {
@@ -150,6 +152,7 @@ impl Solver for EvolutionarySolver {
             survivor_selection_type: SelectionType::Linear,
             elitism: 0,
             rng: RefCell::new(rand::rng()),
+            sender: None,
         })
     }
 
@@ -189,6 +192,10 @@ impl Solver for EvolutionarySolver {
                 format!("{}", log_e_cache.unwrap().len()),
             )]),
         )
+    }
+
+    fn get_sender(&self) -> Option<&SolverEventSender> {
+        self.sender.as_ref()
     }
 }
 

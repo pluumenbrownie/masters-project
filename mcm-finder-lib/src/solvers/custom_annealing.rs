@@ -6,10 +6,11 @@ use rand::{RngExt, rngs::ThreadRng};
 
 use crate::{
     dataset::{Dataset, simple::VecDataset},
-    mcm::MinimallyComplexModel,
+    logger::SolverEventSender,
+    mcm::{MCMData::LogE, MinimallyComplexModel},
     mcm_error::MCMError,
     solvers::{
-        AnnealingStarter, get_log_e_cache,
+        AnnealingData, AnnealingLogE, AnnealingStarter, get_log_e_cache,
         solvers_base::{Solver, SolverReport},
     },
 };
@@ -18,6 +19,7 @@ pub struct AdaptiveAnnealingSolver {
     dataset: VecDataset,
     starter: AnnealingStarter,
     temperature: RefCell<AdaptiveTemperature>,
+    sender: Option<SolverEventSender>,
 }
 
 impl AdaptiveAnnealingSolver {
@@ -51,6 +53,12 @@ impl AdaptiveAnnealingSolver {
             .borrow_mut()
             .calculate_start_temperature(deltas_log_e_regressions);
     }
+
+    /// Attach a sender for a `Collector` to this solver.
+    pub fn set_sender(mut self, sender: SolverEventSender) -> Self {
+        self.sender = Some(sender);
+        self
+    }
 }
 
 impl Solver for AdaptiveAnnealingSolver {
@@ -62,6 +70,7 @@ impl Solver for AdaptiveAnnealingSolver {
             dataset: VecDataset::read_from_file(filepath)?,
             starter: AnnealingStarter::default(),
             temperature: AdaptiveTemperature::new(0.1, 100).into(),
+            sender: None,
         })
     }
 
@@ -115,6 +124,12 @@ impl Solver for AdaptiveAnnealingSolver {
                 "T={:.3} | Best Log(E)={:.0} | Current Log(E)={:.0}",
                 temp, best_log_e, current_log_e
             ));
+
+            self.send(AnnealingData::LogE(AnnealingLogE {
+                log_e: current.log_e(&self.dataset, &mut log_e_cache),
+                temperature: temp,
+            }))
+            .unwrap();
             let _ = progress.update(1);
         }
         SolverReport::new(
@@ -125,6 +140,10 @@ impl Solver for AdaptiveAnnealingSolver {
                 format!("{}", log_e_cache.unwrap().len()),
             )]),
         )
+    }
+
+    fn get_sender(&self) -> Option<&SolverEventSender> {
+        self.sender.as_ref()
     }
 }
 

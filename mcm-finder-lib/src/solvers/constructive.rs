@@ -11,6 +11,7 @@ use rand::{RngExt, rngs::ThreadRng, seq::SliceRandom};
 
 use crate::{
     dataset::{Dataset, simple::VecDataset},
+    logger::SolverEventSender,
     mcm::MinimallyComplexModel,
     mcm_error::MCMError,
     solvers::{
@@ -42,6 +43,7 @@ pub enum ConstructiveStrategy {
 pub struct ConstructiveSolver {
     dataset: VecDataset,
     strategy: ConstructiveStrategy,
+    sender: Option<SolverEventSender>,
 }
 
 impl Solver for ConstructiveSolver {
@@ -52,6 +54,7 @@ impl Solver for ConstructiveSolver {
         Ok(ConstructiveSolver {
             dataset: VecDataset::read_from_file(filepath)?,
             strategy: ConstructiveStrategy::FrontToBack,
+            sender: None,
         })
     }
 
@@ -100,6 +103,10 @@ impl Solver for ConstructiveSolver {
                 format!("{}", log_e_cache.unwrap().len()),
             )]),
         )
+    }
+
+    fn get_sender(&self) -> Option<&SolverEventSender> {
+        self.sender.as_ref()
     }
 }
 

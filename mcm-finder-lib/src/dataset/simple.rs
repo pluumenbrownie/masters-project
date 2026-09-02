@@ -105,7 +105,7 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> SimpleDataset<C, S> {
     /// let dataset = SimpleDataset::<DataVec<DefaultState>, DefaultState>::new(data, 2);
     ///
     /// // Demonstrate iteration over the dataset and collecting results into a vector
-    /// let results: Vec<(&FixedBitSet, usize)> = dataset.iter().collect();
+    /// let results: Vec<(FixedBitSet, usize)> = dataset.iter().collect();
     ///
     /// // Include assertion checking iteration length equals dataset size
     /// assert_eq!(results.len(), 2);
@@ -155,7 +155,7 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> SimpleDataset<C, S> {
     /// assert_eq!(transformed.get(&bitset2), Some(20));
     ///
     /// // Accessing data via iter() and collecting into a vector
-    /// let results: Vec<(&FixedBitSet, usize)> = transformed.iter().collect();
+    /// let results: Vec<(FixedBitSet, usize)> = transformed.iter().collect();
     /// assert_eq!(results.len(), 2);
     /// ```
     pub fn transform_to_icc(&self, icc: &FixedBitSet) -> SimpleDataset<C, S> {

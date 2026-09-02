@@ -1,15 +1,24 @@
 use std::{
-    char::ToLowercase, collections::HashMap, default, marker::Sized, num::NonZero,
-    ops::RangeBounds, path::Path,
+    char::ToLowercase,
+    collections::{HashMap, VecDeque},
+    default,
+    marker::Sized,
+    num::NonZero,
+    ops::RangeBounds,
+    path::Path,
 };
 
+use annolog::CollectorEvent;
 use fixedbitset::FixedBitSet;
+use itertools::Itertools;
 use kdam::{Bar, BarExt, tqdm};
 use rand::seq::{IteratorRandom, SliceRandom};
+use serde::Serialize;
 
 use crate::{
     dataset::{Dataset, simple::VecDataset},
-    mcm::MinimallyComplexModel,
+    logger::{SolverEvent, SolverEventSender},
+    mcm::{MinimallyComplexModel, icc::IndependentCompleteComponent},
     mcm_error::MCMError,
     solvers::{
         ConstructiveStrategy, get_log_e_cache,
@@ -74,6 +83,8 @@ pub enum Refinements {
     Local,
     LocalBeam { beam_size: usize },
     ChooseN { n: usize, max_fails: usize },
+    Exhaustive,
+    Tabu { steps: usize, size: usize },
 }
 
 #[derive(Clone)]
@@ -83,6 +94,7 @@ pub struct GreedySolver {
     initial_solver: InitialSolver,
     constructive_strategy: ConstructiveStrategy,
     refinement_sequence: Vec<Refinements>,
+    sender: Option<SolverEventSender>,
 }
 
 impl GreedySolver {
@@ -112,6 +124,12 @@ impl GreedySolver {
     /// What search algorithms should be used after the initial construction algorithm.
     pub fn set_constructive_strategy(mut self, strategy: ConstructiveStrategy) -> Self {
         self.constructive_strategy = strategy;
+        self
+    }
+
+    /// Attach a sender for a `Collector` to this solver.
+    pub fn set_sender(mut self, sender: SolverEventSender) -> Self {
+        self.sender = Some(sender);
         self
     }
 
@@ -186,7 +204,7 @@ impl GreedySolver {
                         log_e_cache,
                     );
 
-                    gen_best = update_if_deep_log_e_better(gen_best, &candidate);
+                    gen_best = update_if_log_e_better(gen_best, &candidate);
 
                     if next_gen
                         .last()
@@ -208,6 +226,67 @@ impl GreedySolver {
         *gen_best_vec = next_gen;
 
         gen_best
+    }
+
+    #[must_use]
+    fn find_best_tabu(
+        &self,
+        log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
+        _progress: &mut Bar,
+        gen_best: &LogeMCM,
+        tabu_list: &mut VecDeque<IndependentCompleteComponent>,
+        tabu_list_size: usize,
+    ) -> Option<LogeMCM> {
+        let icc_amount = gen_best.mcm.count_icc();
+        let mut best_candidate: Option<(
+            LogeMCM,
+            Option<IndependentCompleteComponent>,
+            Option<IndependentCompleteComponent>,
+        )> = None;
+
+        for variable in 0..gen_best.mcm.variables() {
+            for into in 0..=icc_amount {
+                let (candidate_mcm, icc_origin, icc_destination) =
+                    gen_best.mcm.swap_tabu(variable, into);
+                // skip null operation
+                if icc_origin.is_none() && icc_destination.is_none() {
+                    continue;
+                }
+
+                if !candidate_mcm.is_tabu(tabu_list) {
+                    let candidate = LogeMCM::calculate(candidate_mcm, &self.dataset, log_e_cache);
+                    best_candidate = Some(match best_candidate {
+                        None => (candidate, icc_origin, icc_destination),
+                        Some(best) => {
+                            if best.0.log_e.total_cmp(&candidate.log_e).is_lt() {
+                                (candidate, icc_origin, icc_destination)
+                            } else {
+                                best
+                            }
+                        }
+                    });
+                }
+            }
+        }
+
+        match best_candidate {
+            Some(choice) => {
+                if let Some(icc) = choice.1 {
+                    if tabu_list.len() > tabu_list_size {
+                        tabu_list.pop_front();
+                    }
+                    tabu_list.push_back(icc);
+                }
+                if let Some(icc) = choice.2 {
+                    if tabu_list.len() > tabu_list_size {
+                        tabu_list.pop_front();
+                    }
+                    tabu_list.push_back(icc);
+                }
+                Some(choice.0)
+            }
+            None => None,
+        }
     }
 
     #[must_use]
@@ -234,7 +313,7 @@ impl GreedySolver {
             }
             let candidate = LogeMCM::calculate(mcm, &self.dataset, log_e_cache);
 
-            gen_best = update_if_deep_log_e_better(gen_best, &candidate);
+            gen_best = update_if_log_e_better(gen_best, &candidate);
             let _ = progress.update(1);
         }
 
@@ -254,19 +333,31 @@ impl GreedySolver {
         &self,
         log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
         best_mcm: &mut LogeMCM,
-        amount: usize,
+        beam_size: usize,
     ) -> Bar {
         let mut gen_best_vec = vec![best_mcm.clone()];
         let length = self.count_calculations();
 
         // we merge one partition each round
-        let mut progress = tqdm!(total = length * amount);
+        let mut progress = tqdm!(total = length * beam_size);
         for iccs_left in (1usize..self.dataset.variables()).rev() {
             let original_vec = gen_best_vec.clone();
             progress.set_description(format!("{iccs_left} ICCs - {:.0}", gen_best_vec[0].log_e));
-            gen_best_vec =
-                self.find_best_merge(log_e_cache, &mut progress, iccs_left, &original_vec, amount);
+            gen_best_vec = self.find_best_merge(
+                log_e_cache,
+                &mut progress,
+                iccs_left,
+                &original_vec,
+                beam_size,
+            );
+
             let new_best = self.update_global_best(best_mcm, &gen_best_vec[0]);
+            self.send(GreedyData::LogE(GreedyLogE {
+                solver: "Merge".to_string(),
+                size: beam_size,
+                log_e: best_mcm.log_e,
+            }))
+            .unwrap();
             if !new_best & !self.continue_after_minimum {
                 break;
             }
@@ -290,6 +381,12 @@ impl GreedySolver {
 
         loop {
             progress.set_description(format!("Local - {:.0}", best_mcm.log_e));
+            self.send(GreedyData::LogE(GreedyLogE {
+                solver: "Local".to_string(),
+                size: beam_size,
+                log_e: best_mcm.log_e,
+            }))
+            .unwrap();
 
             if self
                 .find_best_local(log_e_cache, progress, &mut gen_best_vec, beam_size)
@@ -298,6 +395,112 @@ impl GreedySolver {
             {
                 break;
             };
+        }
+    }
+
+    fn solve_tabu(
+        &self,
+        log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
+        best_mcm: &mut LogeMCM,
+        progress: &mut Bar,
+        steps: usize,
+        tabu_list_size: usize,
+    ) {
+        if self.initial_solver != InitialSolver::None {
+            println!("{}", best_mcm.mcm);
+        }
+
+        let mut current_mcm = best_mcm.clone();
+        let mut tabu_list = VecDeque::with_capacity(tabu_list_size);
+
+        progress.counter = 0;
+        progress.total = steps;
+        progress.force_refresh = true;
+        progress.set_description(format!("Tabu - {:.0}", best_mcm.log_e));
+        let _ = progress.update_to(0);
+
+        for _ in 0..steps {
+            progress.set_description(format!("Tabu - {:.0}", best_mcm.log_e));
+
+            current_mcm = match self.find_best_tabu(
+                log_e_cache,
+                progress,
+                &current_mcm,
+                &mut tabu_list,
+                tabu_list_size,
+            ) {
+                Some(local_best) => {
+                    self.update_global_best(best_mcm, &current_mcm);
+                    local_best
+                }
+                None => return,
+            };
+
+            self.send(GreedyData::LogE(GreedyLogE {
+                solver: "Tabu".to_string(),
+                size: tabu_list_size,
+                log_e: current_mcm.log_e,
+            }))
+            .unwrap();
+            let _ = progress.update(1);
+        }
+
+        progress.force_refresh = false;
+    }
+
+    fn solve_exhaustive(
+        &self,
+        log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
+        best_mcm: &mut LogeMCM,
+        progress: &mut Bar,
+    ) {
+        if self.initial_solver != InitialSolver::None {
+            println!("{}", best_mcm.mcm);
+        }
+
+        let variable_count = best_mcm.mcm.variables();
+
+        for one in 0..(variable_count - 1) {
+            if one > best_mcm.mcm.count_icc() {
+                continue;
+            }
+            for two in ((one + 1)..variable_count).rev() {
+                if two > best_mcm.mcm.count_icc() {
+                    continue;
+                }
+
+                progress
+                    .set_description(format!("Exhaustive = {one}:{two} - {:.0}", best_mcm.log_e));
+                self.send(GreedyData::LogE(GreedyLogE {
+                    solver: "Exhaustive".to_string(),
+                    size: 0,
+                    log_e: best_mcm.log_e,
+                }))
+                .unwrap();
+
+                let merged = best_mcm.mcm.merge(two, one);
+                let variables: Vec<_> = merged
+                    .to_vector()
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(nr, icc)| if *icc == one + 1 { Some(nr) } else { None })
+                    .collect();
+
+                let mut mask = FixedBitSet::with_capacity(variable_count);
+                for masked_variables in variables.iter().powerset() {
+                    if masked_variables.is_empty() || masked_variables.len() == variables.len() {
+                        continue;
+                    }
+                    mask.set_range(.., false);
+                    for var in masked_variables {
+                        mask.insert(*var);
+                    }
+                    let candidate = merged.split(one, mask.clone());
+                    let log_e = LogeMCM::calculate(candidate, &self.dataset, log_e_cache);
+                    self.update_global_best(best_mcm, &log_e);
+                    let _ = progress.update(1);
+                }
+            }
         }
     }
 
@@ -322,6 +525,12 @@ impl GreedySolver {
                 "Choose {amount} - {fails}/{max_fails} - {:.0}",
                 best_mcm.log_e
             ));
+            self.send(GreedyData::LogE(GreedyLogE {
+                solver: "Check".to_string(),
+                size: amount,
+                log_e: best_mcm.log_e,
+            }))
+            .unwrap();
             if self
                 .find_best_check_amount(log_e_cache, progress, amount, &original)
                 .and_then(|c| self.update_global_best(best_mcm, &c).then_some(()))
@@ -421,10 +630,15 @@ impl GreedySolver {
 
             current_gen = next_gen;
             *current_solution = current_gen.first().unwrap().clone().0;
-            progress.set_description(format!(
-                "Log E: {:.0}",
-                current_solution.log_e(&self.dataset, log_e_cache)
-            ));
+            let current_log_e = current_solution.log_e(&self.dataset, log_e_cache);
+
+            progress.set_description(format!("Log E: {:.0}", current_log_e));
+            self.send(GreedyData::LogE(GreedyLogE {
+                solver: "Constructive".to_string(),
+                size: beam_size,
+                log_e: current_log_e,
+            }))
+            .unwrap();
         }
 
         progress
@@ -482,10 +696,14 @@ impl GreedySolver {
 
             current_gen = next_gen;
             *current_solution = current_gen.first().unwrap().clone().0;
-            progress.set_description(format!(
-                "Log E: {:.0}",
-                current_solution.log_e(&self.dataset, log_e_cache)
-            ));
+            let current_log_e = current_solution.log_e(&self.dataset, log_e_cache);
+            progress.set_description(format!("Log E: {:.0}", current_log_e));
+            self.send(GreedyData::LogE(GreedyLogE {
+                solver: "Constructive Greedy".to_string(),
+                size: beam_size,
+                log_e: current_log_e,
+            }))
+            .unwrap();
         }
 
         progress
@@ -558,7 +776,7 @@ fn update_deep_log_e_only(candidate: LogeMCM, deep_log_e: f64) -> LogeMCM {
     }
 }
 
-fn update_if_deep_log_e_better(gen_best: Option<LogeMCM>, candidate: &LogeMCM) -> Option<LogeMCM> {
+fn update_if_log_e_better(gen_best: Option<LogeMCM>, candidate: &LogeMCM) -> Option<LogeMCM> {
     gen_best
         .filter(|gen_best| gen_best.deep_log_e.total_cmp(&candidate.deep_log_e).is_ge())
         .or(Some(candidate.clone()))
@@ -575,6 +793,7 @@ impl Solver for GreedySolver {
             initial_solver: InitialSolver::default(),
             constructive_strategy: ConstructiveStrategy::FrontToBack,
             refinement_sequence: Vec::default(),
+            sender: None,
         })
     }
 
@@ -614,6 +833,16 @@ impl Solver for GreedySolver {
                     &mut best_mcm,
                     &mut progress,
                 ),
+                Refinements::Exhaustive => {
+                    self.solve_exhaustive(&mut log_e_cache, &mut best_mcm, &mut progress)
+                }
+                Refinements::Tabu { steps, size } => self.solve_tabu(
+                    &mut log_e_cache,
+                    &mut best_mcm,
+                    &mut progress,
+                    *steps,
+                    *size,
+                ),
             }
         }
 
@@ -625,6 +854,10 @@ impl Solver for GreedySolver {
                 format!("{}", log_e_cache.unwrap().len()),
             )]),
         )
+    }
+
+    fn get_sender(&self) -> Option<&SolverEventSender> {
+        self.sender.as_ref()
     }
 }
 
@@ -663,5 +896,23 @@ impl Iterator for ProductIterator {
         }
         self.first = false;
         Some(self.current.clone())
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GreedyLogE {
+    solver: String,
+    size: usize,
+    log_e: f64,
+}
+
+#[derive(Debug, Clone)]
+pub enum GreedyData {
+    LogE(GreedyLogE),
+}
+
+impl From<GreedyData> for CollectorEvent<SolverEvent> {
+    fn from(value: GreedyData) -> Self {
+        CollectorEvent::Data(SolverEvent::Greedy(value))
     }
 }

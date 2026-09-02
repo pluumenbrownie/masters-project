@@ -1,9 +1,20 @@
-use std::{collections::HashMap, fmt::Display, marker::Sized, path::Path, sync::Arc};
+use std::{
+    collections::HashMap,
+    fmt::Display,
+    marker::Sized,
+    path::Path,
+    sync::{Arc, mpsc::SendError},
+};
 
+use annolog::CollectorEvent;
 use dashmap::DashMap;
 use fixedbitset::FixedBitSet;
 
-use crate::{mcm::MinimallyComplexModel, mcm_error::MCMError};
+use crate::{
+    logger::{SolverEvent, SolverEventSender},
+    mcm::MinimallyComplexModel,
+    mcm_error::MCMError,
+};
 
 /// A class contaning the result of a `Solver`. Contains:
 ///  - `mcm`: The MCM found by this algorithm with the highest Log(E)
@@ -62,6 +73,18 @@ pub trait Solver {
     ///
     /// Returns a `SolverReport` which can be printed or used further.
     fn solve(&self) -> SolverReport;
+
+    fn get_sender(&self) -> Option<&SolverEventSender>;
+
+    fn send(
+        &self,
+        object: impl Into<CollectorEvent<SolverEvent>>,
+    ) -> Result<(), SendError<CollectorEvent<SolverEvent>>> {
+        if let Some(tx) = self.get_sender() {
+            tx.send(object.into())?;
+        }
+        Ok(())
+    }
 }
 
 pub(crate) fn get_log_e_cache() -> Option<HashMap<FixedBitSet, f64>> {

@@ -1,11 +1,14 @@
 use std::{collections::HashMap, num::NonZero, path::Path};
 
+use annolog::CollectorEvent;
 use kdam::{BarExt, tqdm};
 use rand::RngExt;
+use serde::Serialize;
 
 use crate::{
     dataset::{Dataset, simple::VecDataset},
-    mcm::MinimallyComplexModel,
+    logger::{SolverEvent, SolverEventSender},
+    mcm::{MCMData, MinimallyComplexModel, MutationEvent},
     mcm_error::MCMError,
     solvers::{
         anneal_temps::AnnealingTemperature,
@@ -27,6 +30,7 @@ pub struct SimulatedAnnealingSolver<T> {
     dataset: T,
     starter: AnnealingStarter,
     temperature: AnnealingTemperature,
+    sender: Option<SolverEventSender>,
 }
 
 impl<T: Dataset> SimulatedAnnealingSolver<T> {
@@ -37,6 +41,12 @@ impl<T: Dataset> SimulatedAnnealingSolver<T> {
 
     pub fn set_temperature(mut self, temperature: AnnealingTemperature) -> Self {
         self.temperature = temperature;
+        self
+    }
+
+    /// Attach a sender for a `Collector` to this solver.
+    pub fn set_sender(mut self, sender: SolverEventSender) -> Self {
+        self.sender = Some(sender);
         self
     }
 }
@@ -50,6 +60,7 @@ impl<T: Dataset> Solver for SimulatedAnnealingSolver<T> {
             dataset: T::read_from_file(filepath)?,
             starter: AnnealingStarter::default(),
             temperature: AnnealingTemperature::default(),
+            sender: None,
         })
     }
 
@@ -75,7 +86,7 @@ impl<T: Dataset> Solver for SimulatedAnnealingSolver<T> {
 
         // while temp > self.temperature.end {
         for (temp, end) in self.temperature.create_iter() {
-            let (candidate, _) = current.mutate(&mut rng);
+            let (candidate, mut_type) = current.mutate(&mut rng);
             let candidate_log_e = candidate.log_e(&self.dataset, &mut log_e_cache);
             let current_log_e = current.log_e(&self.dataset, &mut log_e_cache);
 
@@ -83,13 +94,26 @@ impl<T: Dataset> Solver for SimulatedAnnealingSolver<T> {
                 best_mcm = candidate.clone();
                 best_log_e = candidate.log_e(&self.dataset, &mut log_e_cache);
             }
+            let mut accepted = false;
             if candidate_log_e.total_cmp(&current_log_e).is_gt()
                 || rng.random_bool(((candidate_log_e - current_log_e) / temp).exp())
             {
                 current = candidate;
+                accepted = true;
             }
 
             progress.set_description(format!("T={:.3}/{} - {:.1}", temp, end, best_log_e));
+            self.send(MCMData::Mutation(MutationEvent {
+                mut_type,
+                accepted,
+                temperature: temp,
+            }))
+            .unwrap();
+            self.send(AnnealingData::LogE(AnnealingLogE {
+                log_e: current.log_e(&self.dataset, &mut log_e_cache),
+                temperature: temp,
+            }))
+            .unwrap();
             let _ = progress.update(1);
         }
         SolverReport::new(
@@ -100,5 +124,26 @@ impl<T: Dataset> Solver for SimulatedAnnealingSolver<T> {
                 format!("{}", log_e_cache.unwrap().len()),
             )]),
         )
+    }
+
+    fn get_sender(&self) -> Option<&SolverEventSender> {
+        self.sender.as_ref()
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AnnealingLogE {
+    pub log_e: f64,
+    pub temperature: f64,
+}
+
+#[derive(Debug, Clone)]
+pub enum AnnealingData {
+    LogE(AnnealingLogE),
+}
+
+impl From<AnnealingData> for CollectorEvent<SolverEvent> {
+    fn from(value: AnnealingData) -> Self {
+        CollectorEvent::Data(SolverEvent::Annealing(value))
     }
 }

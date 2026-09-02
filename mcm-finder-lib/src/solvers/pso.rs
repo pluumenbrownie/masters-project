@@ -6,6 +6,7 @@ use rand::{RngExt, rngs::ThreadRng};
 
 use crate::{
     dataset::{Dataset, simple::VecDataset},
+    logger::SolverEventSender,
     mcm::MinimallyComplexModel,
     mcm_error::MCMError,
     solvers::{
@@ -31,6 +32,7 @@ pub struct PsoSolver {
     social_weight: f64,
     steps: usize,
     particle_max_weight: f64,
+    sender: Option<SolverEventSender>,
 }
 
 impl Solver for PsoSolver {
@@ -48,6 +50,7 @@ impl Solver for PsoSolver {
             social_weight: 1.45,
             steps: 1000,
             particle_max_weight: 20.0,
+            sender: None,
         })
     }
 
@@ -78,6 +81,10 @@ impl Solver for PsoSolver {
                 ),
             ]),
         )
+    }
+
+    fn get_sender(&self) -> Option<&SolverEventSender> {
+        self.sender.as_ref()
     }
 }
 

@@ -11,6 +11,7 @@ csv = "1.4.0"
 cxx = "1.0.194"
 dashmap = { version = "6.2.1", features = ["rayon"] }
 fixedbitset = "0.5.7"
+itertools = "0.15.0"
 kdam = { version = "0.6.4", features = [
     "gradient",
     "rayon",

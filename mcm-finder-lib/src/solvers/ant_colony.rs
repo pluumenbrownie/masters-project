@@ -17,6 +17,7 @@ use statrs::distribution::ChiError;
 
 use crate::{
     dataset::Dataset,
+    logger::SolverEventSender,
     mcm::{self, MinimallyComplexModel},
     solvers::{ConstructiveStrategy::VarianceFirst, Solver, SolverReport, get_par_log_e_cache},
 };
@@ -206,6 +207,7 @@ pub struct AntColonyOptimization<D: Dataset> {
     evaporation_rate: f64,
     minimum: f64,
     excretion_factor: f64,
+    sender: Option<SolverEventSender>,
 }
 
 impl<D: Dataset + Sync> Solver for AntColonyOptimization<D> {
@@ -221,6 +223,7 @@ impl<D: Dataset + Sync> Solver for AntColonyOptimization<D> {
             evaporation_rate: 0.01,
             minimum: 0.01,
             excretion_factor: 0.01,
+            sender: None,
         })
     }
 
@@ -282,5 +285,9 @@ impl<D: Dataset + Sync> Solver for AntColonyOptimization<D> {
                 format!("{:.0}", log_e_cache.unwrap().len()),
             )]),
         )
+    }
+
+    fn get_sender(&self) -> Option<&SolverEventSender> {
+        self.sender.as_ref()
     }
 }

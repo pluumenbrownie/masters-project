@@ -3,7 +3,7 @@ use std::{
     mem,
     num::NonZero,
     path::Path,
-    sync::{Arc, Mutex, mpsc::Sender},
+    sync::{Arc, Mutex},
 };
 
 use annolog::{Collector, CollectorEvent};
@@ -20,7 +20,7 @@ use serde::Serialize;
 
 use crate::{
     dataset::{Dataset, simple::VecDataset},
-    logger::SolverEvent,
+    logger::{SolverEvent, SolverEventSender},
     mcm::{MCMData, MinimallyComplexModel, MutationEvent, ParLogEResult},
     mcm_error::MCMError,
     solvers::{
@@ -60,7 +60,7 @@ pub struct ParallelTemperingSolver {
     acception_fraction: f64,
     arbitrary_swaps: bool,
     count_non_cached: bool,
-    sender: Option<Sender<CollectorEvent<SolverEvent>>>,
+    sender: Option<SolverEventSender>,
 }
 
 impl ParallelTemperingSolver {
@@ -165,7 +165,7 @@ impl ParallelTemperingSolver {
     }
 
     /// Attach a sender for a `Collector` to this solver.
-    pub fn set_sender(mut self, sender: Sender<CollectorEvent<SolverEvent>>) -> Self {
+    pub fn set_sender(mut self, sender: SolverEventSender) -> Self {
         self.sender = Some(sender);
         self
     }
@@ -343,10 +343,9 @@ impl Solver for ParallelTemperingSolver {
 
         // let temp_span = info_span!("Initialize Temperature").entered();
         let temperatures = self.calculate_temperatures(&log_e_cache, &mut starter);
-        if let Some(tx) = &self.sender {
-            tx.send(ParTempData::InitPoolTemps(temperatures.clone()).into())
-                .unwrap();
-        }
+
+        self.send(ParTempData::InitPoolTemps(temperatures.clone()))
+            .unwrap();
 
         let mut pools: Vec<_> = temperatures
             .iter()
@@ -368,10 +367,10 @@ impl Solver for ParallelTemperingSolver {
         )));
 
         for i in 0..self.shuffles {
-            if let Some(tx) = &self.sender {
-                tx.send(ParTempData::NextIteration(i).into()).unwrap();
+            {
+                self.send(ParTempData::NextIteration(i)).unwrap();
                 let ids = pools.iter().map(|p| p.mcm_id).collect();
-                tx.send(ParTempData::MCMPoolIds(ids).into()).unwrap()
+                self.send(ParTempData::MCMPoolIds(ids)).unwrap()
             }
 
             pools
@@ -404,6 +403,10 @@ impl Solver for ParallelTemperingSolver {
             )]),
         )
     }
+
+    fn get_sender(&self) -> Option<&SolverEventSender> {
+        self.sender.as_ref()
+    }
 }
 
 fn swap_pools(pools: &mut [TemperPool], swaps: Vec<(usize, usize)>, mut rng: ThreadRng) {
@@ -426,7 +429,7 @@ pub struct TemperPool {
     id: usize,
     mcm_id: usize,
     count_new_iccs: bool,
-    sender: Option<Sender<CollectorEvent<SolverEvent>>>,
+    sender: Option<SolverEventSender>,
 }
 
 impl TemperPool {
@@ -436,7 +439,7 @@ impl TemperPool {
         dataset: &VecDataset,
         id: usize,
         count_new_iccs: bool,
-        sender: Option<Sender<CollectorEvent<SolverEvent>>>,
+        sender: Option<SolverEventSender>,
     ) -> Self {
         let log_e = mcm.log_e(dataset, &mut None);
         Self {
@@ -449,6 +452,12 @@ impl TemperPool {
             mcm_id: id,
             count_new_iccs,
             sender,
+        }
+    }
+
+    fn send(&self, message: impl Into<CollectorEvent<SolverEvent>>) {
+        if let Some(tx) = &self.sender {
+            tx.send(message.into()).unwrap();
         }
     }
 
@@ -475,17 +484,15 @@ impl TemperPool {
             self.log_e = new_log_e;
         }
 
-        if let Some(tx) = &self.sender {
-            tx.send(
-                MCMData::Mutation(MutationEvent {
-                    mut_type,
-                    accepted,
-                    temperature: self.temperature,
-                })
-                .into(),
-            )
-            .unwrap();
-        }
+        self.send(MCMData::Mutation(MutationEvent {
+            mut_type,
+            accepted,
+            temperature: self.temperature,
+        }));
+        self.send(ParTempData::LogE(LogEWithId {
+            id: self.mcm_id,
+            log_e: self.log_e,
+        }));
 
         result.new_icc_count
     }
@@ -515,24 +522,30 @@ impl TemperPool {
     /// Stochastically swaps the `MinimallyComplesModel`s between this and the supplied
     /// `TemperPool`.
     fn swap(&mut self, other: &mut TemperPool, rng: &mut ThreadRng) {
+        let self_log_e = self.log_e;
+        let other_log_e = other.log_e;
+
         let probability = ((1.0 / other.temperature - 1.0 / self.temperature)
-            * (other.log_e - self.log_e))
-            .exp()
-            .min(1.0);
+            * -(other_log_e - self_log_e)
+            / 2.0f64.powi(6))
+        .exp()
+        .min(1.0);
         let accepted = rng.random_bool(probability);
         if accepted {
             mem::swap(&mut self.mcm, &mut other.mcm);
             mem::swap(&mut self.log_e, &mut other.log_e);
             mem::swap(&mut self.mcm_id, &mut other.mcm_id);
         }
-        if let Some(tx) = &self.sender {
+        {
             let swap_event = SwapEvent {
                 first_pool: self.id as u64,
+                first_log_e: self_log_e,
                 second_pool: other.id as u64,
+                second_log_e: other_log_e,
                 probability,
                 accepted,
             };
-            tx.send(ParTempData::Swap(swap_event).into()).unwrap();
+            self.send(ParTempData::Swap(swap_event));
         }
     }
 }
@@ -540,9 +553,17 @@ impl TemperPool {
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct SwapEvent {
     first_pool: u64,
+    first_log_e: f64,
     second_pool: u64,
+    second_log_e: f64,
     probability: f64,
     accepted: bool,
+}
+
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct LogEWithId {
+    id: usize,
+    log_e: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -551,6 +572,7 @@ pub enum ParTempData {
     Swap(SwapEvent),
     MCMPoolIds(Vec<usize>),
     NextIteration(usize),
+    LogE(LogEWithId),
 }
 
 impl From<ParTempData> for CollectorEvent<SolverEvent> {

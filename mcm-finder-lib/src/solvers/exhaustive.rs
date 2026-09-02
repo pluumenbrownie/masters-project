@@ -5,6 +5,7 @@ use kdam::tqdm;
 
 use crate::{
     dataset::{Dataset, simple::VecDataset},
+    logger::SolverEventSender,
     mcm::MinimallyComplexModel,
     mcm_error::MCMError,
     solvers::solvers_base::{Solver, SolverReport},
@@ -12,6 +13,7 @@ use crate::{
 
 pub struct ExhaustiveSolver {
     dataset: VecDataset,
+    sender: Option<SolverEventSender>,
 }
 
 impl Solver for ExhaustiveSolver {
@@ -21,6 +23,7 @@ impl Solver for ExhaustiveSolver {
     {
         Ok(ExhaustiveSolver {
             dataset: VecDataset::read_from_file(filepath)?,
+            sender: None,
         })
     }
 
@@ -39,6 +42,10 @@ impl Solver for ExhaustiveSolver {
 
         let mcm = best_mcm.unwrap();
         SolverReport::new(mcm, best_log_e, HashMap::new())
+    }
+
+    fn get_sender(&self) -> Option<&SolverEventSender> {
+        self.sender.as_ref()
     }
 }
 
