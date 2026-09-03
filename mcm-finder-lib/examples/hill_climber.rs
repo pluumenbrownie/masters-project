@@ -24,9 +24,9 @@ fn main() -> Result<()> {
         HillClimberSolver::<SimpleDataset<DataVec<AhashState>, AhashState>>::from_file(filepath)?
             .set_sender(tx)
             .set_starter(AnnealingStarter::Trivial)
-            .set_max_steps(100_000)
+            .set_max_steps(500_000)
             .set_stagnation_steps(100_000)
-            .set_history_size(20);
+            .set_history_size(150);
     // .set_starter(AnnealingStarter::Single);
     let result = solver.solve();
     println!("{}", result);

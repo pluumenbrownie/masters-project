@@ -105,14 +105,6 @@ impl<T: Dataset> Solver for HillClimberSolver<T> {
             if old_log_e.is_some_and(|log_e| candidate_log_e > log_e)
                 | (candidate_log_e > current.log_e(&self.dataset, &mut log_e_cache))
             {
-                if candidate_log_e > current.log_e(&self.dataset, &mut log_e_cache) {
-                    // if candidate_log_e > old_log_e.unwrap() {
-                    if history.len() >= self.history_size {
-                        history.pop_front();
-                    }
-                    history.push_back(candidate.clone());
-                }
-
                 current = candidate.clone();
                 if candidate_log_e > best_log_e {
                     best_log_e = candidate.log_e(&self.dataset, &mut log_e_cache);
@@ -133,6 +125,13 @@ impl<T: Dataset> Solver for HillClimberSolver<T> {
             }))
             .unwrap();
             let _ = progress.update(1);
+
+            if current.log_e(&self.dataset, &mut log_e_cache) > old_log_e.unwrap() {
+                if history.len() >= self.history_size {
+                    history.pop_front();
+                }
+                history.push_back(current.clone());
+            }
         }
         SolverReport::new(
             best_mcm,
