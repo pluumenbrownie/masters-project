@@ -301,7 +301,7 @@ def log_e_annealing(save: bool = False) -> None:
 
 
 @app.command()
-def log_e_annealing(save: bool = False) -> None:
+def log_e_hill_climbing(save: bool = False) -> None:
     with open("./results/log_e_hill_climbing.csv") as file:
         data = csv.reader(file.readlines())
         header = next(data)
@@ -338,7 +338,7 @@ def annealing(save: bool = False) -> None:
 
 @app.command()
 def hill_climbing(save: bool = False) -> None:
-    log_e_annealing(save)
+    log_e_hill_climbing(save)
     mutation_history(save)
 
 
