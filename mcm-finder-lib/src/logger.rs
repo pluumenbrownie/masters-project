@@ -13,7 +13,7 @@ use num_enum::FromPrimitive;
 
 use crate::{
     mcm::{MCMData, MutationEvent},
-    solvers::{AnnealingData, GreedyData, ParTempData, SwapEvent},
+    solvers::{AnnealingData, GreedyData, HillClimbingData, ParTempData, SwapEvent},
 };
 
 #[derive(Debug, Clone)]
@@ -22,6 +22,7 @@ pub enum SolverEvent {
     Greedy(GreedyData),
     Mcm(MCMData),
     Annealing(AnnealingData),
+    HillClimbing(HillClimbingData),
     SomethingElse,
 }
 
@@ -177,11 +178,41 @@ impl Handler<SolverEvent> for AnnealingHandler {
     }
 }
 
+struct HillClimbingHandler {
+    iteration: usize,
+    log_e_file: LazyCell<Writer<File>>,
+}
+
+impl Default for HillClimbingHandler {
+    fn default() -> Self {
+        HillClimbingHandler {
+            iteration: 0,
+            log_e_file: LazyCell::new(|| {
+                csv::Writer::from_path("./results/log_e_hill_climbing.csv").unwrap()
+            }),
+        }
+    }
+}
+
+impl Handler<SolverEvent> for HillClimbingHandler {
+    fn handle(&mut self, event: &SolverEvent) {
+        if let SolverEvent::HillClimbing(climbing_data) = event {
+            match climbing_data {
+                HillClimbingData::LogE(climbing_log_e) => {
+                    self.log_e_file.serialize(climbing_log_e).unwrap();
+                    self.log_e_file.flush().unwrap();
+                }
+            }
+        }
+    }
+}
+
 pub fn get_collector() -> (Collector<SolverEvent>, SolverEventSender) {
     CollectorBuilder::<SolverEvent>::new()
         .with_handler(ParTempHandler::default())
         .with_handler(McmHandler::default())
         .with_handler(GreedyHandler::default())
         .with_handler(AnnealingHandler::default())
+        .with_handler(HillClimbingHandler::default())
         .build()
 }

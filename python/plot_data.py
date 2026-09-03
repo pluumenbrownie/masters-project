@@ -301,6 +301,29 @@ def log_e_annealing(save: bool = False) -> None:
 
 
 @app.command()
+def log_e_annealing(save: bool = False) -> None:
+    with open("./results/log_e_hill_climbing.csv") as file:
+        data = csv.reader(file.readlines())
+        header = next(data)
+
+    log_e_data = []
+    history_data = []
+    for line in data:
+        log_e_data.append(float(line[0]))
+        history_data.append(float(line[1]))
+
+    fig, ax = plt.subplots(1, 1)
+    ax2 = ax.twinx()
+    ax.plot(range(len(log_e_data)), log_e_data, label="log(E)")
+    ax2.plot(range(len(log_e_data)), history_data, "r-", label="History log(E)")
+    fig.legend()
+
+    if save:
+        plt.savefig(f"./results/log_e_hill_climbing_{(asctime())}.svg")
+    plt.show()
+
+
+@app.command()
 def par_temp(save: bool = False) -> None:
     par_temp_log_e(save)
     par_temp_pools(save)
@@ -309,6 +332,12 @@ def par_temp(save: bool = False) -> None:
 
 @app.command()
 def annealing(save: bool = False) -> None:
+    log_e_annealing(save)
+    mutation_history(save)
+
+
+@app.command()
+def hill_climbing(save: bool = False) -> None:
     log_e_annealing(save)
     mutation_history(save)
 

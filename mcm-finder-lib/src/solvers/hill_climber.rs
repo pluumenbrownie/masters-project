@@ -4,12 +4,14 @@ use std::{
     path::Path,
 };
 
+use annolog::CollectorEvent;
 use kdam::{BarExt, tqdm};
 use rand::RngExt;
+use serde::Serialize;
 
 use crate::{
     dataset::{Dataset, simple::VecDataset},
-    logger::SolverEventSender,
+    logger::{SolverEvent, SolverEventSender},
     mcm::{MCMData::LogE, MinimallyComplexModel},
     mcm_error::MCMError,
     solvers::{
@@ -100,11 +102,11 @@ impl<T: Dataset> Solver for HillClimberSolver<T> {
                 .front()
                 .map(|mcm: &MinimallyComplexModel| mcm.log_e(&self.dataset, &mut log_e_cache));
 
-            if old_log_e.is_some()
-                & ((candidate_log_e > old_log_e.unwrap())
-                    | (candidate_log_e > current.log_e(&self.dataset, &mut log_e_cache)))
+            if old_log_e.is_some_and(|log_e| candidate_log_e > log_e)
+                | (candidate_log_e > current.log_e(&self.dataset, &mut log_e_cache))
             {
                 if candidate_log_e > current.log_e(&self.dataset, &mut log_e_cache) {
+                    // if candidate_log_e > old_log_e.unwrap() {
                     if history.len() >= self.history_size {
                         history.pop_front();
                     }
@@ -125,8 +127,11 @@ impl<T: Dataset> Solver for HillClimberSolver<T> {
             }
 
             progress.set_description(format!("Log E: {:.1}", best_log_e));
-            self.send(LogE(current.log_e(&self.dataset, &mut log_e_cache)))
-                .unwrap();
+            self.send(HillClimbingData::LogE(HillClimbingLogE {
+                log_e: current.log_e(&self.dataset, &mut log_e_cache),
+                historic_log_e: old_log_e.unwrap_or(current.log_e(&self.dataset, &mut log_e_cache)),
+            }))
+            .unwrap();
             let _ = progress.update(1);
         }
         SolverReport::new(
@@ -141,5 +146,22 @@ impl<T: Dataset> Solver for HillClimberSolver<T> {
 
     fn get_sender(&self) -> Option<&SolverEventSender> {
         self.sender.as_ref()
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct HillClimbingLogE {
+    pub log_e: f64,
+    pub historic_log_e: f64,
+}
+
+#[derive(Debug, Clone)]
+pub enum HillClimbingData {
+    LogE(HillClimbingLogE),
+}
+
+impl From<HillClimbingData> for CollectorEvent<SolverEvent> {
+    fn from(value: HillClimbingData) -> Self {
+        CollectorEvent::Data(SolverEvent::HillClimbing(value))
     }
 }
