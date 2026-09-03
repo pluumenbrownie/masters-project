@@ -615,23 +615,23 @@ impl MinimallyComplexModel {
 
             iccs[basis].set(variable, false);
             iccs[destination].set(variable, true);
-            return (
+            (
                 MinimallyComplexModel::new_remove_empty(iccs),
                 Some(self.partition[basis].clone()),
                 Some(self.partition[destination].clone()),
-            );
+            )
         } else {
             // missing variable
             let mut iccs: Vec<IndependentCompleteComponent> =
                 self.partition.iter().map(|i| i.full_clone()).collect();
             iccs[destination].set(variable, true);
 
-            return (
+            (
                 MinimallyComplexModel::new_remove_empty(iccs),
                 None,
                 Some(self.partition[destination].clone()),
-            );
-        };
+            )
+        }
     }
 
     /// Combine the two ICCs, then put the unmasked variables in one ICC and the
@@ -660,14 +660,8 @@ impl MinimallyComplexModel {
         mask: FixedBitSet,
     ) -> MinimallyComplexModel {
         assert_ne!(icc_one, icc_two);
-        let mut icc_one = icc_one;
-        let mut icc_two = icc_two;
-        if icc_two > icc_one {
-            mem::swap(&mut icc_one, &mut icc_two);
-        }
-
-        let new_mcm = dbg!(self.merge(icc_two, icc_one));
-        new_mcm.split(icc_one, mask)
+        let new_mcm = self.merge(icc_two, icc_one);
+        new_mcm.split(icc_one.min(icc_two), mask)
     }
 
     /// Returns the amount of ICCs present in this model.

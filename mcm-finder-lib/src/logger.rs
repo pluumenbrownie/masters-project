@@ -9,7 +9,6 @@ use std::{
 
 use annolog::*;
 use csv::Writer;
-use num_enum::FromPrimitive;
 
 use crate::{
     mcm::{MCMData, MutationEvent},
