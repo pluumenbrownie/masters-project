@@ -16,7 +16,8 @@ fn main() -> Result<()> {
     std::thread::spawn(|| collector.run());
 
     // let filepath = Path::new("mcm-finder-lib/tests/data/SCOTUS_n9_N895_Data.dat");
-    let filepath = Path::new("mcm-finder-lib/tests/data/MNIST11.sorted");
+    let filepath = Path::new("mcm-finder-lib/tests/data/Immobilized184neur/worm3.dat");
+    // let filepath = Path::new("mcm-finder-lib/tests/data/MNIST11.sorted");
     // let filepath = Path::new("mcm-finder-lib/tests/data/MNIST14.sorted");
     // let filepath = Path::new("mcm-finder-lib/tests/data/MNIST22.sorted");
     // let filepath = Path::new("mcm-finder-lib/tests/data/MNIST28.sorted");

@@ -8,7 +8,7 @@ pub enum MCMError {
     Io(#[from] std::io::Error),
     #[error("Bad character error")]
     #[diagnostic(
-        help("Data lines should only consist of 0 and 1, and should be of equal length."),
+        help("Data files should contain strings of alphanumeric characters of equal length."),
         code("Datasetmcm-finder-lib::mcm_error::MCMError::BadCharacter")
     )]
     BadCharacter {
@@ -18,20 +18,19 @@ pub enum MCMError {
         bad_line: SourceSpan,
     },
     #[error("Bad length error")]
-    #[diagnostic(
-        help("Data lines should have the same length."),
-        code("Datasetmcm-finder-lib::mcm_error::MCMError::BadLength")
-    )]
+    #[diagnostic(code("Datasetmcm-finder-lib::mcm_error::MCMError::BadLength"))]
     BadLength {
         #[source_code]
         src: NamedSource<String>,
         #[label("Bad line")]
         bad_line: SourceSpan,
+        #[help]
+        help_line: Option<String>,
     },
 
     #[error("{filename} is empty")]
     #[diagnostic(help(
-        "Data lines should only consist of 0 and 1, and should be of equal length."
+        "Data files should contain strings of alphanumeric characters of equal length."
     ))]
     EmptyFile { filename: String },
 

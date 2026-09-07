@@ -6,10 +6,8 @@ use mcm_finder_lib::dataset::{Dataset, simple::VecDataset};
 
 fn main() -> Result<()> {
     {
-        println!("\nWhen data contains a bad character:");
-        let dataset = VecDataset::read_from_file(Path::new(
-            "mcm-finder-lib/tests/data/SCOTUS_n9_N11_bad_data.dat",
-        ));
+        println!("\nWhen data file is empty:");
+        let dataset = VecDataset::read_from_file(Path::new("mcm-finder-lib/tests/data/empty.dat"));
         if let Err(e) = dataset {
             println!("{:?}", ErrReport::from(e))
         };

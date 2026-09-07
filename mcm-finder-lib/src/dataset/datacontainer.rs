@@ -2,6 +2,8 @@ use std::{collections::HashMap, hash::BuildHasher, marker::PhantomData};
 
 use fixedbitset::FixedBitSet;
 
+use crate::dataset::resize_mask;
+
 pub trait DataContainer<S: BuildHasher + Default>: From<HashMap<FixedBitSet, usize, S>> {
     fn iter(&self) -> impl ExactSizeIterator<Item = (FixedBitSet, usize)>;
 

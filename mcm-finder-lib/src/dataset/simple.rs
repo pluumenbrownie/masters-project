@@ -9,12 +9,18 @@ use std::{
 };
 
 use fixedbitset::FixedBitSet;
+use itertools::Itertools;
 use miette::NamedSource;
 use statrs::function::gamma::ln_gamma;
 
-use super::{Dataset, DefaultState, line_length_tracker, verify_ascii};
+use super::{
+    Dataset, DefaultState, get_and_check_unique_symbols, line_length_tracker, verify_ascii,
+};
 use crate::{
-    dataset::datacontainer::{DataContainer, DataMap, DataVec},
+    dataset::{
+        datacontainer::{DataContainer, DataMap, DataVec},
+        resize_mask,
+    },
     mcm_error::MCMError,
 };
 
@@ -33,6 +39,7 @@ use crate::{
 pub struct SimpleDataset<C: DataContainer<S>, S: BuildHasher + Default> {
     pub(crate) data: C,
     datapoints: usize,
+    variable_states: usize,
     _build_hasher: PhantomData<S>,
 }
 
@@ -40,9 +47,10 @@ pub type VecDataset = SimpleDataset<DataVec<DefaultState>, DefaultState>;
 pub type MapDataset = SimpleDataset<DataMap<DefaultState>, DefaultState>;
 
 impl<C: DataContainer<S>, S: BuildHasher + Default> SimpleDataset<C, S> {
-    pub fn new(data: C, datapoints: usize) -> SimpleDataset<C, S> {
+    pub fn new(data: C, variable_states: usize, datapoints: usize) -> SimpleDataset<C, S> {
         SimpleDataset {
             data,
+            variable_states,
             datapoints,
             _build_hasher: PhantomData,
         }
@@ -67,7 +75,7 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> SimpleDataset<C, S> {
     ///     (bitset1.clone(), 10),
     ///     (bitset2.clone(), 20),
     /// ]));
-    /// let dataset = SimpleDataset::<DataVec<DefaultState>, DefaultState>::new(data, 2);
+    /// let dataset = SimpleDataset::<DataVec<DefaultState>, DefaultState>::new(data, 2, 2);
     ///
     /// // Matching configuration returns Some(count)
     /// assert_eq!(dataset.get(&bitset1), Some(10));
@@ -102,7 +110,7 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> SimpleDataset<C, S> {
     ///     (bitset1.clone(), 10),
     ///     (bitset2.clone(), 20),
     /// ]));
-    /// let dataset = SimpleDataset::<DataVec<DefaultState>, DefaultState>::new(data, 2);
+    /// let dataset = SimpleDataset::<DataVec<DefaultState>, DefaultState>::new(data, 2, 2);
     ///
     /// // Demonstrate iteration over the dataset and collecting results into a vector
     /// let results: Vec<(FixedBitSet, usize)> = dataset.iter().collect();
@@ -141,7 +149,7 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> SimpleDataset<C, S> {
     ///     (bitset2.clone(), 20),
     ///     (bitset3.clone(), 10),
     /// ]));
-    /// let dataset = SimpleDataset::<DataVec<DefaultState>, DefaultState>::new(data, 2);
+    /// let dataset = SimpleDataset::<DataVec<DefaultState>, DefaultState>::new(data, 2, 2);
     ///
     /// // Transform to ICC with bits {0, 1} set
     /// let mut icc = FixedBitSet::with_capacity(3);
@@ -159,13 +167,21 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> SimpleDataset<C, S> {
     /// assert_eq!(results.len(), 2);
     /// ```
     pub fn transform_to_icc(&self, icc: &FixedBitSet) -> SimpleDataset<C, S> {
-        SimpleDataset::new(self.data.to_icc(icc), self.datapoints)
+        SimpleDataset::new(
+            self.data.to_icc(&self.resize_icc(icc)),
+            self.variable_states(),
+            self.datapoints,
+        )
     }
 }
 
 impl<C: DataContainer<S>, S: BuildHasher + Default> Dataset for SimpleDataset<C, S> {
     fn variables(&self) -> usize {
-        self.data.iter().map(|d| d.0.len()).next().unwrap()
+        self.data.iter().map(|d| d.0.len()).next().unwrap() / self.variable_width()
+    }
+
+    fn variable_states(&self) -> usize {
+        self.variable_states
     }
 
     fn datapoints(&self) -> usize {
@@ -175,13 +191,14 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> Dataset for SimpleDataset<C,
     fn state_prevalence(&self, variable: usize) -> Vec<usize> {
         let mut mask = FixedBitSet::with_capacity_and_blocks(self.variables(), [0]);
         mask.set(variable, true);
+        mask = self.resize_icc(&mask);
         let partition = self.data.to_icc(&mask);
         partition.iter().map(|(_, c)| c).collect()
     }
 
     fn log_e(&self, icc: &FixedBitSet) -> f64 {
         self.data
-            .to_icc(icc)
+            .to_icc(&self.resize_icc(icc))
             .iter_counts()
             .map(|k| ln_gamma((k) as f64 + 0.5) - ln_gamma(0.5))
             .sum::<f64>()
@@ -203,15 +220,12 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> Dataset for SimpleDataset<C,
         let mut line_length = 0usize;
         let mut bool_array: Vec<bool> = vec![];
 
+        let unique_symbols = get_and_check_unique_symbols(&filename, &file)?;
+        let pattern_map = get_pattern_map(&filename, &unique_symbols)?;
+
         for (nr, byte) in file.bytes().enumerate() {
-            // validate character is valid ascii
-            verify_ascii(&filename, &file, nr, byte)?;
-            // count ones and zeroes
             match byte {
-                b'0' => bool_array.push(false),
-                b'1' => bool_array.push(true),
                 b'\r' | b'\n' if !bool_array.is_empty() => {
-                    // check the line length
                     line_length_tracker(&filename, &file, &mut line_length, &bool_array, nr)?;
 
                     // add the datapoints to the hashmap
@@ -225,16 +239,50 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> Dataset for SimpleDataset<C,
                     datapoints += 1;
                 }
                 b'\r' | b'\n' => {}
-                // wrong character case
-                _ => Err(MCMError::BadCharacter {
-                    src: NamedSource::new(&filename, file.clone()),
-                    bad_line: nr.into(),
-                })?,
+                symbol => {
+                    bool_array.append(&mut pattern_map.get(&symbol).unwrap().clone());
+                }
             }
         }
 
-        Ok(SimpleDataset::new(C::from(data), datapoints))
+        Ok(SimpleDataset::new(
+            C::from(data),
+            unique_symbols.len(),
+            datapoints,
+        ))
     }
+}
+
+fn get_pattern_map(
+    filename: &str,
+    unique_symbols: &[u8],
+) -> Result<HashMap<u8, Vec<bool>>, MCMError> {
+    if unique_symbols.is_empty() {
+        return Err(MCMError::EmptyFile {
+            filename: filename.to_string(),
+        });
+    };
+
+    let pattern_length = (unique_symbols.len() as f64).log2().ceil() as usize;
+    let map = HashMap::from_iter(
+        unique_symbols
+            .iter()
+            .filter(|b| b.is_ascii_alphanumeric())
+            .enumerate()
+            .map(|(nr, b)| (*b, to_bool_vec(nr, pattern_length))),
+    );
+
+    Ok(map)
+}
+
+fn to_bool_vec(nr: usize, length: usize) -> Vec<bool> {
+    let mut output = vec![false; length];
+    let mut nr = nr;
+    for x in output.iter_mut() {
+        *x = (nr & 1usize) == 1usize;
+        nr >>= 1;
+    }
+    output
 }
 
 impl<C: DataContainer<S>, S: BuildHasher + Default> Display for SimpleDataset<C, S> {

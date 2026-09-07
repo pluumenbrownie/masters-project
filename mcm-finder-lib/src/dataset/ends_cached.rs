@@ -34,6 +34,7 @@ pub struct EndsCachedDataset<C: DataContainer<S>, S: BuildHasher + Default> {
     pub(crate) variables: usize,
     pub(crate) datapoints: usize,
     pub(crate) _build_hasher: PhantomData<S>,
+    variable_states: usize,
 }
 
 pub type EndsCachedVecDataset = EndsCachedDataset<DataVec<DefaultState>, DefaultState>;
@@ -41,6 +42,10 @@ pub type EndsCachedVecDataset = EndsCachedDataset<DataVec<DefaultState>, Default
 impl<C: DataContainer<S>, S: BuildHasher + Default> Dataset for EndsCachedDataset<C, S> {
     fn variables(&self) -> usize {
         self.variables
+    }
+
+    fn variable_states(&self) -> usize {
+        self.variable_states
     }
 
     fn datapoints(&self) -> usize {
@@ -78,6 +83,7 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> Dataset for EndsCachedDatase
         let mut output = EndsCachedDataset {
             datapoints: base.datapoints(),
             variables: base.variables(),
+            variable_states: base.variable_states(),
             data,
             _build_hasher: PhantomData,
         };
@@ -261,6 +267,7 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> EndsCachedDataset<C, S> {
         }
         SimpleDataset::new(
             self.get(location).unwrap().to_icc(partition),
+            self.variable_states(),
             self.datapoints,
         )
     }
