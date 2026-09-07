@@ -13,6 +13,7 @@ use crate::{
     dataset::{
         datacontainer::{DataContainer, DataVec},
         ends::{Ends, get_ends_cache_location},
+        resize_mask,
     },
     mcm_error::MCMError,
 };
@@ -61,14 +62,14 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> Dataset for EndsCachedDatase
                 self.variables,
             ))
             .unwrap()
-            .to_icc(&mask);
+            .to_icc(&self.resize_icc(&mask));
         partition.iter().map(|(_, c)| c).collect()
     }
 
     fn log_e(&self, icc: &FixedBitSet) -> f64 {
         self.get(get_ends_cache_location(Ends::from_icc(icc), self.variables))
             .unwrap()
-            .to_icc(icc)
+            .to_icc(&self.resize_icc(icc))
             .iter()
             .map(|(_, k)| ln_gamma((k) as f64 + 0.5) - ln_gamma(0.5))
             .sum::<f64>()
@@ -99,7 +100,7 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> Dataset for EndsCachedDatase
                 output
                     .get(base_ref_index)
                     .unwrap_or(&base.data)
-                    .to_icc(&icc),
+                    .to_icc(&base.resize_icc(&icc)),
             ));
             base_ref_index = output.data.len() - 1;
             // println!(
@@ -129,7 +130,13 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> Dataset for EndsCachedDatase
         }
         icc.set_range(.., false);
         output.data.push(Some(
-            output.data.last().unwrap().as_ref().unwrap().to_icc(&icc),
+            output
+                .data
+                .last()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .to_icc(&base.resize_icc(&icc)),
         ));
         // println!("{}: {icc}", get_ends_cache_location(None, variables));
 
@@ -266,7 +273,9 @@ impl<C: DataContainer<S>, S: BuildHasher + Default> EndsCachedDataset<C, S> {
             dbg!(self.variables);
         }
         SimpleDataset::new(
-            self.get(location).unwrap().to_icc(partition),
+            self.get(location)
+                .unwrap()
+                .to_icc(&self.resize_icc(partition)),
             self.variable_states(),
             self.datapoints,
         )
