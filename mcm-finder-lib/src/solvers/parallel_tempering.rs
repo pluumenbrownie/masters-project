@@ -282,7 +282,12 @@ impl ParallelTemperingSolver {
             let mut rng = rand::rng();
             let mut pools: Vec<_> = (0..self.pool_amount).collect();
             pools.shuffle(&mut rng);
-            output = pools.chunks_exact(2).map(|a| (a[0], a[1])).collect();
+            output = pools
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|a| (a[0], a[1]))
+                .collect();
         } else {
             if turn.is_multiple_of(2) {
                 for i in 0..self.pool_amount / 2 {
