@@ -3,6 +3,7 @@ use std::{cell::RefCell, collections::HashMap, num::NonZero, path::Path, time::I
 use fixedbitset::FixedBitSet;
 use kdam::{BarExt, tqdm};
 use rand::{RngExt, rngs::ThreadRng};
+use ron::de;
 
 use crate::{
     dataset::{Dataset, simple::VecDataset},
@@ -19,6 +20,7 @@ pub struct AdaptiveAnnealingSolver {
     dataset: VecDataset,
     starter: AnnealingStarter,
     temperature: RefCell<AdaptiveTemperature>,
+    stagnation_steps: usize,
     silent: bool,
     sender: Option<SolverEventSender>,
 }
@@ -32,6 +34,23 @@ impl AdaptiveAnnealingSolver {
     /// Disable the progress bar.
     pub fn set_silent(mut self, silent: bool) -> Self {
         self.silent = silent;
+        self
+    }
+
+    /// Set how much the temperature decreases each step.
+    pub fn set_delta_per_step(self, delta: f64) -> Self {
+        self.temperature.borrow_mut().delta_per_step = delta;
+        self
+    }
+
+    /// Set to how high the temperature resets after stagnation.
+    pub fn set_reset_fraction(self, fraction: f64) -> Self {
+        self.temperature.borrow_mut().reset_fraction = fraction;
+        self
+    }
+
+    pub fn set_stagnation_steps(mut self, steps: usize) -> Self {
+        self.stagnation_steps = steps;
         self
     }
 
@@ -77,6 +96,7 @@ impl Solver for AdaptiveAnnealingSolver {
             dataset: VecDataset::read_from_file(filepath)?,
             starter: AnnealingStarter::default(),
             temperature: AdaptiveTemperature::new(0.1, 100).into(),
+            stagnation_steps: 100,
             silent: false,
             sender: None,
         })
@@ -126,7 +146,7 @@ impl Solver for AdaptiveAnnealingSolver {
                 steps_since_current_improvement += 1;
             }
 
-            if steps_since_current_improvement > 100 {
+            if steps_since_current_improvement > self.stagnation_steps {
                 steps_since_current_improvement = 0;
                 adaptive_temperature_iter.reset();
             }
@@ -163,6 +183,8 @@ pub struct AdaptiveTemperature {
     step: usize,
     temp: f64,
     end: f64,
+    delta_per_step: f64,
+    reset_fraction: f64,
     const_steps: usize,
 }
 
@@ -171,6 +193,8 @@ impl AdaptiveTemperature {
         Self {
             end,
             const_steps,
+            delta_per_step: 0.997f64,
+            reset_fraction: 0.8,
             ..Default::default()
         }
     }
@@ -183,7 +207,7 @@ impl AdaptiveTemperature {
 
     fn delta(&mut self) {
         self.temp = self.start
-            * 0.997f64.powi(
+            * self.delta_per_step.powi(
                 (self.step.saturating_sub(self.const_steps))
                     .try_into()
                     .unwrap(),
@@ -191,7 +215,7 @@ impl AdaptiveTemperature {
     }
 
     fn reset(&mut self) {
-        self.start *= 0.8;
+        self.start *= self.reset_fraction;
         self.temp = self.start;
         self.step = 0;
     }
