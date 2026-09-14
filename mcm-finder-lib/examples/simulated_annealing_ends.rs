@@ -3,7 +3,7 @@ use std::path::Path;
 use miette::Result;
 
 use mcm_finder_lib::{
-    dataset::{Dataset, ends_cached::EndsCachedVecDataset, simple::VecDataset},
+    dataset::{Dataset, EndsCachedDataset, ends_cached::EndsCachedVecDataset, simple::VecDataset},
     solvers::{
         AnnealingStarter, SimulatedAnnealingSolver, Solver, anneal_temps::AnnealingTemperature,
     },
@@ -15,19 +15,19 @@ fn main() -> Result<()> {
     // let filepath = Path::new("mcm-finder-lib/tests/data/Big5PT.sorted");
     println!("{}", EndsCachedVecDataset::read_from_file(filepath)?);
 
-    // let solver = SimulatedAnnealingSolver::<EndsCachedDataset>::from_file(filepath)?
-    //     .set_temperature(
-    //         AnnealingTemperature::logarithmic(1_000_000.0, 1_000.0)
-    //             .then_constant(10_000)
-    //             .then_exponential(0.0001, 0.002),
-    //         // AnnealingTemperature::logarithmic(1_000_000.0, 1.0),
-    //         // .then_exponential(5.0, 0.0003)
-    //         // .then_constant(10_000)
-    //         // .then_exponential(0.001, 0.00001),
-    //     )
-    //     .set_starter(AnnealingStarter::Trivial);
-    // // .set_starter(AnnealingStarter::Single);
-    // let result = solver.solve();
-    // println!("{}", result);
+    let solver = SimulatedAnnealingSolver::<EndsCachedVecDataset>::from_file(filepath)?
+        .set_temperature(
+            AnnealingTemperature::logarithmic(1_000_000.0, 1_000.0)
+                .then_constant(10_000)
+                .then_exponential(0.0001, 0.002),
+            // AnnealingTemperature::logarithmic(1_000_000.0, 1.0),
+            // .then_exponential(5.0, 0.0003)
+            // .then_constant(10_000)
+            // .then_exponential(0.001, 0.00001),
+        )
+        .set_starter(AnnealingStarter::Trivial);
+    // .set_starter(AnnealingStarter::Single);
+    let result = solver.solve();
+    println!("{}", result);
     Ok(())
 }

@@ -127,7 +127,7 @@ pub fn parameter_complexity_icc(spin_variables: NonZeroU32, n: usize) -> f64 {
 /// assert_eq!(mcm.rank(), 9);
 /// assert_eq!(mcm.complexity_mcm(), 1.3555732128424305);
 /// ```
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct MinimallyComplexModel {
     partition: Vec<IndependentCompleteComponent>,
 }

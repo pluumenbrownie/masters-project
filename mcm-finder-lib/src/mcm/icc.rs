@@ -5,6 +5,7 @@ use std::{
 };
 
 use fixedbitset::FixedBitSet;
+use serde::{Serialize, ser::SerializeStruct};
 
 use crate::{dataset::Dataset, mcm::gamma_factor};
 
@@ -32,6 +33,18 @@ impl IndependentCompleteComponent {
             bits: self.bits.clone(),
             log_e: self.log_e.clone(),
         }
+    }
+}
+
+impl Serialize for IndependentCompleteComponent {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut s = serializer.serialize_struct("IndependentCompleteComponent", 2)?;
+        s.serialize_field("bits", &format!("{}", self.bits))?;
+        s.skip_field("log_e")?;
+        s.end()
     }
 }
 

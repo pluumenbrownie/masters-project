@@ -6,6 +6,7 @@ use std::{
     num::NonZero,
     ops::RangeBounds,
     path::Path,
+    time::Instant,
 };
 
 use annolog::CollectorEvent;
@@ -798,6 +799,7 @@ impl Solver for GreedySolver {
     }
 
     fn solve(&self) -> SolverReport {
+        let start_time = Instant::now();
         let mut log_e_cache = get_log_e_cache();
 
         let mut best_mcm = LogeMCM::calculate(
@@ -849,10 +851,16 @@ impl Solver for GreedySolver {
         SolverReport::new(
             best_mcm.mcm,
             best_mcm.log_e,
-            HashMap::from([(
-                "Unique ICCs covered".into(),
-                format!("{}", log_e_cache.unwrap().len()),
-            )]),
+            HashMap::from([
+                (
+                    "Unique ICCs covered".to_string(),
+                    format!("{}", log_e_cache.unwrap().len()),
+                ),
+                (
+                    "Elapsed time in seconds".into(),
+                    format!("{}", start_time.elapsed().as_secs_f64()),
+                ),
+            ]),
         )
     }
 

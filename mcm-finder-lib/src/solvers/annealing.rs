@@ -1,4 +1,4 @@
-use std::{collections::HashMap, num::NonZero, path::Path};
+use std::{collections::HashMap, num::NonZero, path::Path, time::Instant};
 
 use annolog::CollectorEvent;
 use kdam::{BarExt, tqdm};
@@ -65,6 +65,7 @@ impl<T: Dataset> Solver for SimulatedAnnealingSolver<T> {
     }
 
     fn solve(&self) -> SolverReport {
+        let start_time = Instant::now();
         let mut current = match self.starter {
             AnnealingStarter::Single => {
                 MinimallyComplexModel::full(NonZero::new(self.dataset.variables()).unwrap())
@@ -116,13 +117,20 @@ impl<T: Dataset> Solver for SimulatedAnnealingSolver<T> {
             .unwrap();
             let _ = progress.update(1);
         }
+
         SolverReport::new(
             best_mcm,
             best_log_e,
-            HashMap::from([(
-                "Unique ICCs covered".into(),
-                format!("{}", log_e_cache.unwrap().len()),
-            )]),
+            HashMap::from([
+                (
+                    "Unique ICCs covered".into(),
+                    format!("{}", log_e_cache.unwrap().len()),
+                ),
+                (
+                    "Elapsed time in seconds".into(),
+                    format!("{}", start_time.elapsed().as_secs_f64()),
+                ),
+            ]),
         )
     }
 

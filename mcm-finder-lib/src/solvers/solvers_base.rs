@@ -9,6 +9,7 @@ use std::{
 use annolog::CollectorEvent;
 use dashmap::DashMap;
 use fixedbitset::FixedBitSet;
+use serde::Serialize;
 
 use crate::{
     logger::{SolverEvent, SolverEventSender},
@@ -20,7 +21,7 @@ use crate::{
 ///  - `mcm`: The MCM found by this algorithm with the highest Log(E)
 ///  - `log_e`: The Log(E) of this MCM
 ///  - `other_stuff`: other information relevant to this result
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SolverReport {
     pub mcm: MinimallyComplexModel,
     pub log_e: f64,

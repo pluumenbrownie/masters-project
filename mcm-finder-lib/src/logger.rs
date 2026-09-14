@@ -3,6 +3,7 @@ use std::{
     default,
     fs::File,
     ops::{Deref, DerefMut},
+    path::{Path, PathBuf},
     process::id,
     sync::{Arc, Mutex, RwLock, mpsc::Sender},
 };
@@ -28,7 +29,7 @@ pub enum SolverEvent {
 pub type SolverEventSender = Sender<CollectorEvent<SolverEvent>>;
 // pub type Sendable = impl Into<CollectorEvent<SolverEvent>>;
 
-struct ParTempHandler {
+pub struct ParTempHandler {
     iteration: usize,
     swap_history_file: LazyCell<Writer<File>>,
     mcm_id_file: LazyCell<Writer<File>>,
@@ -79,7 +80,7 @@ impl Handler<SolverEvent> for ParTempHandler {
     }
 }
 
-struct McmHandler {
+pub struct McmHandler {
     iteration: usize,
     mutation_history_file: LazyCell<Writer<File>>,
     log_e_file: LazyCell<Writer<File>>,
@@ -119,7 +120,7 @@ impl Handler<SolverEvent> for McmHandler {
     }
 }
 
-struct GreedyHandler {
+pub struct GreedyHandler {
     iteration: usize,
     log_e_file: LazyCell<Writer<File>>,
 }
@@ -131,6 +132,15 @@ impl Default for GreedyHandler {
             log_e_file: LazyCell::new(|| {
                 csv::Writer::from_path("./results/log_e_greedy.csv").unwrap()
             }),
+        }
+    }
+}
+
+impl GreedyHandler {
+    pub fn with_paths(log_e_file: PathBuf) -> Self {
+        GreedyHandler {
+            iteration: 0,
+            log_e_file: LazyCell::from(csv::Writer::from_path(log_e_file).unwrap()),
         }
     }
 }
@@ -148,7 +158,7 @@ impl Handler<SolverEvent> for GreedyHandler {
     }
 }
 
-struct AnnealingHandler {
+pub struct AnnealingHandler {
     iteration: usize,
     log_e_file: LazyCell<Writer<File>>,
 }
@@ -160,6 +170,15 @@ impl Default for AnnealingHandler {
             log_e_file: LazyCell::new(|| {
                 csv::Writer::from_path("./results/log_e_annealing.csv").unwrap()
             }),
+        }
+    }
+}
+
+impl AnnealingHandler {
+    pub fn with_paths(log_e_file: PathBuf) -> Self {
+        AnnealingHandler {
+            iteration: 0,
+            log_e_file: LazyCell::from(csv::Writer::from_path(log_e_file).unwrap()),
         }
     }
 }
@@ -177,7 +196,7 @@ impl Handler<SolverEvent> for AnnealingHandler {
     }
 }
 
-struct HillClimbingHandler {
+pub struct HillClimbingHandler {
     iteration: usize,
     log_e_file: LazyCell<Writer<File>>,
 }
