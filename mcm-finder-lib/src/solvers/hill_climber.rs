@@ -27,6 +27,7 @@ pub struct HillClimberSolver<T> {
     max_steps: usize,
     history_size: usize,
     stagnation_steps: usize,
+    silent: bool,
     sender: Option<SolverEventSender>,
 }
 
@@ -71,6 +72,7 @@ impl<T: Dataset> Solver for HillClimberSolver<T> {
             max_steps: 10_000,
             history_size: 1,
             stagnation_steps: 1000,
+            silent: false,
             sender: None,
         })
     }
@@ -95,7 +97,7 @@ impl<T: Dataset> Solver for HillClimberSolver<T> {
         history.push_back(current.clone());
         let mut stagnation_counter = 0usize;
 
-        let mut progress = tqdm!(total = self.max_steps);
+        let mut progress = tqdm!(total = self.max_steps, disable = self.silent);
 
         for _ in 0..self.max_steps {
             let (candidate, _) = current.mutate(&mut rng);

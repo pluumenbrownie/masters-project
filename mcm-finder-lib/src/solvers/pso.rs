@@ -32,6 +32,7 @@ pub struct PsoSolver {
     social_weight: f64,
     steps: usize,
     particle_max_weight: f64,
+    silent: bool,
     sender: Option<SolverEventSender>,
 }
 
@@ -50,6 +51,7 @@ impl Solver for PsoSolver {
             social_weight: 1.45,
             steps: 1000,
             particle_max_weight: 20.0,
+            silent: false,
             sender: None,
         })
     }
@@ -112,6 +114,12 @@ impl PsoSolver {
         self
     }
 
+    /// Disable the progress bar.
+    pub fn set_silent(mut self, silent: bool) -> Self {
+        self.silent = silent;
+        self
+    }
+
     fn get_mcm_range(&self) -> usize {
         self.starter_iccs
             .unwrap_or_else(|| self.dataset.variables())
@@ -133,7 +141,7 @@ impl PsoSolver {
             ));
         }
 
-        let mut progress = tqdm!(total = self.steps);
+        let mut progress = tqdm!(total = self.steps, disable = self.silent);
         for _ in 0..self.steps {
             swarm.iter_mut().for_each(|p| p.evaluate(&self.dataset));
             swarm.iter_mut().for_each(|p| p.update(&mut rng));

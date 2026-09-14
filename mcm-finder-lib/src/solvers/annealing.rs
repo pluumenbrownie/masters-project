@@ -30,6 +30,7 @@ pub struct SimulatedAnnealingSolver<T> {
     dataset: T,
     starter: AnnealingStarter,
     temperature: AnnealingTemperature,
+    silent: bool,
     sender: Option<SolverEventSender>,
 }
 
@@ -41,6 +42,12 @@ impl<T: Dataset> SimulatedAnnealingSolver<T> {
 
     pub fn set_temperature(mut self, temperature: AnnealingTemperature) -> Self {
         self.temperature = temperature;
+        self
+    }
+
+    /// Disable the progress bar.
+    pub fn set_silent(mut self, silent: bool) -> Self {
+        self.silent = silent;
         self
     }
 
@@ -60,6 +67,7 @@ impl<T: Dataset> Solver for SimulatedAnnealingSolver<T> {
             dataset: T::read_from_file(filepath)?,
             starter: AnnealingStarter::default(),
             temperature: AnnealingTemperature::default(),
+            silent: false,
             sender: None,
         })
     }
@@ -84,6 +92,7 @@ impl<T: Dataset> Solver for SimulatedAnnealingSolver<T> {
         // let mut temp = self.temperature.start;
         let steps = self.temperature.steps();
         let mut progress = tqdm!(total = steps);
+        progress.disable = self.silent;
 
         // while temp > self.temperature.end {
         for (temp, end) in self.temperature.create_iter() {

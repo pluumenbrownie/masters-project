@@ -208,6 +208,7 @@ pub struct AntColonyOptimization<D: Dataset> {
     evaporation_rate: f64,
     minimum: f64,
     excretion_factor: f64,
+    silent: bool,
     sender: Option<SolverEventSender>,
 }
 
@@ -224,6 +225,7 @@ impl<D: Dataset + Sync> Solver for AntColonyOptimization<D> {
             evaporation_rate: 0.01,
             minimum: 0.01,
             excretion_factor: 0.01,
+            silent: false,
             sender: None,
         })
     }
@@ -235,7 +237,10 @@ impl<D: Dataset + Sync> Solver for AntColonyOptimization<D> {
         let rng = &mut mut_rng;
         let mut best_mcm_option: Option<(AntPath, mcm::ParLogEResult)> = None;
 
-        let bar = Arc::new(Mutex::new(par_tqdm!(total = self.ants * self.steps)));
+        let bar = Arc::new(Mutex::new(par_tqdm!(
+            total = self.ants * self.steps,
+            disable = self.silent
+        )));
 
         let mut environment = PheromoneEnvironment::new(self.dataset.variables())
             .set_params(self.evaporation_rate, self.minimum);
@@ -290,5 +295,13 @@ impl<D: Dataset + Sync> Solver for AntColonyOptimization<D> {
 
     fn get_sender(&self) -> Option<&SolverEventSender> {
         self.sender.as_ref()
+    }
+}
+
+impl<D: Dataset> AntColonyOptimization<D> {
+    /// Disable the progress bar.
+    pub fn set_silent(mut self, silent: bool) -> Self {
+        self.silent = silent;
+        self
     }
 }

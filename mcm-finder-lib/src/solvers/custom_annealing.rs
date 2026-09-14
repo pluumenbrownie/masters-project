@@ -19,12 +19,19 @@ pub struct AdaptiveAnnealingSolver {
     dataset: VecDataset,
     starter: AnnealingStarter,
     temperature: RefCell<AdaptiveTemperature>,
+    silent: bool,
     sender: Option<SolverEventSender>,
 }
 
 impl AdaptiveAnnealingSolver {
     pub fn set_starter(mut self, starter: AnnealingStarter) -> Self {
         self.starter = starter;
+        self
+    }
+
+    /// Disable the progress bar.
+    pub fn set_silent(mut self, silent: bool) -> Self {
+        self.silent = silent;
         self
     }
 
@@ -70,6 +77,7 @@ impl Solver for AdaptiveAnnealingSolver {
             dataset: VecDataset::read_from_file(filepath)?,
             starter: AnnealingStarter::default(),
             temperature: AdaptiveTemperature::new(0.1, 100).into(),
+            silent: false,
             sender: None,
         })
     }
@@ -93,6 +101,8 @@ impl Solver for AdaptiveAnnealingSolver {
         let mut best_log_e = current.log_e(&self.dataset, &mut log_e_cache);
 
         let mut progress = tqdm!();
+        progress.disable = self.silent;
+
         self.calculate_inital_temperature(&mut current, &mut rng, &mut log_e_cache);
 
         // while temp > self.temperature.end {

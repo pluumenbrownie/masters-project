@@ -44,6 +44,7 @@ pub enum ConstructiveStrategy {
 pub struct ConstructiveSolver {
     dataset: VecDataset,
     strategy: ConstructiveStrategy,
+    silent: bool,
     sender: Option<SolverEventSender>,
 }
 
@@ -55,6 +56,7 @@ impl Solver for ConstructiveSolver {
         Ok(ConstructiveSolver {
             dataset: VecDataset::read_from_file(filepath)?,
             strategy: ConstructiveStrategy::FrontToBack,
+            silent: false,
             sender: None,
         })
     }
@@ -117,13 +119,19 @@ impl ConstructiveSolver {
         self
     }
 
+    /// Disable the progress bar.
+    pub fn set_silent(mut self, silent: bool) -> Self {
+        self.silent = silent;
+        self
+    }
+
     fn solve_in_order(
         &self,
         log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
         current_solution: &mut MinimallyComplexModel,
         iterator: Vec<usize>,
     ) {
-        for var in tqdm!(iterator.iter()) {
+        for var in tqdm!(iterator.iter(), disable = self.silent) {
             let vec_rep = current_solution.to_vector();
             let max_icc = vec_rep.iter().max().unwrap() + 1;
 

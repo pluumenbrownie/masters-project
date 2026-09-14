@@ -61,6 +61,7 @@ pub struct ParallelTemperingSolver {
     acception_fraction: f64,
     arbitrary_swaps: bool,
     count_non_cached: bool,
+    silent: bool,
     sender: Option<SolverEventSender>,
 }
 
@@ -162,6 +163,12 @@ impl ParallelTemperingSolver {
     /// their direct neighbors.
     pub fn set_arbitrary_swaps(mut self, arbitrary: bool) -> Self {
         self.arbitrary_swaps = arbitrary;
+        self
+    }
+
+    /// Disable the progress bar.
+    pub fn set_silent(mut self, silent: bool) -> Self {
+        self.silent = silent;
         self
     }
 
@@ -325,6 +332,7 @@ impl Solver for ParallelTemperingSolver {
             acception_fraction: 0.23,
             arbitrary_swaps: false,
             count_non_cached: false,
+            silent: false,
             sender: None,
         })
     }
@@ -363,7 +371,8 @@ impl Solver for ParallelTemperingSolver {
             .collect();
 
         let bar = Arc::new(Mutex::new(par_tqdm!(
-            total = self.shuffles * self.steps_per_shuffle * temperatures.len()
+            total = self.shuffles * self.steps_per_shuffle * temperatures.len(),
+            disable = self.silent
         )));
 
         for i in 0..self.shuffles {

@@ -95,6 +95,7 @@ pub struct GreedySolver {
     initial_solver: InitialSolver,
     constructive_strategy: ConstructiveStrategy,
     refinement_sequence: Vec<Refinements>,
+    silent: bool,
     sender: Option<SolverEventSender>,
 }
 
@@ -131,6 +132,12 @@ impl GreedySolver {
     /// Attach a sender for a `Collector` to this solver.
     pub fn set_sender(mut self, sender: SolverEventSender) -> Self {
         self.sender = Some(sender);
+        self
+    }
+
+    /// Disable the progress bar.
+    pub fn set_silent(mut self, silent: bool) -> Self {
+        self.silent = silent;
         self
     }
 
@@ -340,7 +347,7 @@ impl GreedySolver {
         let length = self.count_calculations();
 
         // we merge one partition each round
-        let mut progress = tqdm!(total = length * beam_size);
+        let mut progress = tqdm!(total = length * beam_size, disable = self.silent);
         for iccs_left in (1usize..self.dataset.variables()).rev() {
             let original_vec = gen_best_vec.clone();
             progress.set_description(format!("{iccs_left} ICCs - {:.0}", gen_best_vec[0].log_e));
@@ -591,7 +598,7 @@ impl GreedySolver {
         iterator: Vec<usize>,
         beam_size: usize,
     ) -> Bar {
-        let mut progress = tqdm!(total = iterator.len() * beam_size);
+        let mut progress = tqdm!(total = iterator.len() * beam_size, disable = self.silent);
         let mut current_gen = vec![(current_solution.clone(), 0.0)];
 
         for var in iterator {
@@ -651,7 +658,10 @@ impl GreedySolver {
         current_solution: &mut MinimallyComplexModel,
         beam_size: usize,
     ) -> Bar {
-        let mut progress = tqdm!(total = self.dataset.variables() * beam_size);
+        let mut progress = tqdm!(
+            total = self.dataset.variables() * beam_size,
+            disable = self.silent
+        );
         let mut current_gen = vec![(current_solution.clone(), 0.0)];
 
         for _ in 0..self.dataset.variables() {
@@ -794,6 +804,7 @@ impl Solver for GreedySolver {
             initial_solver: InitialSolver::default(),
             constructive_strategy: ConstructiveStrategy::FrontToBack,
             refinement_sequence: Vec::default(),
+            silent: false,
             sender: None,
         })
     }
@@ -817,7 +828,7 @@ impl Solver for GreedySolver {
             InitialSolver::ConstructBeam { beam_size } => {
                 self.solve_constructive(&mut log_e_cache, &mut best_mcm, beam_size)
             }
-            InitialSolver::None => tqdm!(total = 1),
+            InitialSolver::None => tqdm!(total = 1, disable = self.silent),
         };
 
         for refinement in &self.refinement_sequence {

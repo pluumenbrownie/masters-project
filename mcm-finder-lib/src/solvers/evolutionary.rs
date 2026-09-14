@@ -129,6 +129,7 @@ pub struct EvolutionarySolver {
     parent_selection_type: SelectionType,
     survivor_selection_type: SelectionType,
     elitism: usize,
+    silent: bool,
     rng: RefCell<ThreadRng>,
     sender: Option<SolverEventSender>,
 }
@@ -151,6 +152,7 @@ impl Solver for EvolutionarySolver {
             parent_selection_type: SelectionType::Linear,
             survivor_selection_type: SelectionType::Linear,
             elitism: 0,
+            silent: false,
             rng: RefCell::new(rand::rng()),
             sender: None,
         })
@@ -160,6 +162,7 @@ impl Solver for EvolutionarySolver {
         let start_time = Instant::now();
         let mut log_e_cache = get_log_e_cache();
         let mut progress = tqdm!();
+        progress.disable = self.silent;
 
         let mut generation = self.generate_starting_population();
 
@@ -387,6 +390,12 @@ impl EvolutionarySolver {
     /// survive to the next generation.
     pub fn set_elitism(mut self, amount: usize) -> Self {
         self.elitism = amount;
+        self
+    }
+
+    /// Disable the progress bar.
+    pub fn set_silent(mut self, silent: bool) -> Self {
+        self.silent = silent;
         self
     }
 }

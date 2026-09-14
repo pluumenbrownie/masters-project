@@ -13,6 +13,7 @@ use crate::{
 
 pub struct ExhaustiveSolver {
     dataset: VecDataset,
+    silent: bool,
     sender: Option<SolverEventSender>,
 }
 
@@ -23,6 +24,7 @@ impl Solver for ExhaustiveSolver {
     {
         Ok(ExhaustiveSolver {
             dataset: VecDataset::read_from_file(filepath)?,
+            silent: false,
             sender: None,
         })
     }
@@ -34,7 +36,7 @@ impl Solver for ExhaustiveSolver {
         let mut best_mcm: Option<MinimallyComplexModel> = None;
         let mut best_log_e = f64::NEG_INFINITY;
 
-        for mcm in tqdm!(mcms.into_iter()) {
+        for mcm in tqdm!(mcms.into_iter(), disable = self.silent) {
             let log_e = mcm.log_e(&self.dataset, &mut None);
             if log_e > best_log_e {
                 best_log_e = log_e;
@@ -93,5 +95,13 @@ fn add_to(current: &mut Vec<usize>, index: usize, output: &mut Vec<Vec<usize>>) 
             current[index] += 1;
             current.splice(index + 1.., vec![0usize; current.len() - index - 1]);
         }
+    }
+}
+
+impl ExhaustiveSolver {
+    /// Disable the progress bar.
+    pub fn set_silent(mut self, silent: bool) -> Self {
+        self.silent = silent;
+        self
     }
 }

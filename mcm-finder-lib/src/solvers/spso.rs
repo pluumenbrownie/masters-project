@@ -16,6 +16,7 @@ pub struct SpsoSolver {
     swarm_size: usize,
     steps: usize,
     weights: Weights,
+    silent: bool,
     sender: Option<SolverEventSender>,
 }
 
@@ -29,6 +30,7 @@ impl Solver for SpsoSolver {
             swarm_size: 64,
             steps: 100000,
             weights: Weights { weight: 0.8 },
+            silent: false,
             sender: None,
         })
     }
@@ -47,7 +49,8 @@ impl Solver for SpsoSolver {
             &mut rng,
         )];
 
-        let mut progress = tqdm!(total = self.steps);
+        let mut progress = tqdm!(total = self.steps, disable = self.silent);
+        progress.disable = self.silent;
         for _ in 0..self.steps {
             swarm.iter_mut().for_each(|p| p.evaluate(&self.dataset));
             swarm.iter_mut().for_each(|p| p.update(&mut rng));
@@ -76,6 +79,14 @@ impl Solver for SpsoSolver {
 
     fn get_sender(&self) -> Option<&SolverEventSender> {
         self.sender.as_ref()
+    }
+}
+
+impl SpsoSolver {
+    /// Disable the progress bar.
+    pub fn set_silent(mut self, silent: bool) -> Self {
+        self.silent = silent;
+        self
     }
 }
 
