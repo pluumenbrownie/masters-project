@@ -1,8 +1,4 @@
-use std::{
-    fs::File,
-    io::{BufWriter, Write},
-    path::Path,
-};
+use std::{fs::File, io::Write, path::Path};
 
 use annolog::CollectorBuilder;
 use mcm_finder_lib::{

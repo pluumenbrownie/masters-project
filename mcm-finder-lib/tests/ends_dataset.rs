@@ -39,12 +39,11 @@ fn ends_cache_partition<C: DataContainer<S>, S: BuildHasher + Default>() {
     let partitioned_dataset = ends_dataset.transform_to_icc(&icc);
 
     assert_eq!(partitioned_dataset.datapoints(), ends_dataset.datapoints());
-    assert_eq!(
-        partitioned_dataset.datapoints(),
-        partitioned_dataset.iter().map(|p| p.1).sum()
-    );
+    let part_count: usize = partitioned_dataset.iter().map(|p| p.1).sum();
+    assert_eq!(partitioned_dataset.datapoints(), part_count);
     println!("{partitioned_dataset}");
     assert_eq!(partitioned_dataset.get(&icc), Some(441));
+
     let should_fit_in_icc = vec![
         FixedBitSet::with_capacity_and_blocks(9, [0b001011101]),
         FixedBitSet::with_capacity_and_blocks(9, [0b001011111]),

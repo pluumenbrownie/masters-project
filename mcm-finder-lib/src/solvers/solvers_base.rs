@@ -1,8 +1,9 @@
 use std::{
     collections::HashMap,
     fmt::Display,
+    io::Write,
     marker::Sized,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{Arc, mpsc::SendError},
 };
 
@@ -43,6 +44,24 @@ impl SolverReport {
             log_e,
             other_stuff,
         }
+    }
+
+    /// Save this report as a json file.
+    pub fn save_json(&self, path: PathBuf) -> Result<(), std::io::Error> {
+        let mut file = std::fs::File::create(path)?;
+        file.write_all(&serde_json::to_string_pretty(&self).unwrap().into_bytes())?;
+        Ok(())
+    }
+
+    /// Save this report as a Rust Object Notation (RON) file.
+    pub fn save_ron(&self, path: PathBuf) -> Result<(), std::io::Error> {
+        let mut file = std::fs::File::create(path)?;
+        file.write_all(
+            &ron::ser::to_string_pretty(&self, ron::ser::PrettyConfig::default())
+                .unwrap()
+                .into_bytes(),
+        )?;
+        Ok(())
     }
 }
 

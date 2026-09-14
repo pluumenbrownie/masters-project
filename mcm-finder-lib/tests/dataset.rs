@@ -28,10 +28,8 @@ fn partition<C: DataContainer<S>, S: BuildHasher + Default>() {
     let partitioned_dataset = dataset.transform_to_icc(&icc);
 
     assert_eq!(partitioned_dataset.datapoints(), dataset.datapoints());
-    assert_eq!(
-        partitioned_dataset.datapoints(),
-        partitioned_dataset.iter().map(|p| p.1).sum()
-    );
+    let part_count: usize = partitioned_dataset.iter().map(|p| p.1).sum();
+    assert_eq!(partitioned_dataset.datapoints(), part_count);
     println!("{partitioned_dataset}");
     assert_eq!(partitioned_dataset.get(&icc), Some(441));
     // todo!();
