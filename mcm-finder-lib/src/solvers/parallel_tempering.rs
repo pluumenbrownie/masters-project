@@ -4,6 +4,7 @@ use std::{
     num::NonZero,
     path::Path,
     sync::{Arc, Mutex},
+    time::Instant,
 };
 
 use annolog::{Collector, CollectorEvent};
@@ -329,12 +330,7 @@ impl Solver for ParallelTemperingSolver {
     }
 
     fn solve(&self) -> SolverReport {
-        // let _par_span = info_span!("parallel_tempering").entered();
-        // info!(
-        //     target: "init",
-        //     amount = self.pool_amount,
-        //     "Started Parallel Tempering Solver.",
-        // );
+        let start_time = Instant::now();
         let log_e_cache = get_par_log_e_cache();
 
         let mut starter = match self.starter {
@@ -346,7 +342,6 @@ impl Solver for ParallelTemperingSolver {
             }
         };
 
-        // let temp_span = info_span!("Initialize Temperature").entered();
         let temperatures = self.calculate_temperatures(&log_e_cache, &mut starter);
 
         self.send(ParTempData::InitPoolTemps(temperatures.clone()))
@@ -402,10 +397,9 @@ impl Solver for ParallelTemperingSolver {
         SolverReport::new(
             best_pool.best_mcm.clone(),
             best_pool.best_log_e,
-            HashMap::from([(
-                "Unique ICCs covered".into(),
-                format!("{:.0}", log_e_cache.unwrap().len()),
-            )]),
+            log_e_cache.unwrap().len(),
+            start_time.elapsed().as_secs_f64(),
+            HashMap::new(),
         )
     }
 

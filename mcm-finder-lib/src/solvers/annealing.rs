@@ -121,16 +121,9 @@ impl<T: Dataset> Solver for SimulatedAnnealingSolver<T> {
         SolverReport::new(
             best_mcm,
             best_log_e,
-            HashMap::from([
-                (
-                    "Unique ICCs covered".into(),
-                    format!("{}", log_e_cache.unwrap().len()),
-                ),
-                (
-                    "Elapsed time in seconds".into(),
-                    format!("{}", start_time.elapsed().as_secs_f64()),
-                ),
-            ]),
+            log_e_cache.unwrap().len(),
+            start_time.elapsed().as_secs_f64(),
+            HashMap::new(),
         )
     }
 

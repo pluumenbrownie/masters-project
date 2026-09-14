@@ -1,4 +1,4 @@
-use std::{collections::HashMap, marker::Sized, path::Path};
+use std::{collections::HashMap, marker::Sized, path::Path, time::Instant};
 
 use fixedbitset::FixedBitSet;
 use kdam::tqdm;
@@ -28,7 +28,9 @@ impl Solver for ExhaustiveSolver {
     }
 
     fn solve(&self) -> SolverReport {
+        let start_time = Instant::now();
         let mcms = generate_all_mcms(self.dataset.variables());
+        let icc_count = mcms.iter().map(|mcm| mcm.count_icc()).sum();
         let mut best_mcm: Option<MinimallyComplexModel> = None;
         let mut best_log_e = f64::NEG_INFINITY;
 
@@ -41,7 +43,13 @@ impl Solver for ExhaustiveSolver {
         }
 
         let mcm = best_mcm.unwrap();
-        SolverReport::new(mcm, best_log_e, HashMap::new())
+        SolverReport::new(
+            mcm,
+            best_log_e,
+            icc_count,
+            start_time.elapsed().as_secs_f64(),
+            HashMap::new(),
+        )
     }
 
     fn get_sender(&self) -> Option<&SolverEventSender> {

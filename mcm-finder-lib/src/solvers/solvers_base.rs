@@ -26,6 +26,8 @@ use crate::{
 pub struct SolverReport {
     pub mcm: MinimallyComplexModel,
     pub log_e: f64,
+    pub iccs_checked: usize,
+    pub time_seconds: f64,
     pub other_stuff: HashMap<String, String>,
 }
 
@@ -37,11 +39,15 @@ impl SolverReport {
     pub(crate) fn new(
         mcm: MinimallyComplexModel,
         log_e: f64,
+        iccs_checked: usize,
+        time_seconds: f64,
         other_stuff: HashMap<String, String>,
     ) -> SolverReport {
         SolverReport {
             mcm,
             log_e,
+            iccs_checked,
+            time_seconds,
             other_stuff,
         }
     }

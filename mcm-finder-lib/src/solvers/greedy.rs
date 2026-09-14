@@ -851,16 +851,9 @@ impl Solver for GreedySolver {
         SolverReport::new(
             best_mcm.mcm,
             best_mcm.log_e,
-            HashMap::from([
-                (
-                    "Unique ICCs covered".to_string(),
-                    format!("{}", log_e_cache.unwrap().len()),
-                ),
-                (
-                    "Elapsed time in seconds".into(),
-                    format!("{}", start_time.elapsed().as_secs_f64()),
-                ),
-            ]),
+            log_e_cache.unwrap().len(),
+            start_time.elapsed().as_secs_f64(),
+            HashMap::new(),
         )
     }
 

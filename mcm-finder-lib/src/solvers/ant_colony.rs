@@ -5,6 +5,7 @@ use std::{
     fmt::{Debug, Display},
     ops::Deref,
     sync::{Arc, Mutex},
+    time::Instant,
 };
 
 use kdam::{BarExt, par_tqdm};
@@ -228,6 +229,7 @@ impl<D: Dataset + Sync> Solver for AntColonyOptimization<D> {
     }
 
     fn solve(&self) -> super::SolverReport {
+        let start_time = Instant::now();
         let log_e_cache = get_par_log_e_cache();
         let mut mut_rng = rand::rng();
         let rng = &mut mut_rng;
@@ -280,10 +282,9 @@ impl<D: Dataset + Sync> Solver for AntColonyOptimization<D> {
         SolverReport::new(
             MinimallyComplexModel::from(&best_mcm.0),
             *best_mcm.1,
-            HashMap::from([(
-                "Unique ICCs covered".into(),
-                format!("{:.0}", log_e_cache.unwrap().len()),
-            )]),
+            log_e_cache.unwrap().len(),
+            start_time.elapsed().as_secs_f64(),
+            HashMap::new(),
         )
     }
 

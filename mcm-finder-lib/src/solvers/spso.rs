@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, num::NonZeroUsize, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, num::NonZeroUsize, rc::Rc, time::Instant};
 
 use fixedbitset::FixedBitSet;
 use kdam::{BarExt, tqdm};
@@ -34,6 +34,7 @@ impl Solver for SpsoSolver {
     }
 
     fn solve(&self) -> super::SolverReport {
+        let start_time = Instant::now();
         let log_e_cache = Rc::new(RefCell::new(get_log_e_cache()));
         let global_best = Rc::new(RefCell::new(None));
         let mut rng = rand::rng();
@@ -67,10 +68,9 @@ impl Solver for SpsoSolver {
         SolverReport::new(
             best_mcm.clone(),
             log_e,
-            HashMap::from([(
-                "Unique ICCs covered".into(),
-                format!("{}", log_e_cache.borrow().as_ref().unwrap().len()),
-            )]),
+            log_e_cache.as_ref().clone().into_inner().unwrap().len(),
+            start_time.elapsed().as_secs_f64(),
+            HashMap::new(),
         )
     }
 

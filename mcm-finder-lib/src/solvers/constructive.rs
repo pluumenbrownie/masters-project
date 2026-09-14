@@ -3,6 +3,7 @@ use std::{
     marker::Sized,
     ops::{Add, Div},
     path::Path,
+    time::Instant,
 };
 
 use fixedbitset::FixedBitSet;
@@ -59,6 +60,7 @@ impl Solver for ConstructiveSolver {
     }
 
     fn solve(&self) -> SolverReport {
+        let start_time = Instant::now();
         let mut log_e_cache = get_log_e_cache();
 
         let mut current_solution =
@@ -98,10 +100,9 @@ impl Solver for ConstructiveSolver {
         SolverReport::new(
             current_solution,
             log_e,
-            HashMap::from([(
-                "Unique ICCs covered".into(),
-                format!("{}", log_e_cache.unwrap().len()),
-            )]),
+            log_e_cache.unwrap().len(),
+            start_time.elapsed().as_secs_f64(),
+            HashMap::new(),
         )
     }
 

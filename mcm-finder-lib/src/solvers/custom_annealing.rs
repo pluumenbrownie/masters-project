@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, num::NonZero, path::Path};
+use std::{cell::RefCell, collections::HashMap, num::NonZero, path::Path, time::Instant};
 
 use fixedbitset::FixedBitSet;
 use kdam::{BarExt, tqdm};
@@ -75,6 +75,7 @@ impl Solver for AdaptiveAnnealingSolver {
     }
 
     fn solve(&self) -> SolverReport {
+        let start_time = Instant::now();
         let mut current = match self.starter {
             AnnealingStarter::Single => {
                 MinimallyComplexModel::full(NonZero::new(self.dataset.variables()).unwrap())
@@ -135,10 +136,9 @@ impl Solver for AdaptiveAnnealingSolver {
         SolverReport::new(
             best_mcm,
             best_log_e,
-            HashMap::from([(
-                "Unique ICCs covered".into(),
-                format!("{}", log_e_cache.unwrap().len()),
-            )]),
+            log_e_cache.unwrap().len(),
+            start_time.elapsed().as_secs_f64(),
+            HashMap::new(),
         )
     }
 

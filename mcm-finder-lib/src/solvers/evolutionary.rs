@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap};
+use std::{cell::RefCell, collections::HashMap, time::Instant};
 
 use fixedbitset::FixedBitSet;
 use kdam::{Bar, BarExt, tqdm};
@@ -157,6 +157,7 @@ impl Solver for EvolutionarySolver {
     }
 
     fn solve(&self) -> SolverReport {
+        let start_time = Instant::now();
         let mut log_e_cache = get_log_e_cache();
         let mut progress = tqdm!();
 
@@ -187,10 +188,9 @@ impl Solver for EvolutionarySolver {
         SolverReport::new(
             best_mcm.0.clone(),
             best_mcm.1,
-            HashMap::from([(
-                "Unique ICCs covered".into(),
-                format!("{}", log_e_cache.unwrap().len()),
-            )]),
+            log_e_cache.unwrap().len(),
+            start_time.elapsed().as_secs_f64(),
+            HashMap::new(),
         )
     }
 
