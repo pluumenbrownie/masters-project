@@ -38,6 +38,9 @@
               cargo-flamegraph
               gnuplot
 
+              texliveFull
+              tex-fmt
+
               vulkan-tools
               vulkan-loader
 

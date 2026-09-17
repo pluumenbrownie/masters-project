@@ -16,30 +16,32 @@ fn main() -> Result<()> {
     std::thread::spawn(|| collector.run());
 
     // let filepath = Path::new("mcm-finder-lib/tests/data/SCOTUS_n9_N895_Data.dat");
-    let filepath = Path::new("mcm-finder-lib/tests/data/Immobilized184neur/worm3.dat");
+    // let filepath = Path::new("mcm-finder-lib/tests/data/Immobilized184neur/worm3.dat");
     // let filepath = Path::new("mcm-finder-lib/tests/data/MNIST11.sorted");
     // let filepath = Path::new("mcm-finder-lib/tests/data/MNIST14.sorted");
     // let filepath = Path::new("mcm-finder-lib/tests/data/MNIST22.sorted");
     // let filepath = Path::new("mcm-finder-lib/tests/data/MNIST28.sorted");
     // let filepath = Path::new("mcm-finder-lib/tests/data/Big5PT.sorted");
+    let filepath = Path::new("mcm-finder-lib/tests/data/Big5_q5_v1.dat");
 
     let solver = GreedySolver::from_file(filepath)?
         .set_sender(tx)
         .set_initial_solver(Merge)
         // .set_refinement_sequence(vec![Refinements::LocalBeam { beam_size: 5 }])
-        .set_refinement_sequence(vec![
-            // Refinements::ChooseN {
-            //     n: 4,
-            //     max_fails: 500,
-            // },
-            // Refinements::Local,
-            // Refinements::Exhaustive,
-            Refinements::Tabu {
-                steps: 1000,
-                size: 100,
-            },
-            Refinements::Local,
-        ]);
+        // .set_refinement_sequence(vec![
+        //     // Refinements::ChooseN {
+        //     //     n: 4,
+        //     //     max_fails: 500,
+        //     // },
+        //     // Refinements::Local,
+        //     // Refinements::Exhaustive,
+        //     Refinements::Tabu {
+        //         steps: 1000,
+        //         size: 100,
+        //     },
+        //     Refinements::Local,
+        // ])
+        ;
     // let solver = GreedySearcher::from_file(filepath)?.continue_after_minimum();
     let result = solver.solve();
     println!("{}", result);
