@@ -1,5 +1,13 @@
 \chapter{Experiments and results}\label{AER}
 
-\section{Algorithms}
+\section{Algorithms and Heuristics}
 
 \subsection{Exhaustive}
+The simplest strategy for finding the best MCM for a dataset, is to try every combination of ICC's possible for the amount of variables in the dataset. This is as of now the only guaranteed way to find the globally optimal MCM for a dataset. While this naive algorithm works well enough on small systems, it scales poorly with the amount of variables in the system. Each variable added roughly doubles the amount of MCMs which need to be checked. The algorithm therefore scales as \(O(2^n)\), with \(n\) the amount of variables in the dataset. The algorithm is mostly an adaptation of the code by~\citet{bayesianinference}.
+
+\subsection{Greedy Algorithms}
+When the modeled systems become too large, the requirement of finding te globally optimal solution needs to be loosened. This allows for the use of algorithms such as the greedy algorithms described in this subsection. A greedy algorithm can be defined as a process in which a solution gets improved in steps. The algorithm can perform a certain operation each step. All of the states a solution can reach within a single step are called the neighborhood of a solution. At each step, the state in the neighborhood which improves on the current solution is chosen and passed on to the next step. This is repeated until the solution cannot be improved anymore.
+
+A good example of a greedy algorithm is what we call the merge algorithm, which is also called hierarchical merging in the paper by~\citet{bayesianinference}. In this algorithm, the MCM starts as system in which each variable is in its own ICC. These ICCs are then greedily merged together. To determine the best merge in the neighborhood, the algorithm needs to consider every combination of two ICCs. This is \(\frac{1}{2}n^2 - n\) comparisons in the worst case, and it has to run at the worst \(n\) steps, which gives this algorithm a complexity of \(O(n^3)\).
+
+Another example is what we call the constructive algorithm. This algorithm constructs solutions from an empty MCM. Variables are then added one by one, greedily picking whether to add the variable to one of the existing ICCs or to create a new one. The variables can be added in a fixed order, or the variable to add can also be picked greedily. With a fixed order, the algorithm needs to consider at worst \(n\) ICCs for \(n\) steps, which gives this algorithm a complexity of \(O(n^2)\). The greedy order variant also needs to consider at worst \(n\) variables per step, so it has a complexity of \(O(n^3)\).

@@ -4,4 +4,5 @@
 *.synctex.gz
 *.lot
 *.toc
-*.aux
+*.aux   
+*.bbl
