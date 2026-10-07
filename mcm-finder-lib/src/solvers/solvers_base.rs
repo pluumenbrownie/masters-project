@@ -75,9 +75,11 @@ impl Display for SolverReport {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Found MCM with Log E of {} and ICCs:\n{}{}",
+            "Found MCM with Log E of {} and ICCs:\n{}\nICCs checked: {}\nTime elapsed (s): {}{}",
             self.log_e,
             self.mcm,
+            self.iccs_checked,
+            self.time_seconds,
             self.other_stuff
                 .iter()
                 .flat_map(|(k, v)| format!("\n - {:?}: {:?}", k, v).chars().collect::<Vec<_>>())
