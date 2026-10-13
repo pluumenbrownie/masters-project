@@ -29,4 +29,17 @@ Late acceptance hill climbing is a metaheuristic which tries to implement this b
 The delay between adding improving states to the queue and using them for acceptance evaluation allows this heuristic to avoid non-optimal local minima. A user of the heuristic can tune the convergence speed by setting the length of the acceptance queue; a longer queue slows the convergence speed of the heuristic and can lead to better results, at the cost of a longer runtime. The length of the queue is the only tunable variable in this heuristic, which makes it very simple to use. The heuristic may also self adapt to the problem it is used on, due to the feedback provided by the values added to the queue.
 % "self regulate" different word? This is a bad sentence.
 
-The simulated annealing metaheuristic solves the same problem in a different way. This algorithm is a staple in the world of optimization algorithms and has been independently discovered a few times, likely due to its natural origins.~\cite{annealingKirkpatrick,annealingCerny} In this metaheuristic, mutations are always accepted when they improve over the previous result, but are only accepted with a probability based on the Bolzmann-Gibbs distribution.
+% \paragraph*{Simulated Annealing:}
+The simulated annealing metaheuristic solves the same problem in a different way. This algorithm is a staple in the world of optimization algorithms and has been independently discovered a few times, likely due to its natural origins.~\cite{annealingKirkpatrick,annealingCerny} In this metaheuristic, mutations are always accepted when they improve over the previous result, but are only accepted with a probability based on the Bolzmann-Gibbs distribution. The probability of acceptance can be given as
+\begin{equation}
+  P_\text{accept} =
+  \begin{cases}
+    1 & \Delta E \le 0 \\
+    \exp(-\frac{\Delta E}{T}) & \Delta E > 0
+  \end{cases}
+\end{equation}
+where \(\Delta E\), normally the change in energy between two physical systems, is in our case the change in Log(E) between two MCMs. \(T\) is the temperature of the system, which for simulated annealing is a variable which increases the probability of accepting worsening moves. The temperature variable starts at a high value and gets gradually lowered over time, making the search gradually more local.
+
+Our library allows the user to construct a custom cooling schedule which works best for the system that they want to analyze. This schedule can consist of segments with geometric, logarithmic and linear cooling, or a period of constant temperature. This heuristic can not increase the temperature, however.
+
+To investigate whether reheating the simulated annealing system gives better result, we also created the adaptive annealing solver. This solver uses an exponential cooling schedule. When the solver runs a given amount of mutations without accepting an improvement, the temperature gets set to a fraction of the original temperature. The reset fraction also decreases exponentially every time it is applied, with a value set by the user. The solver stops when the temperature falls below a given point.
