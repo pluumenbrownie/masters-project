@@ -1,4 +1,4 @@
-use std::{fs::File, io::Write, path::Path};
+use std::path::Path;
 
 use annolog::CollectorBuilder;
 use mcm_finder_lib::{
@@ -11,9 +11,8 @@ use mcm_finder_lib::{
 };
 
 use clap::{Parser, Subcommand};
-use miette::Result;
+use miette::{IntoDiagnostic, Result};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use ron::ser::PrettyConfig;
 
 #[derive(Debug, Parser)]
 struct Cli {
@@ -60,16 +59,9 @@ fn annealing_test() -> Result<()> {
                     .then_exponential(0.0001, 0.001),
             );
         let result = solver.solve();
-        let mut file = File::create(format!(
-            "./results/simulated_annealing_longer/result_{nr}.ron"
-        ))
-        .unwrap();
-        file.write_all(
-            &ron::ser::to_string_pretty(&result, PrettyConfig::default())
-                .unwrap()
-                .into_bytes(),
-        )
-        .unwrap();
+        result
+            .save_json(format!("./results/simulated_annealing_longer/result_{nr}.json").into())
+            .into_diagnostic()?;
         Ok(())
     })?;
 
@@ -96,14 +88,9 @@ fn annealing_timing() -> Result<()> {
                     .then_exponential(0.0001, 0.002),
             );
         let result = solver.solve();
-        let mut file =
-            File::create(format!("./results/simulated_annealing/result_{nr}.ron")).unwrap();
-        file.write_all(
-            &ron::ser::to_string_pretty(&result, PrettyConfig::default())
-                .unwrap()
-                .into_bytes(),
-        )
-        .unwrap();
+        result
+            .save_json(format!("./results/simulated_annealing/result_{nr}.json").into())
+            .into_diagnostic()?;
     }
 
     Ok(())

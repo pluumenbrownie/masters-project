@@ -51,6 +51,7 @@
                     numpy
                     matplotlib
                     typer
+                    scipy
                   ]))
             ];
 
