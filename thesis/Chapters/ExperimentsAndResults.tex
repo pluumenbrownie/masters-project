@@ -31,7 +31,7 @@ The delay between adding improving states to the queue and using them for accept
 
 % \paragraph*{Simulated Annealing:}
 The simulated annealing metaheuristic solves the same problem in a different way. This algorithm is a staple in the world of optimization algorithms and has been independently discovered a few times, likely due to its natural origins.~\cite{annealingKirkpatrick,annealingCerny} In this metaheuristic, mutations are always accepted when they improve over the previous result, but are only accepted with a probability based on the Bolzmann-Gibbs distribution. The probability of acceptance can be given as
-\begin{equation}
+\begin{equation}\label{bolzmann}
   P_\text{accept} =
   \begin{cases}
     1 & \Delta E \le 0 \\
@@ -43,3 +43,12 @@ where \(\Delta E\), normally the change in energy between two physical systems, 
 Our library allows the user to construct a custom cooling schedule which works best for the system that they want to analyze. This schedule can consist of segments with geometric, logarithmic and linear cooling, or a period of constant temperature. This heuristic can not increase the temperature, however.
 
 To investigate whether reheating the simulated annealing system gives better result, we also created the adaptive annealing solver. This solver uses an exponential cooling schedule. When the solver runs a given amount of mutations without accepting an improvement, the temperature gets set to a fraction of the original temperature. The reset fraction also decreases exponentially every time it is applied, with a value set by the user. The solver stops when the temperature falls below a given point.
+
+The final solver covered in this report is the parallel tempering solver, a technique based on the same principles as simulated annealing discussed above.~\cite{parallelTempering1, parallelTempering2,parallelTempering3} Parallel tempering also uses the Bolzmann-Gibbs based distribution from Equation~\ref{bolzmann}, but it does not change the temperature over time. Instead, there are multiple pools which have differing temperatures. The solutions developing in these pools can attempt to swap with each other with a probability given by
+\begin{equation}
+  P(r_i \rightarrow r_j) = \min(1, \exp(\Delta \beta \Delta E))
+\end{equation}
+where \(P(r_i \rightarrow r_j)\) is the probability that the pools \(r_i\) and \(r_j\) swap their systems, \(\Delta \beta = \frac{1}{T_j} - \frac{1}{T_i}\) is the difference of the inverse temperatures and \(\Delta\) is the difference in log(E) between the two systems.~\cite{parallelTemperingSwapprob} These swaps can be performed with their direct temperature neighbors, alternating between which neighbor pairs are selected, or with randomly selected pairs, which could give better results at high pool counts.~\cite{parallelTemperingPairs}
+
+In parallel tempering, it is important that the systems swap freely between temperature pools. To achieve this behavior with our library, the user can set the amount of pools \(M\), the minimum temperature \(T_0\) and the maximum temperature \(T_m\) of the pools, and the curve of the interpolated pool temperatures. The available curves are taken from \citet{parallelTemperingSwapprob} and are; linear, given by \(
+T_i = T_0 + (T_m - T_0) \cdot \frac{i}{M-1}\); inverse linear, given by \(\frac{1}{T_i} = \frac{1}{T_m} + \left( \frac{1}{T_0} - \frac{1}{T_m} \right) \cdot \frac{i}{M-1} \); geometric, given by \( T_i = T_0 \cdot R^i \), with \(R = \left(\frac{T_m}{T_0}\right)^{i/(M-1)}\); and exponential, given by \(\exp(\ln(T_0) + (\ln(T_m) - \ln(T_0)) \cdot \frac{i}{M-1})\). Finally, there is also the option to input a custom temperature sequence.
