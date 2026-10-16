@@ -8,5 +8,6 @@ annolog = { version = "0.1.0", path = "../annolog" }
 clap = { version = "4.6.6", features = ["derive"] }
 mcm-finder-lib = { version = "0.1.0", path = "../mcm-finder-lib" }
 miette = { version = "7.6.0", features = ["fancy"] }
+kdam = { version = "0.6.4", features = ["derive", "rayon", "unicode"] }
 rayon = "1.12.0"
 ron = "0.12.2"

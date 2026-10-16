@@ -6,16 +6,22 @@ import numpy as np
 import typer
 from time import asctime
 import json
-import os 
-from scipy.stats import linregress # type: ignore
+import os
+import re
+from scipy.stats import linregress  # type: ignore
 
 plt.rcParams["figure.constrained_layout.use"] = True
 
 app = typer.Typer()
 
 
+def find_floats(text: str) -> list[float]:
+    pattern = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
+    return [float(match) for match in re.findall(pattern, text)]
+
+
 @app.command()
-def prove_time_dependence(save: bool = False):
+def prove_time_dependence(save: bool = False) -> None:
     folder = "./results/simulated_annealing"
     time_seconds = []
     iccs_covered = []
@@ -29,7 +35,7 @@ def prove_time_dependence(save: bool = False):
     x_range = [20000, 22500]
     fit = linregress(iccs_covered, time_seconds)
     fitline = lambda x: fit.slope * x + fit.intercept
-    
+
     plt.plot(iccs_covered, time_seconds, "o", label="SA data")
     plt.plot(x_range, list(map(fitline, x_range)), "--", label="Linear fit")
 
@@ -42,7 +48,7 @@ def prove_time_dependence(save: bool = False):
 
 
 @app.command()
-def plot_sa(save: bool = True):
+def plot_sa(save: bool = True) -> None:
     folder = "./results/simulated_annealing"
     temp_plotted = False
     fig, ax = plt.subplots(1, 1)
@@ -71,6 +77,124 @@ def plot_sa(save: bool = True):
     plt.legend()
     ax.set_xlim(-50, len(log_e))
     plt.show()
+
+
+@app.command()
+def sa_exp_decay(save: bool = True) -> None:
+    folder = "./results/simulated_annealing_longer"
+    data: dict[float, dict[str, list[float | int]]] = {}
+
+    for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
+        with open(folder + "/" + filename, "r") as file:
+            content = json.load(file)
+        decay = find_floats(filename)[1]
+        data.setdefault(decay, {}).setdefault("log_e", []).append(
+            float(content["log_e"])
+        )
+        data.setdefault(decay, {}).setdefault("iccs", []).append(
+            int(content["iccs_checked"])
+        )
+
+    sorted_data = [x for x in data.items()]
+    sorted_data = sorted(sorted_data, key=lambda x: x[0])
+    colors = plt.cm.tab10.colors  # type: ignore
+
+    for (name, points), color in zip(sorted_data, colors):
+        log_e = np.array(points["log_e"])
+        iccs = np.array(points["iccs"])
+        plt.plot(iccs, log_e, "o", label=str(name), color=color, alpha=0.75)
+
+        log_e_percentiles = np.percentile(log_e, [25, 50, 75])
+        iccs_percentiles = np.percentile(iccs, [25, 50, 75])
+        plt.errorbar(
+            iccs_percentiles[1],
+            log_e_percentiles[1],
+            xerr=[
+                [iccs_percentiles[1] - iccs_percentiles[0]],
+                [iccs_percentiles[2] - iccs_percentiles[1]],
+            ],
+            yerr=[
+                [log_e_percentiles[1] - log_e_percentiles[0]],
+                [log_e_percentiles[2] - log_e_percentiles[1]],
+            ],
+            fmt="o",
+            color=color,
+            ms=9,
+            mec="k",
+            capsize=4,
+            lw=2,
+        )
+
+    plt.legend()
+    plt.show()
+
+    # plt.boxplot([d[1] for d in log_e_data], tick_labels=[str(d[0]) for d in log_e_data])
+    # plt.show()
+
+
+@app.command()
+def lahc_hist_size(save: bool = True) -> None:
+    folder = "./results/lahc_hist_size"
+    data: dict[float, dict[str, list[float | int]]] = {}
+
+    for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
+        with open(folder + "/" + filename, "r") as file:
+            content = json.load(file)
+        history_size = int(find_floats(filename)[1])
+        data.setdefault(history_size, {}).setdefault("log_e", []).append(
+            float(content["log_e"])
+        )
+        data.setdefault(history_size, {}).setdefault("iccs", []).append(
+            int(content["iccs_checked"])
+        )
+
+    sorted_data = [x for x in data.items()]
+    sorted_data = sorted(sorted_data, key=lambda x: x[0])
+    colors = plt.cm.tab10.colors  # type: ignore
+
+    for (name, points), color in zip(sorted_data, colors):
+        log_e = np.array(points["log_e"])
+        iccs = np.array(points["iccs"])
+        plt.plot(iccs, log_e, "o", label=str(name), color=color, alpha=0.75)
+
+        log_e_percentiles = np.percentile(log_e, [25, 50, 75])
+        iccs_percentiles = np.percentile(iccs, [25, 50, 75])
+        plt.errorbar(
+            iccs_percentiles[1],
+            log_e_percentiles[1],
+            xerr=[
+                [iccs_percentiles[1] - iccs_percentiles[0]],
+                [iccs_percentiles[2] - iccs_percentiles[1]],
+            ],
+            yerr=[
+                [log_e_percentiles[1] - log_e_percentiles[0]],
+                [log_e_percentiles[2] - log_e_percentiles[1]],
+            ],
+            fmt="o",
+            color=color,
+            ms=9,
+            mec="k",
+            capsize=4,
+            lw=2,
+        )
+
+    plt.legend()
+    plt.show()
+
+    for (name, points), color in zip(sorted_data, colors):
+        log_e_ranked = np.array(points["log_e"])
+
+        log_e_ranked.sort()
+        probability = np.arange(0.0, 1.0, step=1 / len(log_e_ranked))
+        # probability = np.arange(1 / len(log_e_ranked), 1.01, step=1 / len(log_e_ranked))
+        plt.plot(-log_e_ranked, 1 - probability, "o-", color=color, label=str(name))
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.legend()
+    plt.show()
+
+    # plt.boxplot([d[1] for d in log_e_data], tick_labels=[str(d[0]) for d in log_e_data])
+    # plt.show()
 
 
 if __name__ == "__main__":

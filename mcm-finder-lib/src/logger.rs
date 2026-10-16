@@ -212,6 +212,15 @@ impl Default for HillClimbingHandler {
     }
 }
 
+impl HillClimbingHandler {
+    pub fn with_paths(log_e_file: PathBuf) -> Self {
+        HillClimbingHandler {
+            iteration: 0,
+            log_e_file: LazyCell::from(csv::Writer::from_path(log_e_file).unwrap()),
+        }
+    }
+}
+
 impl Handler<SolverEvent> for HillClimbingHandler {
     fn handle(&mut self, event: &SolverEvent) {
         if let SolverEvent::HillClimbing(climbing_data) = event {

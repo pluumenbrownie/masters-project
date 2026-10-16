@@ -59,6 +59,12 @@ impl<T: Dataset> HillClimberSolver<T> {
         self.sender = Some(sender);
         self
     }
+
+    /// Disable the progress bar.
+    pub fn set_silent(mut self, silent: bool) -> Self {
+        self.silent = silent;
+        self
+    }
 }
 
 impl<T: Dataset> Solver for HillClimberSolver<T> {
@@ -98,6 +104,7 @@ impl<T: Dataset> Solver for HillClimberSolver<T> {
         let mut stagnation_counter = 0usize;
 
         let mut progress = tqdm!(total = self.max_steps, disable = self.silent);
+        progress.disable = self.silent;
 
         for _ in 0..self.max_steps {
             let (candidate, _) = current.mutate(&mut rng);

@@ -1236,11 +1236,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d847be338ef16a13f97637c062d97fb52ebe0ff3b77fa18456d5ed366317e4f7"
 dependencies = [
  "colorgrad",
+ "kdam_derive",
  "rayon",
  "terminal_size",
  "unicode-segmentation",
  "unicode-width 0.2.2",
  "windows-sys",
+]
+
+[[package]]
+name = "kdam_derive"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "affc90b6daa52dc928055e8f0d5611ee9d15073469f3d2f682498b092747503b"
+dependencies = [
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -1384,6 +1395,7 @@ version = "0.1.0"
 dependencies = [
  "annolog",
  "clap",
+ "kdam",
  "mcm-finder-lib",
  "miette",
  "rayon",

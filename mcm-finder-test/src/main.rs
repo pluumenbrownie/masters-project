@@ -5,12 +5,13 @@ use mcm_finder_lib::{
     dataset::VecDataset,
     logger::SolverEvent,
     solvers::{
-        AnnealingStarter::Trivial, AnnealingTemperature, GreedySolver, InitialSolver::Merge,
-        Refinements, SimulatedAnnealingSolver, Solver,
+        AnnealingStarter::Trivial, AnnealingTemperature, GreedySolver, HillClimberSolver,
+        InitialSolver::Merge, Refinements, SimulatedAnnealingSolver, Solver,
     },
 };
 
 use clap::{Parser, Subcommand};
+use kdam::par_tqdm;
 use miette::{IntoDiagnostic, Result};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
@@ -25,6 +26,7 @@ enum Commands {
     Greedy,
     Annealing,
     AnnealingTiming,
+    Lahc,
 }
 
 fn main() -> Result<()> {
@@ -32,20 +34,30 @@ fn main() -> Result<()> {
 
     match args.command {
         Commands::Greedy => greedy_test()?,
-        Commands::Annealing => annealing_test()?,
+        Commands::Annealing => annealing_length()?,
         Commands::AnnealingTiming => annealing_timing()?,
+        Commands::Lahc => lahc_hist_size()?,
     };
 
     Ok(())
 }
 
-fn annealing_test() -> Result<()> {
+fn annealing_length() -> Result<()> {
     let dataset = Path::new("mcm-finder-lib/tests/data/MNIST11.sorted");
 
-    (0..100).into_par_iter().try_for_each(|nr| -> Result<()> {
+    let iterator: Vec<_> = [
+        // 0.002, 0.0015, 0.001, 0.0007, 0.0005, 0.0003,
+        0.0002, 0.00015, 0.0001,
+    ]
+    .into_iter()
+    .flat_map(|nr| [nr; 25])
+    .enumerate()
+    .collect();
+
+    par_tqdm!(iterator.into_par_iter()).try_for_each(|(nr, per_step)| -> Result<()> {
         let (collector, sender) = CollectorBuilder::<SolverEvent>::new()
             .with_handler(mcm_finder_lib::logger::AnnealingHandler::with_paths(
-                format!("./results/simulated_annealing_longer/log_e_{nr}.csv").into(),
+                format!("./results/simulated_annealing_longer/log_e_{nr}_{per_step:.4}.csv").into(),
             ))
             .build();
         std::thread::spawn(|| collector.run());
@@ -56,11 +68,53 @@ fn annealing_test() -> Result<()> {
             .set_temperature(
                 AnnealingTemperature::logarithmic(1_000_000.0, 1_000.0)
                     .then_constant(10_000)
-                    .then_exponential(0.0001, 0.001),
+                    .then_exponential(0.0001, per_step),
             );
         let result = solver.solve();
         result
-            .save_json(format!("./results/simulated_annealing_longer/result_{nr}.json").into())
+            .save_json(
+                format!("./results/simulated_annealing_longer/result_{nr}_{per_step:.4}.json")
+                    .into(),
+            )
+            .into_diagnostic()?;
+        Ok(())
+    })?;
+
+    Ok(())
+}
+
+fn lahc_hist_size() -> Result<()> {
+    let dataset = Path::new("mcm-finder-lib/tests/data/MNIST11.sorted");
+
+    let iterator: Vec<_> = [
+        // 50, 75, 100, 125, 150, 175,
+        // 20, 30, 40,
+        1, 2, 5, 10,
+    ]
+    .into_iter()
+    .flat_map(|nr| [nr; 25])
+    .enumerate()
+    .collect();
+
+    par_tqdm!(iterator.into_par_iter()).try_for_each(|(nr, hist_size)| -> Result<()> {
+        let (collector, sender) = CollectorBuilder::<SolverEvent>::new()
+            .with_handler(mcm_finder_lib::logger::HillClimbingHandler::with_paths(
+                format!("./results/lahc_hist_size/log_e_{nr}_{hist_size}.csv").into(),
+            ))
+            .build();
+        std::thread::spawn(|| collector.run());
+
+        let solver = HillClimberSolver::<VecDataset>::from_file(dataset)?
+            .set_sender(sender)
+            .set_silent(true)
+            .set_starter(Trivial)
+            .set_max_steps(500_000)
+            .set_stagnation_steps(100_000)
+            .set_history_size(hist_size);
+
+        let result = solver.solve();
+        result
+            .save_json(format!("./results/lahc_hist_size/result_{nr}_{hist_size}.json").into())
             .into_diagnostic()?;
         Ok(())
     })?;
@@ -81,6 +135,7 @@ fn annealing_timing() -> Result<()> {
 
         let solver = SimulatedAnnealingSolver::<VecDataset>::from_file(dataset)?
             .set_sender(sender)
+            .set_silent(true)
             .set_starter(Trivial)
             .set_temperature(
                 AnnealingTemperature::logarithmic(1_000_000.0, 1_000.0)

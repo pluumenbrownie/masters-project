@@ -18,6 +18,7 @@ use super::{
 };
 use crate::{
     dataset::{
+        AhashState,
         datacontainer::{DataContainer, DataMap, DataVec},
         resize_mask,
     },
@@ -43,8 +44,8 @@ pub struct SimpleDataset<C: DataContainer<S>, S: BuildHasher + Default> {
     _build_hasher: PhantomData<S>,
 }
 
-pub type VecDataset = SimpleDataset<DataVec<DefaultState>, DefaultState>;
-pub type MapDataset = SimpleDataset<DataMap<DefaultState>, DefaultState>;
+pub type VecDataset = SimpleDataset<DataVec<AhashState>, AhashState>;
+pub type MapDataset = SimpleDataset<DataMap<AhashState>, AhashState>;
 
 impl<C: DataContainer<S>, S: BuildHasher + Default> SimpleDataset<C, S> {
     pub fn new(data: C, variable_states: usize, datapoints: usize) -> SimpleDataset<C, S> {

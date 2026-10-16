@@ -40,9 +40,11 @@ pub enum ParallelTemperatureCurve {
     /// This one is pretty bad, don't use it.
     InverseLinear,
 
+    /// Geometric decay between T0 and Tm.
     Geometric,
+    /// Exponential decay between T0 and Tm.
     Exponential,
-    /// Show you're better than the machines by supplying your own temperatures.
+    /// Show you're better than the machine by supplying your own temperatures.
     ///
     /// Requires `self.set_custom_temperatures()` to be set before starting the solve.
     Custom,

@@ -52,6 +52,7 @@
                     matplotlib
                     typer
                     scipy
+                    black
                   ]))
             ];
 
