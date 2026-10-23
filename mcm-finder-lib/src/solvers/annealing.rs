@@ -92,7 +92,7 @@ impl<T: Dataset> Solver for SimulatedAnnealingSolver<T> {
         // let mut temp = self.temperature.start;
         let steps = self.temperature.steps();
         let mut progress = tqdm!(total = steps);
-        progress.disable = !self.silent;
+        progress.disable = self.silent;
 
         // while temp > self.temperature.end {
         for (temp, end) in self.temperature.create_iter() {

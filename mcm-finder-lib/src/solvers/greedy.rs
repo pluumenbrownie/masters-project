@@ -381,9 +381,9 @@ impl GreedySolver {
         progress: &mut Bar,
         beam_size: usize,
     ) {
-        if self.initial_solver != InitialSolver::None {
-            println!("{}", best_mcm.mcm);
-        }
+        // if self.initial_solver != InitialSolver::None {
+        //     println!("{}", best_mcm.mcm);
+        // }
 
         let mut gen_best_vec = vec![best_mcm.clone()];
 
@@ -414,9 +414,9 @@ impl GreedySolver {
         steps: usize,
         tabu_list_size: usize,
     ) {
-        if self.initial_solver != InitialSolver::None {
-            println!("{}", best_mcm.mcm);
-        }
+        // if self.initial_solver != InitialSolver::None {
+        //     println!("{}", best_mcm.mcm);
+        // }
 
         let mut current_mcm = best_mcm.clone();
         let mut tabu_list = VecDeque::with_capacity(tabu_list_size);
@@ -462,9 +462,9 @@ impl GreedySolver {
         best_mcm: &mut LogeMCM,
         progress: &mut Bar,
     ) {
-        if self.initial_solver != InitialSolver::None {
-            println!("{}", best_mcm.mcm);
-        }
+        // if self.initial_solver != InitialSolver::None {
+        //     println!("{}", best_mcm.mcm);
+        // }
 
         let variable_count = best_mcm.mcm.variables();
 
@@ -521,9 +521,9 @@ impl GreedySolver {
         progress: &mut Bar,
     ) {
         let mut fails = 0;
-        if self.initial_solver != InitialSolver::None {
-            println!("{}", best_mcm.mcm);
-        }
+        // if self.initial_solver != InitialSolver::None {
+        //     println!("{}", best_mcm.mcm);
+        // }
         loop {
             if fails >= max_fails {
                 break;

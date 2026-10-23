@@ -28,10 +28,10 @@ fn main() -> Result<()> {
         )?
         .set_sender(tx)
         .set_temperature(
-            AnnealingTemperature::logarithmic(1_000_000.0, 1_000.0) //
-                .then_constant(10_000)
-                .then_exponential(0.0001, 0.0015),
-            // AnnealingTemperature::logarithmic(1_000_000.0, 1.0),
+            // AnnealingTemperature::logarithmic(1_000_000.0, 1_000.0) //
+            //     .then_constant(10_000)
+            //     .then_exponential(0.0001, 0.0015),
+            AnnealingTemperature::logarithmic(1_000_000.0, 10.0),
             // .then_exponential(5.0, 0.0003)
             // .then_constant(10_000)
             // .then_exponential(0.001, 0.00001),

@@ -1,4 +1,5 @@
 import csv
+from typing import Any
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator, FixedLocator
 import matplotlib as mpl
@@ -9,6 +10,7 @@ import json
 import os
 import re
 from scipy.stats import linregress  # type: ignore
+from itertools import cycle
 
 plt.rcParams["figure.constrained_layout.use"] = True
 
@@ -77,6 +79,68 @@ def plot_sa(save: bool = True) -> None:
     plt.legend()
     ax.set_xlim(-50, len(log_e))
     plt.show()
+
+
+@app.command()
+def sa_shapes(save: bool = True) -> None:
+    folder = "./results/simulated_annealing_shapes"
+    data: dict[str, dict[str, list[float | int]]] = {}
+
+    for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
+        with open(folder + "/" + filename, "r") as file:
+            content = json.load(file)
+        name = filename[7:-14]
+        data.setdefault(name, {}).setdefault("log_e", []).append(
+            float(content["log_e"])
+        )
+        data.setdefault(name, {}).setdefault("iccs", []).append(
+            int(content["iccs_checked"])
+        )
+
+    sorted_data = [x for x in data.items()]
+    sorted_data = sorted(sorted_data, key=lambda x: x[0])
+    colors = cycle(plt.cm.tab10.colors)  # type: ignore
+
+    def shapes(name):
+        if "exp" in name:
+            return "^"
+        if "lin" in name:
+            return "s"
+        if "cus" in name:
+            return "x"
+        return "o"
+
+    for (name, points), color in zip(sorted_data, colors):
+        log_e = np.array(points["log_e"])
+        iccs = np.array(points["iccs"])
+        plt.plot(iccs, log_e, shapes(name), label=str(name), color=color, alpha=0.75)
+
+        log_e_percentiles = np.percentile(log_e, [25, 50, 75])
+        iccs_percentiles = np.percentile(iccs, [25, 50, 75])
+        plt.errorbar(
+            iccs_percentiles[1],
+            log_e_percentiles[1],
+            xerr=[
+                [iccs_percentiles[1] - iccs_percentiles[0]],
+                [iccs_percentiles[2] - iccs_percentiles[1]],
+            ],
+            yerr=[
+                [log_e_percentiles[1] - log_e_percentiles[0]],
+                [log_e_percentiles[2] - log_e_percentiles[1]],
+            ],
+            fmt=shapes(name),
+            color=color,
+            ms=9,
+            mec="k",
+            capsize=4,
+            lw=2,
+        )
+
+    plt.legend()
+    plt.show()
+
+    # plt.boxplot([d[1] for d in log_e_data], tick_labels=[str(d[0]) for d in log_e_data])
+    # plt.show()
 
 
 @app.command()
@@ -195,6 +259,108 @@ def lahc_hist_size(save: bool = True) -> None:
 
     # plt.boxplot([d[1] for d in log_e_data], tick_labels=[str(d[0]) for d in log_e_data])
     # plt.show()
+
+
+class MapToShape:
+    def __init__(self, keys: list[str], values: list[str], names: list[str]) -> None:
+        self.keys = keys
+        self.values = values
+        self.names = names
+
+    def __call__(self, name: str) -> str:
+        for key, value in zip(self.keys, self.values):
+            if key in name:
+                return value
+        raise ValueError
+
+    def plot_legend(self):
+        for value, name in zip(self.values, self.names):
+            plt.plot([], [], value, color="#00000000", ms=9, mec="k", lw=2, label=name)
+
+    def plot_legend_custom(self, ax):
+        for value, name in zip(self.values, self.names):
+            ax.plot([], [], value, color="#00000000", ms=9, mec="k", lw=2, label=name)
+
+
+class MapToColor:
+    def __init__(
+        self,
+        keys: list[str],
+        values: list[Any],
+        names: list[str],
+    ) -> None:
+        self.keys = keys
+        self.values = values
+        self.names = names
+
+    def __call__(self, name: str) -> Any:
+        for key, value in zip(self.keys, self.values):
+            if key in name:
+                return value
+        raise ValueError
+
+    def plot_legend(self):
+        for value, name in zip(self.values, self.names):
+            plt.plot([], [], "s", color=value, label=name)
+
+    def plot_legend_custom(self, ax):
+        for value, name in zip(self.values, self.names):
+            ax.plot([], [], "s", color=value, label=name)
+
+
+@app.command()
+def greedy(save: bool = True) -> None:
+    folder = "./results/greedy"
+    data: dict[str, dict[str, list[float | int]]] = {}
+
+    for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
+        with open(folder + "/" + filename, "r") as file:
+            content = json.load(file)
+        name = filename[15:-5]
+        data.setdefault(name, {}).setdefault("log_e", []).append(
+            float(content["log_e"])
+        )
+        data.setdefault(name, {}).setdefault("iccs", []).append(
+            int(content["iccs_checked"])
+        )
+
+    sorted_data = [x for x in data.items()]
+    sorted_data = sorted(sorted_data, key=lambda x: x[0])
+    colors = MapToColor(
+        ["n", "m", "c"], plt.cm.tab10.colors[0:3], ["None", "Merge", "Constructive"]  # type: ignore
+    )
+
+    shapes = MapToShape(["t", "l", "nr"], ["^", "s", "o"], ["Tabu", "Local", "None"])
+
+    for name, points in sorted_data:
+        log_e = np.array(points["log_e"])
+        iccs = np.array(points["iccs"])
+        plt.plot(iccs, log_e, shapes(name), color=colors(name), ms=9, mec="k", lw=2)
+
+    colors.plot_legend()
+    shapes.plot_legend()
+
+    plt.legend()
+    plt.show()
+
+    fig, (merge, constructive, none) = plt.subplots(3, 1)
+
+    for name, points in sorted_data:
+        log_e = np.array(points["log_e"])
+        iccs = np.array(points["iccs"])
+        if "t" in name:
+            if "m" in name:
+                merge.plot(iccs, log_e, shapes(name), ms=9, mec="k", lw=2, label=name)
+            elif "c" in name:
+                constructive.plot(
+                    iccs, log_e, shapes(name), ms=9, mec="k", lw=2, label=name
+                )
+            else:
+                none.plot(iccs, log_e, shapes(name), ms=9, mec="k", lw=2, label=name)
+    merge.legend()
+    constructive.legend()
+    none.legend()
+    plt.show()
 
 
 if __name__ == "__main__":
