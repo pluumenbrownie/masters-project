@@ -50,8 +50,8 @@ pub enum ParallelTemperatureCurve {
     Custom,
 }
 
-pub struct ParallelTemperingSolver {
-    dataset: VecDataset,
+pub struct ParallelTemperingSolver<T: Dataset> {
+    dataset: T,
     starter: AnnealingStarter,
     custom_temperatures: Vec<f64>,
     max_temperature: f64,
@@ -67,7 +67,7 @@ pub struct ParallelTemperingSolver {
     sender: Option<SolverEventSender>,
 }
 
-impl ParallelTemperingSolver {
+impl<T: Dataset + Sync> ParallelTemperingSolver<T> {
     /// Set the starting point for the algorithm
     pub fn set_starter(mut self, starter: AnnealingStarter) -> Self {
         self.starter = starter;
@@ -316,13 +316,13 @@ impl ParallelTemperingSolver {
     }
 }
 
-impl Solver for ParallelTemperingSolver {
+impl<T: Dataset + Sync> Solver for ParallelTemperingSolver<T> {
     fn from_file(filepath: &Path) -> Result<Self, MCMError>
     where
         Self: Sized,
     {
         Ok(ParallelTemperingSolver {
-            dataset: VecDataset::read_from_file(filepath)?,
+            dataset: T::read_from_file(filepath)?,
             starter: AnnealingStarter::default(),
             custom_temperatures: vec![],
             max_temperature: 0.0,
@@ -443,10 +443,10 @@ pub struct TemperPool {
 }
 
 impl TemperPool {
-    pub fn new(
+    pub fn new<T: Dataset + Sync>(
         mcm: MinimallyComplexModel,
         temperature: f64,
-        dataset: &VecDataset,
+        dataset: &T,
         id: usize,
         count_new_iccs: bool,
         sender: Option<SolverEventSender>,
@@ -472,9 +472,9 @@ impl TemperPool {
     }
 
     /// Perform a Metropolis step on the held `MinimallyComplexModel`.
-    fn step(
+    fn step<T: Dataset + Sync>(
         &mut self,
-        dataset: &VecDataset,
+        dataset: &T,
         rng: &mut ThreadRng,
         log_e_cache: &Option<Arc<DashMap<FixedBitSet, f64>>>,
     ) -> usize {
@@ -508,9 +508,9 @@ impl TemperPool {
     }
 
     /// Perform n Metropolis steps. Also updates the progress bar.
-    fn step_n(
+    fn step_n<T: Dataset + Sync>(
         &mut self,
-        dataset: &VecDataset,
+        dataset: &T,
         n: usize,
         log_e_cache: &Option<Arc<DashMap<FixedBitSet, f64>>>,
         bar: &Arc<Mutex<Bar>>,

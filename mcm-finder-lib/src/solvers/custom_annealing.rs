@@ -16,8 +16,8 @@ use crate::{
     },
 };
 
-pub struct AdaptiveAnnealingSolver {
-    dataset: VecDataset,
+pub struct AdaptiveAnnealingSolver<T: Dataset> {
+    dataset: T,
     starter: AnnealingStarter,
     temperature: RefCell<AdaptiveTemperature>,
     stagnation_steps: usize,
@@ -25,7 +25,7 @@ pub struct AdaptiveAnnealingSolver {
     sender: Option<SolverEventSender>,
 }
 
-impl AdaptiveAnnealingSolver {
+impl<T: Dataset> AdaptiveAnnealingSolver<T> {
     pub fn set_starter(mut self, starter: AnnealingStarter) -> Self {
         self.starter = starter;
         self
@@ -61,7 +61,9 @@ impl AdaptiveAnnealingSolver {
         log_e_cache: &mut Option<HashMap<FixedBitSet, f64>>,
     ) {
         let mut deltas_log_e_regressions: Vec<f64> = vec![];
+
         let mut progress = tqdm!(total = 100, leave = true);
+        progress.disable = self.silent;
         progress.set_description("Calculating initial temperature");
 
         while deltas_log_e_regressions.len() < 100 {
@@ -87,13 +89,13 @@ impl AdaptiveAnnealingSolver {
     }
 }
 
-impl Solver for AdaptiveAnnealingSolver {
+impl<T: Dataset> Solver for AdaptiveAnnealingSolver<T> {
     fn from_file(filepath: &Path) -> Result<Self, MCMError>
     where
         Self: Sized,
     {
         Ok(AdaptiveAnnealingSolver {
-            dataset: VecDataset::read_from_file(filepath)?,
+            dataset: T::read_from_file(filepath)?,
             starter: AnnealingStarter::default(),
             temperature: AdaptiveTemperature::new(0.1, 100).into(),
             stagnation_steps: 100,
@@ -161,6 +163,7 @@ impl Solver for AdaptiveAnnealingSolver {
                 temperature: temp,
             }))
             .unwrap();
+
             let _ = progress.update(1);
         }
         SolverReport::new(
@@ -193,7 +196,7 @@ impl AdaptiveTemperature {
         Self {
             end,
             const_steps,
-            delta_per_step: 0.997f64,
+            delta_per_step: 0.003f64,
             reset_fraction: 0.8,
             ..Default::default()
         }
@@ -207,7 +210,7 @@ impl AdaptiveTemperature {
 
     fn delta(&mut self) {
         self.temp = self.start
-            * self.delta_per_step.powi(
+            * (1.0 - self.delta_per_step).powi(
                 (self.step.saturating_sub(self.const_steps))
                     .try_into()
                     .unwrap(),
