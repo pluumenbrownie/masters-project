@@ -77,6 +77,9 @@ pub enum InitialSolver {
         beam_size: usize,
     },
     None,
+    External {
+        mcm: MinimallyComplexModel,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -829,6 +832,10 @@ impl Solver for GreedySolver {
                 self.solve_constructive(&mut log_e_cache, &mut best_mcm, beam_size)
             }
             InitialSolver::None => tqdm!(total = 1, disable = self.silent),
+            InitialSolver::External { ref mcm } => {
+                best_mcm = LogeMCM::calculate(mcm.clone(), &self.dataset, &mut log_e_cache);
+                tqdm!(total = 1, disable = self.silent)
+            }
         };
 
         for refinement in &self.refinement_sequence {
