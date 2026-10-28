@@ -188,6 +188,7 @@ impl<T: Dataset + Sync> ParallelTemperingSolver<T> {
     ) -> f64 {
         let mut deltas_log_e_regressions: Vec<f64> = vec![];
         let mut progress = par_tqdm!(total = 100, leave = true);
+        progress.disable = self.silent;
         progress.set_description("Calculating initial temperature");
 
         while deltas_log_e_regressions.len() < 100 {
@@ -374,7 +375,7 @@ impl<T: Dataset + Sync> Solver for ParallelTemperingSolver<T> {
 
         let bar = Arc::new(Mutex::new(par_tqdm!(
             total = self.shuffles * self.steps_per_shuffle * temperatures.len(),
-            disable = self.silent
+            disable = !self.silent
         )));
 
         for i in 0..self.shuffles {
