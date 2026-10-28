@@ -51,6 +51,21 @@ impl Default for ParTempHandler {
     }
 }
 
+impl ParTempHandler {
+    pub fn with_paths(
+        log_e_file: PathBuf,
+        swap_history_file: PathBuf,
+        mcm_id_file: PathBuf,
+    ) -> Self {
+        ParTempHandler {
+            iteration: 0,
+            swap_history_file: LazyCell::from(csv::Writer::from_path(swap_history_file).unwrap()),
+            mcm_id_file: LazyCell::from(csv::Writer::from_path(mcm_id_file).unwrap()),
+            mcm_log_e_file: LazyCell::from(csv::Writer::from_path(log_e_file).unwrap()),
+        }
+    }
+}
+
 impl Handler<SolverEvent> for ParTempHandler {
     fn handle(&mut self, event: &SolverEvent) {
         if let SolverEvent::ParTemp(par_temp_data) = event {
