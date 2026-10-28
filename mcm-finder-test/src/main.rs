@@ -14,9 +14,11 @@ use clap::{Parser, Subcommand};
 use kdam::par_tqdm;
 use miette::{IntoDiagnostic, Result};
 
+use rand::{RngExt, distr::Alphanumeric};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 mod annealing;
+mod parallel;
 
 #[derive(Debug, Parser)]
 struct Cli {
@@ -30,6 +32,8 @@ enum Commands {
     Annealing,
     AnnealingTiming,
     AnnealingShapes,
+    Adaptive,
+    ParallelTiming,
     Lahc,
 }
 
@@ -41,10 +45,21 @@ fn main() -> Result<()> {
         Commands::Annealing => annealing::annealing_length()?,
         Commands::AnnealingTiming => annealing::annealing_timing()?,
         Commands::AnnealingShapes => annealing::annealing_shapes()?,
+        Commands::Adaptive => annealing::adaptive_annealing()?,
+        Commands::ParallelTiming => parallel::parallel_timing()?,
         Commands::Lahc => lahc_hist_size()?,
     };
 
     Ok(())
+}
+
+pub fn gen_id() -> String {
+    let id: String = rand::rng()
+        .sample_iter(Alphanumeric)
+        .take(8)
+        .map(char::from)
+        .collect();
+    id
 }
 
 fn lahc_hist_size() -> Result<()> {
