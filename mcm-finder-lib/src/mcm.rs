@@ -739,13 +739,11 @@ impl MinimallyComplexModel {
                     })
                     .collect();
                 let basis = *candidates.choose(rng).unwrap();
-                // let mut random_data: Vec<u64> = vec![0; self.variables().div_ceil(32)];
-                // rng.fill(&mut random_data);
 
                 let variable_count = self.partition[basis].count_ones(..);
                 let distribution = Binomial::new(0.5, (variable_count - 2) as u64).unwrap();
                 let sample: u64 = distribution.sample(rng);
-                // let amount = rng.random_range(1..variable_count);
+
                 let amount = (sample + 1) as usize;
                 let random_variables = self.partition[basis].ones().sample(rng, amount);
 
@@ -754,34 +752,12 @@ impl MinimallyComplexModel {
                     split.insert(i);
                 }
 
-                // let split = FixedBitSet::with_capacity_and_blocks(
-                //     self.variables(),
-                //     random_data.into_iter().map(|n| n as usize),
-                // );
                 self.split(basis, split)
-                // let choice = self.partition[basis].ones().choose(rng).unwrap();
-                // self.split_one(basis, choice)
             }
             MutationType::Swap => {
-                // let basis_candidates: Vec<usize> = self
-                //     .partition
-                //     .iter()
-                //     .enumerate()
-                //     .filter_map(|(nr, icc)| {
-                //         if icc.count_ones(..) > 1 {
-                //             Some(nr)
-                //         } else {
-                //             None
-                //         }
-                //     })
-                //     .collect();
-                // let basis = *basis_candidates.choose(rng).unwrap();
-                // let destination = (0usize..self.count_icc())
-                //     .filter(|n| *n != basis)
-                //     .choose(rng)
-                //     .unwrap();
-                // let choice = self.partition[basis].ones().choose(rng).unwrap();
-
+                if self.partition.len() == 1 && self.rank() == 0 {
+                    panic!("Running mutation on empty MCM.")
+                }
                 let (choice, candidate_index) = loop {
                     // This will loop forever when the MCM is empty, but don't mutate an empty MCM.
                     let candidate_variable = (0..self.variables()).choose(rng).unwrap_or_default();
