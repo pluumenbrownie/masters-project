@@ -10,7 +10,7 @@ import json
 import os
 import re
 from scipy.stats import linregress  # type: ignore
-from itertools import cycle
+from itertools import cycle, chain
 
 plt.rcParams["figure.constrained_layout.use"] = True
 
@@ -397,6 +397,123 @@ def greedy(save: bool = True) -> None:
     plt.show()
 
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
+
+
+@app.command()
+def tabu(save: bool = True) -> None:
+    folder = "./results/tabu_divergence"
+    data: dict[str, dict[str, list[float | int]]] = {}
+
+    for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
+        with open(folder + "/" + filename, "r") as file:
+            content = json.load(file)
+        name = filename[7:-5]
+        data.setdefault(name, {}).setdefault("log_e", []).append(
+            float(content["log_e"])
+        )
+        data.setdefault(name, {}).setdefault("iccs", []).append(
+            int(content["iccs_checked"])
+        )
+
+    sorted_data = [x for x in data.items()]
+    sorted_data = sorted(sorted_data, key=lambda x: x[0])
+
+    best: None | tuple[str, float] = None
+    for name, points in sorted_data:
+
+        log_e = np.array(points["log_e"])
+        iccs = np.array(points["iccs"])
+
+        best_log_e = log_e.max()
+        if not best or best_log_e > best[1]:
+            best = (name, best_log_e)
+
+        plt.plot(iccs, log_e, "o", ms=9, mec="k", lw=2, label=name)
+    plt.legend()
+    plt.show()
+
+    colors = chain(plt.cm.tab20c.colors, plt.cm.tab20b.colors)  # type: ignore
+
+    for filename in list_csvs(folder):
+        with open(folder + "/" + filename, "r") as file:
+            content = csv.reader(file.readlines())
+        next(content)
+
+        name = filename[6:-4]
+
+        log_e_list = []
+        for solver, size, log_e in content:
+            if not solver == "Constructive":
+                log_e_list.append(float(log_e))
+        plt.plot(
+            range(len(log_e_list)), log_e_list, "-", color=next(colors), label=name
+        )
+    plt.legend()
+    plt.show()
+
+    print(f"best: {best[0]} with {best[1]}")  # type: ignore
+
+
+@app.command()
+def tabu_2(save: bool = True) -> None:
+    folder = "./results/tabu_divergence_lower"
+    data: dict[str, dict[str, list[float | int]]] = {}
+
+    for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
+        with open(folder + "/" + filename, "r") as file:
+            content = json.load(file)
+        name = filename[7:-5]
+        data.setdefault(name, {}).setdefault("log_e", []).append(
+            float(content["log_e"])
+        )
+        data.setdefault(name, {}).setdefault("iccs", []).append(
+            int(content["iccs_checked"])
+        )
+
+    sorted_data = [x for x in data.items()]
+    sorted_data = sorted(sorted_data, key=lambda x: x[0])
+
+    best: None | tuple[str, float] = None
+    for name, points in sorted_data:
+
+        log_e = np.array(points["log_e"])
+        iccs = np.array(points["iccs"])
+
+        best_log_e = log_e.max()
+        if not best or best_log_e > best[1]:
+            best = (name, best_log_e)
+
+        plt.plot(iccs, log_e, "o", ms=9, mec="k", lw=2, label=name)
+    plt.legend()
+    plt.show()
+
+    colors = chain(plt.cm.tab20c.colors, plt.cm.tab20b.colors)  # type: ignore
+
+    for filename in list_csvs(folder):
+        with open(folder + "/" + filename, "r") as file:
+            content = csv.reader(file.readlines())
+        next(content)
+
+        name = filename[6:-4]
+
+        log_e_list = []
+        for solver, size, log_e in content:
+            if not solver == "Constructive":
+                log_e_list.append(float(log_e))
+        plt.plot(
+            range(len(log_e_list)), log_e_list, "-", color=next(colors), label=name
+        )
+    plt.legend()
+    plt.show()
+
+    print(f"best: {best[0]} with {best[1]}")
+
+
+def list_csvs(folder):
+    return sorted(
+        list(filter(lambda name: name[-4:] == ".csv", os.listdir(folder))),
+        key=lambda f: int(f[8:-4]),
+    )  # type: ignore
 
 
 @app.command()
