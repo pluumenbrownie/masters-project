@@ -1,2 +1,10 @@
-\chapter{Introduction}
-\label{Introduction}
+\chapter{Introduction}\label{Introduction}
+Spin models are, in the most general sense, systems in which variables with two or more states can have interactions with the rest of the system. While this description may be overly reductive, it does reflect how versatile spin models can be, as spin models can be used to model magnetism, such as with the Ising model, or to model cell behavior, such as in cellular Potts models.
+
+The two most fundamental discriminators between different spin models are how many possible states a variable can have and its spin operators, or how the variables in the system are connected. While
+
+The simplicity of an MCM is judged by calculating the Bayesian evidence, or marginal likelihood, for the MCM and the dataset. \citet{bayesianinference} have determined that the evidence of an MCM is given by
+\begin{equation}
+  P(\hat{s}|\mathcal{M})= \frac{1}{2^{N(n-r)}} \prod_{a \in \mathcal{A}} \left[ \frac{\Gamma(2^{r_{a} - 1})}{\Gamma(N+2^{r_{a} -1})} \prod_{b_{a} } \left[ \frac{\Gamma(k_{b_{a} }+\frac{1}{2})}{\Gamma\left( \frac{1}{2} \right)} \right] \right]
+\end{equation}
+which consists of three parts. The first part compensates for the rank of the MCM, with \(N\) the amount of datapoints in the dataset \(\hat{s}\), \(n\) the amount of variables in each datapoint, and \(r\) the rank of the MCM, which is the amount of variables of the dataset included in the model; usually \(n = r\), making the starting term one. The first product then iterates over every ICC in the MCM and calculates a compensation term for the rank of each ICC \(r_a\). Finally, the second product iterates over each of the \(2^{r_a}\) possible datapoints the ICC could see, and uses the amount of them in the dataset \(k_{b_a}\). This fraction also becomes one when \(k_{b_a}=0\), so only datapoints actually present in the dataset contribute here.
