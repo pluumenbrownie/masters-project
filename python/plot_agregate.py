@@ -517,6 +517,74 @@ def list_csvs(folder):
 
 
 @app.command()
+def tabu_only(save: bool = True) -> None:
+    folder = "./results/pure_tabu"
+    data: dict[str, dict[str, list[float | int]]] = {}
+
+    for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
+        with open(folder + "/" + filename, "r") as file:
+            content = json.load(file)
+        name = filename[7:-5]
+        data.setdefault(name, {}).setdefault("log_e", []).append(
+            float(content["log_e"])
+        )
+        data.setdefault(name, {}).setdefault("iccs", []).append(
+            int(content["iccs_checked"])
+        )
+
+    sorted_data = [x for x in data.items()]
+    sorted_data = sorted(sorted_data, key=lambda x: x[0])
+
+    best: None | tuple[str, float] = None
+    for name, points in sorted_data:
+
+        log_e = np.array(points["log_e"])
+        iccs = np.array(points["iccs"])
+
+        best_log_e = log_e.max()
+        if not best or best_log_e > best[1]:
+            best = (name, best_log_e)
+
+        plt.plot(iccs, log_e, "o", ms=9, mec="k", lw=2, label=name)
+    # plt.legend()
+    plt.show()
+
+
+@app.command()
+def merge_beam(save: bool = True) -> None:
+    folder = "./results/merge_beam"
+    data: dict[str, dict[str, list[float | int]]] = {}
+
+    for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
+        with open(folder + "/" + filename, "r") as file:
+            content = json.load(file)
+        name = filename[7:-5]
+        data.setdefault(name, {}).setdefault("log_e", []).append(
+            float(content["log_e"])
+        )
+        data.setdefault(name, {}).setdefault("iccs", []).append(
+            int(content["iccs_checked"])
+        )
+
+    sorted_data = [x for x in data.items()]
+    sorted_data = sorted(sorted_data, key=lambda x: x[0])
+
+    best: None | tuple[str, float] = None
+    for name, points in sorted_data:
+
+        log_e = np.array(points["log_e"])
+        iccs = np.array(points["iccs"])
+
+        best_log_e = log_e.max()
+        if not best or best_log_e > best[1]:
+            best = (name, best_log_e)
+
+        plt.plot(iccs, log_e, "o", ms=9, mec="k", lw=2, label=name)
+    # plt.legend()
+    plt.show()
+
+
+@app.command()
 def adaptive(save: bool = True) -> None:
     folder = "./results/adaptive_annealing"
     data: dict[str, dict[str, list[float | int]]] = {}
