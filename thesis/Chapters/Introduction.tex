@@ -1,9 +1,13 @@
 \chapter{Introduction}\label{Introduction}
-Spin models are, in the most general sense, systems in which variables with two or more states can have interactions with the rest of the system. While this description may be overly reductive, it does reflect how versatile spin models can be, as spin models can be used to model magnetism, such as with the Ising model, or to model cell behavior, such as in cellular Potts models.
+Spin models are, in the most general sense, systems in which variables with two or more states can have interactions with the rest of the system. While this description may be overly reductive, it does reflect how versatile spin models can be. Spin models can be used to model magnetism, such as with the Ising model, or to model cell behavior, such as in cellular Potts models.
 
-The two most fundamental discriminators between different spin models are how many possible states a variable can have and its spin operators, or how the variables in the system are connected. While
+The two most fundamental discriminators between different spin models are how many possible states a variable can have and its spin operators, or how the variables in the system interact. This thesis will use binary datasets and focus on how the variable interactions. For example, the Ising model can be seen as a pairwise binary model, as interactions occur on only one or two variables at a time. 
 
-The simplicity of an MCM is judged by calculating the Bayesian evidence, or marginal likelihood, for the MCM and the dataset. \citet{bayesianinference} have determined that the evidence of an MCM is given by
+The flexibility allow for the construction of arbitrarily complex models, though this may not necessarily be desired. As \citet{bayesianinference} have pointed out, an arbitrarily complex model may be able to describe any dataset, but they lack the explanatory power of simpler models, as these models may be easier to study and falsify. \citet{complexity} have found that the simplest models focus their parameters on a small number of variables. 
+
+The simplicity of an MCM is judged by calculating the Bayesian evidence, or marginal likelihood, for the MCM and the dataset. 
+
+\citet{bayesianinference} have determined that the evidence of an MCM is given by
 \begin{equation}
   P(\hat{s}|\mathcal{M})= \frac{1}{2^{N(n-r)}} \prod_{a \in \mathcal{A}} \left[ \frac{\Gamma(2^{r_{a} - 1})}{\Gamma(N+2^{r_{a} -1})} \prod_{b_{a} } \left[ \frac{\Gamma(k_{b_{a} }+\frac{1}{2})}{\Gamma\left( \frac{1}{2} \right)} \right] \right]
 \end{equation}
