@@ -22,6 +22,10 @@ def find_floats(text: str) -> list[float]:
     return [float(match) for match in re.findall(pattern, text)]
 
 
+def sort_datapoints(sorted_data):
+    return sorted(sorted_data, key=lambda x: find_floats(x[0])[0])  # type: ignore
+
+
 @app.command()
 def prove_serial_time_dependence(save: bool = False):
     prove_time_dependence(save, "./results/simulated_annealing")
@@ -353,7 +357,7 @@ def greedy(save: bool = True) -> None:
         )
 
     sorted_data = [x for x in data.items()]
-    sorted_data = sorted(sorted_data, key=lambda x: x[0])
+    sorted_data = sort_datapoints(sorted_data)
     colors = MapToColor(
         ["n", "m", "c"], plt.cm.tab10.colors[0:3], ["None", "Merge", "Constructive"]  # type: ignore
     )
@@ -416,7 +420,7 @@ def tabu(save: bool = True) -> None:
         )
 
     sorted_data = [x for x in data.items()]
-    sorted_data = sorted(sorted_data, key=lambda x: x[0])
+    sorted_data = sort_datapoints(sorted_data)
 
     best: None | tuple[str, float] = None
     for name, points in sorted_data:
@@ -471,7 +475,7 @@ def tabu_2(save: bool = True) -> None:
         )
 
     sorted_data = [x for x in data.items()]
-    sorted_data = sorted(sorted_data, key=lambda x: x[0])
+    sorted_data = sort_datapoints(sorted_data)
 
     best: None | tuple[str, float] = None
     for name, points in sorted_data:
@@ -506,7 +510,7 @@ def tabu_2(save: bool = True) -> None:
     plt.legend()
     plt.show()
 
-    print(f"best: {best[0]} with {best[1]}")
+    print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
 
 def list_csvs(folder):
@@ -533,10 +537,12 @@ def tabu_only(save: bool = True) -> None:
         )
 
     sorted_data = [x for x in data.items()]
-    sorted_data = sorted(sorted_data, key=lambda x: x[0])
+    sorted_data = sort_datapoints(sorted_data)
+    cmap = mpl.colormaps["gist_rainbow"]
+    colors = cmap(np.linspace(0, 1, len(sorted_data)))
 
     best: None | tuple[str, float] = None
-    for name, points in sorted_data:
+    for (name, points), color in zip(sorted_data, colors):
 
         log_e = np.array(points["log_e"])
         iccs = np.array(points["iccs"])
@@ -545,8 +551,26 @@ def tabu_only(save: bool = True) -> None:
         if not best or best_log_e > best[1]:
             best = (name, best_log_e)
 
-        plt.plot(iccs, log_e, "o", ms=9, mec="k", lw=2, label=name)
-    # plt.legend()
+        plt.plot(iccs, log_e, "o", color=color, ms=9, mec="k", lw=2)
+    plt.show()
+    print(f"best: {best[0]} with {best[1]}")  # type: ignore
+
+    for (filename, color) in zip(list_csvs(folder), colors):
+        with open(folder + "/" + filename, "r") as file:
+            content = csv.reader(file.readlines())
+        next(content)
+
+        name = filename[6:-4]
+
+        log_e_list = []
+        for solver, size, log_e in content:
+            log_e_list.append(float(log_e))
+
+        if name == best[0]:  # type: ignore
+            plt.plot(range(len(log_e_list)), log_e_list, "-", color="#000000", label=f"best: {name}")
+        else:
+            plt.plot(range(len(log_e_list)), log_e_list, "-", color=color)
+    plt.legend()
     plt.show()
 
 
@@ -567,10 +591,12 @@ def merge_beam(save: bool = True) -> None:
         )
 
     sorted_data = [x for x in data.items()]
-    sorted_data = sorted(sorted_data, key=lambda x: x[0])
+    sorted_data = sort_datapoints(sorted_data)
+    cmap = mpl.colormaps["gist_rainbow"]
+    colors = cmap(np.linspace(0, 1, len(sorted_data)))
 
     best: None | tuple[str, float] = None
-    for name, points in sorted_data:
+    for (name, points), color in zip(sorted_data, colors):
 
         log_e = np.array(points["log_e"])
         iccs = np.array(points["iccs"])
@@ -579,9 +605,51 @@ def merge_beam(save: bool = True) -> None:
         if not best or best_log_e > best[1]:
             best = (name, best_log_e)
 
-        plt.plot(iccs, log_e, "o", ms=9, mec="k", lw=2, label=name)
+        plt.plot(iccs, log_e, "o", color=color, ms=9, mec="k", lw=2, label=name)
     # plt.legend()
     plt.show()
+    print(f"best: {best[0]} with {best[1]}")  # type: ignore
+
+
+@app.command()
+def prove_greedy_time_dependence(save: bool = True):
+    prove_time_dependence(save, "./results/construct_beam")
+
+
+@app.command()
+def construct_beam(save: bool = True) -> None:
+    folder = "./results/construct_beam"
+    data: dict[str, dict[str, list[float | int]]] = {}
+
+    for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
+        with open(folder + "/" + filename, "r") as file:
+            content = json.load(file)
+        name = filename[7:-5]
+        data.setdefault(name, {}).setdefault("log_e", []).append(
+            float(content["log_e"])
+        )
+        data.setdefault(name, {}).setdefault("iccs", []).append(
+            int(content["iccs_checked"])
+        )
+
+    sorted_data = [x for x in data.items()]
+    sorted_data = sort_datapoints(sorted_data)
+    cmap = mpl.colormaps["gist_rainbow"]
+    colors = cmap(np.linspace(0, 1, len(sorted_data)))
+
+    best: None | tuple[str, float] = None
+    for (name, points), color in zip(sorted_data, colors):
+
+        log_e = np.array(points["log_e"])
+        iccs = np.array(points["iccs"])
+
+        best_log_e = log_e.max()
+        if not best or best_log_e > best[1]:
+            best = (name, best_log_e)
+
+        plt.plot(iccs, log_e, "o", color=color, ms=9, mec="k", lw=2)
+    plt.show()
+    print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
 
 @app.command()
