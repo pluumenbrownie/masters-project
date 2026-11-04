@@ -39,6 +39,7 @@ enum Commands {
     AnnealingShapes,
     Adaptive,
     ParallelTiming,
+    ParallelTempering,
     Lahc,
 }
 
@@ -57,6 +58,7 @@ fn main() -> Result<()> {
         Commands::AnnealingShapes => annealing::annealing_shapes()?,
         Commands::Adaptive => annealing::adaptive_annealing()?,
         Commands::ParallelTiming => parallel::parallel_timing()?,
+        Commands::ParallelTempering => parallel::parallel_tempering()?,
         Commands::Lahc => lahc_hist_size()?,
     };
 

@@ -32,6 +32,7 @@ use crate::{
 
 /// How to calculate the temperatures of all of the tempering pools between the
 /// minimum (T0) and maximum (Tm) temperature.
+#[derive(Clone, Copy)]
 pub enum ParallelTemperatureCurve {
     /// Uses linear interpolation between T0 and Tm.
     Linear,
