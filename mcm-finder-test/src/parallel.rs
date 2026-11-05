@@ -65,7 +65,7 @@ pub(crate) fn parallel_tempering() -> Result<()> {
             .into_iter()
             .map(move |c| (c, t))
         })
-        .flat_map(|nr| [nr; 2])
+        .flat_map(|nr| [nr; 10])
         .collect();
 
     par_tqdm!(iterator.into_par_iter()).try_for_each(

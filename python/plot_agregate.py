@@ -98,16 +98,22 @@ def sa_shapes(save: bool = True) -> None:
     folder = "./results/simulated_annealing_shapes"
     data: dict[str, dict[str, list[float | int]]] = {}
 
+    best: None | tuple[str, float] = None
     for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
         with open(folder + "/" + filename, "r") as file:
             content = json.load(file)
         name = filename[7:-14]
+        best_log_e = float(content["log_e"])
         data.setdefault(name, {}).setdefault("log_e", []).append(
-            float(content["log_e"])
+            best_log_e
         )
         data.setdefault(name, {}).setdefault("iccs", []).append(
             int(content["iccs_checked"])
         )
+        if not best or best_log_e > best[1]:
+            best = (filename[7:-5], best_log_e)
+
+    print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
     sorted_data = [x for x in data.items()]
     sorted_data = sorted(sorted_data, key=lambda x: x[0])
@@ -122,15 +128,10 @@ def sa_shapes(save: bool = True) -> None:
             return "x"
         return "o"
 
-    best: None | tuple[str, float] = None
     for (name, points), color in zip(sorted_data, colors):
         log_e = np.array(points["log_e"])
         iccs = np.array(points["iccs"])
         plt.plot(iccs, log_e, shapes(name), label=str(name), color=color, alpha=0.75)
-
-        best_log_e = log_e.max()
-        if not best or best_log_e > best[1]:
-            best = (name, best_log_e)
 
         log_e_percentiles = np.percentile(log_e, [25, 50, 75])
         iccs_percentiles = np.percentile(iccs, [25, 50, 75])
@@ -156,8 +157,6 @@ def sa_shapes(save: bool = True) -> None:
     plt.legend()
     plt.show()
 
-    print(f"best: {best[0]} with {best[1]}")  # type: ignore
-
     # plt.boxplot([d[1] for d in log_e_data], tick_labels=[str(d[0]) for d in log_e_data])
     # plt.show()
 
@@ -167,30 +166,31 @@ def sa_exp_decay(save: bool = True) -> None:
     folder = "./results/simulated_annealing_longer"
     data: dict[float, dict[str, list[float | int]]] = {}
 
+    best: None | tuple[str, float] = None
     for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
         with open(folder + "/" + filename, "r") as file:
             content = json.load(file)
         decay = find_floats(filename)[1]
+        best_log_e = float(content["log_e"])
         data.setdefault(decay, {}).setdefault("log_e", []).append(
-            float(content["log_e"])
+            best_log_e
         )
         data.setdefault(decay, {}).setdefault("iccs", []).append(
             int(content["iccs_checked"])
         )
+        if not best or best_log_e > best[1]:
+            best = (filename[7:-5], best_log_e)
+
+    print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
     sorted_data = [x for x in data.items()]
     sorted_data = sorted(sorted_data, key=lambda x: x[0])
     colors = plt.cm.tab10.colors  # type: ignore
 
-    best: None | tuple[str, float] = None
     for (name, points), color in zip(sorted_data, colors):
         log_e = np.array(points["log_e"])
         iccs = np.array(points["iccs"])
         plt.plot(iccs, log_e, "o", label=str(name), color=color, alpha=0.75)
-
-        best_log_e = log_e.max()
-        if not best or best_log_e > best[1]:
-            best = (str(name), best_log_e)
 
         log_e_percentiles = np.percentile(log_e, [25, 50, 75])
         iccs_percentiles = np.percentile(iccs, [25, 50, 75])
@@ -241,6 +241,7 @@ def lahc_hist_size(save: bool = True) -> None:
         data.setdefault(history_size, {}).setdefault("iccs", []).append(
             int(content["iccs_checked"])
         )
+    print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
     sorted_data = [x for x in data.items()]
     sorted_data = sorted(sorted_data, key=lambda x: x[0])
@@ -287,7 +288,6 @@ def lahc_hist_size(save: bool = True) -> None:
     plt.legend()
     plt.show()
 
-    print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
     # plt.boxplot([d[1] for d in log_e_data], tick_labels=[str(d[0]) for d in log_e_data])
     # plt.show()
@@ -657,16 +657,20 @@ def adaptive(save: bool = True) -> None:
     folder = "./results/adaptive_annealing"
     data: dict[str, dict[str, list[float | int]]] = {}
 
+    best: None | tuple[str, float] = None
     for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
         with open(folder + "/" + filename, "r") as file:
             content = json.load(file)
         name = filename[7:-14]
+        best_log_e = float(content["log_e"])
         data.setdefault(name, {}).setdefault("log_e", []).append(
-            float(content["log_e"])
+            best_log_e
         )
         data.setdefault(name, {}).setdefault("iccs", []).append(
             int(content["iccs_checked"])
         )
+        if not best or best_log_e > best[1]:
+            best = ( filename[7:-5], best_log_e)
 
     sorted_data = [x for x in data.items()]
     sorted_data = sorted(sorted_data, key=lambda x: x[0])
@@ -683,15 +687,11 @@ def adaptive(save: bool = True) -> None:
         ["0.95", "0.90", "0.85", "0.80", "0.75"],
     )
 
-    best: None | tuple[str, float] = None
     for name, points in sorted_data:
         log_e = np.array(points["log_e"])
         iccs = np.array(points["iccs"])
         plt.plot(iccs, log_e, shapes(name), color=colors(name), alpha=0.75)
 
-        best_log_e = log_e.max()
-        if not best or best_log_e > best[1]:
-            best = (name, best_log_e)
 
         log_e_percentiles = np.percentile(log_e, [25, 50, 75])
         iccs_percentiles = np.percentile(iccs, [25, 50, 75])
@@ -720,6 +720,76 @@ def adaptive(save: bool = True) -> None:
     plt.show()
 
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
+
+
+@app.command()
+def parallel_tempering(save: bool = True) -> None:
+    folder = "./results/parallel_tempering"
+    data: dict[str, dict[str, list[float | int]]] = {}
+
+    best: None | tuple[str, float] = None
+    for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
+        with open(folder + "/" + filename, "r") as file:
+            content = json.load(file)
+        name = filename[7:-14]
+        best_log_e = float(content["log_e"])
+        data.setdefault(name, {}).setdefault("log_e", []).append(
+            best_log_e
+        )
+        data.setdefault(name, {}).setdefault("iccs", []).append(
+            int(content["iccs_checked"])
+        )
+        if not best or best_log_e > best[1]:
+            best = (filename[7:-5], best_log_e)
+
+    print(f"best: {best[0]} with {best[1]}")  # type: ignore
+
+    sorted_data = [x for x in data.items()]
+    sorted_data = sorted(sorted_data, key=lambda x: x[0])
+
+    colors = MapToColor(
+        ["32", "64", "128", "256", "512", "1024"],
+        plt.cm.tab10.colors[0:6],  # type: ignore
+        ["32", "64", "128", "256", "512", "1024"],
+    )
+
+    shapes = MapToShape(
+        ["e", "g", "i", "l"],
+        ["o", "s", "^", "*"],
+        ["exponential", "geometric", "inverse linear", "linear"],
+    )
+
+    for name, points in sorted_data:
+        log_e = np.array(points["log_e"])
+        iccs = np.array(points["iccs"])
+        plt.plot(iccs, log_e, shapes(name), color=colors(name), alpha=0.75)
+
+        log_e_percentiles = np.percentile(log_e, [25, 50, 75])
+        iccs_percentiles = np.percentile(iccs, [25, 50, 75])
+        plt.errorbar(
+            iccs_percentiles[1],
+            log_e_percentiles[1],
+            xerr=[
+                [iccs_percentiles[1] - iccs_percentiles[0]],
+                [iccs_percentiles[2] - iccs_percentiles[1]],
+            ],
+            yerr=[
+                [log_e_percentiles[1] - log_e_percentiles[0]],
+                [log_e_percentiles[2] - log_e_percentiles[1]],
+            ],
+            fmt=shapes(name),
+            color=colors(name),
+            ms=9,
+            mec="k",
+            capsize=4,
+            lw=2,
+        )
+    colors.plot_legend()
+    shapes.plot_legend()
+
+    plt.legend()
+    plt.show()
+
 
 
 if __name__ == "__main__":
