@@ -18,6 +18,7 @@ def par_temp_pools(save: bool = False) -> None:
 
     fig, axes = plt.subplots(len(header), 1, figsize=(10, 10))
     for mcm, pool_data, mcm_log_e in zip(range(len(header)), mcm_history, log_e):
+
         axes[mcm].set_yticks(
             [0, -len(header) + 1],
             [round(float(header[0]), ndigits=3), round(float(header[-1]), ndigits=3)],
@@ -29,13 +30,13 @@ def par_temp_pools(save: bool = False) -> None:
         axes[mcm].set_ylabel("T")
 
         ax2 = axes[mcm].twinx()
-        ax2.plot(range(len(mcm_log_e)), mcm_log_e, "r-", label="log E")
+        ax2.plot(np.linspace(0, len(pool_data), num=len(mcm_log_e)), mcm_log_e, "r-", label="log E")
         ax2.set_ylabel("log(E)")
 
         if not mcm == len(header) - 1:
             axes[mcm].set(xticks=[])
         else:
-            axes[mcm].plot([0, 0], [10, 10], "r-", label="log E")
+            axes[mcm].plot([], [], "r-", label="log E")
             axes[mcm].legend()
 
     if save:
