@@ -12,7 +12,7 @@ from scipy.stats import linregress  # type: ignore
 from itertools import cycle, chain
 
 plt.rcParams["figure.constrained_layout.use"] = True
-plt.rcParams["figure.figsize"] = (10,8)
+plt.rcParams["figure.figsize"] = (10, 8)
 
 app = typer.Typer()
 
@@ -93,8 +93,45 @@ def plot_sa(save: bool = False) -> None:
 
 
 @app.command()
+def plot_sa_adaptive(save: bool = False) -> None:
+    folder = "./results/adaptive_annealing"
+    temp_plotted = False
+    fig, ax = plt.subplots(1, 1)
+    ax2 = ax.twinx()
+
+    for filename in filter(
+        lambda name: name[-4:] == ".csv" and "0.0015_0.75_bU6" in name,
+        os.listdir(folder),
+    ):
+        with open(folder + "/" + filename, "r") as file:
+            content = csv.reader(file.readlines())
+        log_e = []
+        temperature = []
+
+        next(content)
+        for line in content:
+            log_e.append(float(line[0]))
+            temperature.append(float(line[1]))
+
+        ax.plot(range(len(log_e)), log_e, "-", color="#1f77b4")
+        ax2.semilogy(range(len(temperature)), temperature, "r-", label="T")
+
+    ax.set_xlabel("step")
+    ax.set_ylabel("log(E)")
+    ax2.set_ylabel("log(T)")
+    fig.suptitle("Log(E) of Adaptive Annealing")
+    plt.legend()
+    ax.set_xlim(-50, len(log_e))
+    if save:
+        plt.savefig(f"./results/plots/adaptive_annealing_{asctime()}.svg")
+    plt.show()
+
+
+@app.command()
 def prove_parallel_time_dependence(save: bool = False) -> None:
-    prove_time_dependence(save, "./results/parallel_tempering_timing", "Parallel tempering")
+    prove_time_dependence(
+        save, "./results/parallel_tempering_timing", "Parallel tempering"
+    )
 
 
 @app.command()
@@ -659,7 +696,7 @@ def merge_beam(save: bool = False) -> None:
             best = (name, best_log_e)
 
         plt.plot(iccs, log_e, "o", color=color, ms=9, mec="k", lw=2, label=name)
-    
+
     plt.xlabel("ICCs calculated")
     plt.ylabel("log(E)")
     plt.title("Merge beam size")
