@@ -20,3 +20,5 @@ Because the calculated probabilities here get very small, the natural logarithm 
 
 \section{Implementation}
 An important motivator for this thesis was that previous MCM finding algorithms, such as the one made by \citet{bayesianinference}, were only able to compute the \loge{} for datasets with at most 128 variables. This is because those algorithms use the standard 128 bit wide integer type from C++ to store their datapoints and ICCs. These integers were used as bitvectors to represent both the datapoints and the ICCs. For the datapoints, the binary states of the variables can be mapped directly to the bits in the bitvector, with bit \(n\) representing the state of variable \(n\). For ICCs, a set bit in the bitvector represents that that ICC contains the given variable. An MCM can therefore be represented as a list of bitvectors, where the union of the bitvectors is a bitvector with all bits set, but where no bitvector shares a set bit.
+
+To lift this restriction, we have written a new MCM finding library in Rust. This library uses a heap-allocated bitvector, which has no inherent size limit. This allows for the analysis of systems with 
