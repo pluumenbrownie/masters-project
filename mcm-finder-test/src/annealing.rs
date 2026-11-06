@@ -12,7 +12,6 @@ use mcm_finder_lib::{
 
 use kdam::par_tqdm;
 use miette::{IntoDiagnostic, Result};
-use rand::{RngExt, distr::Alphanumeric};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::gen_id;

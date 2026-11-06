@@ -1,7 +1,6 @@
 import csv
 from typing import Any
 import matplotlib.pyplot as plt
-from matplotlib.ticker import MultipleLocator, FixedLocator
 import matplotlib as mpl
 import numpy as np
 import typer
@@ -13,6 +12,7 @@ from scipy.stats import linregress  # type: ignore
 from itertools import cycle, chain
 
 plt.rcParams["figure.constrained_layout.use"] = True
+plt.rcParams["figure.figsize"] = (10,8)
 
 app = typer.Typer()
 
@@ -27,11 +27,11 @@ def sort_datapoints(sorted_data):
 
 
 @app.command()
-def prove_serial_time_dependence(save: bool = False):
-    prove_time_dependence(save, "./results/simulated_annealing")
+def prove_annealing_time_dependence(save: bool = False):
+    prove_time_dependence(save, "./results/simulated_annealing", "Annealing")
 
 
-def prove_time_dependence(save: bool, folder: str) -> None:
+def prove_time_dependence(save: bool, folder: str, name: str) -> None:
     time_seconds = []
     iccs_covered = []
 
@@ -50,14 +50,16 @@ def prove_time_dependence(save: bool, folder: str) -> None:
 
     plt.xlabel("ICCs calculated")
     plt.ylabel("time (s)")
-    plt.title("Runtime over ICCs calculated")
+    plt.title(f"{name} time dependence")
     plt.legend()
     plt.xlim(*x_range)
+    if save:
+        plt.savefig(f"./results/plots/{name}_time_dependence_{asctime()}.svg")
     plt.show()
 
 
 @app.command()
-def plot_sa(save: bool = True) -> None:
+def plot_sa(save: bool = False) -> None:
     folder = "./results/simulated_annealing"
     temp_plotted = False
     fig, ax = plt.subplots(1, 1)
@@ -85,16 +87,18 @@ def plot_sa(save: bool = True) -> None:
     fig.suptitle("Log(E) of Simulated Annealing")
     plt.legend()
     ax.set_xlim(-50, len(log_e))
+    if save:
+        plt.savefig(f"./results/plots/simulated_annealing_{asctime()}.svg")
     plt.show()
 
 
 @app.command()
 def prove_parallel_time_dependence(save: bool = False) -> None:
-    prove_time_dependence(save, "./results/parallel_tempering_timing")
+    prove_time_dependence(save, "./results/parallel_tempering_timing", "Parallel tempering")
 
 
 @app.command()
-def sa_shapes(save: bool = True) -> None:
+def sa_shapes(save: bool = False) -> None:
     folder = "./results/simulated_annealing_shapes"
     data: dict[str, dict[str, list[float | int]]] = {}
 
@@ -104,9 +108,7 @@ def sa_shapes(save: bool = True) -> None:
             content = json.load(file)
         name = filename[7:-14]
         best_log_e = float(content["log_e"])
-        data.setdefault(name, {}).setdefault("log_e", []).append(
-            best_log_e
-        )
+        data.setdefault(name, {}).setdefault("log_e", []).append(best_log_e)
         data.setdefault(name, {}).setdefault("iccs", []).append(
             int(content["iccs_checked"])
         )
@@ -154,15 +156,17 @@ def sa_shapes(save: bool = True) -> None:
             lw=2,
         )
 
-    plt.legend()
+    plt.legend(ncol=2)
+    plt.xlabel("ICCs calculated")
+    plt.ylabel("log(E)")
+    plt.title("Annealing shapes comparison")
+    if save:
+        plt.savefig(f"./results/plots/annealing_shapes_{asctime()}.svg")
     plt.show()
-
-    # plt.boxplot([d[1] for d in log_e_data], tick_labels=[str(d[0]) for d in log_e_data])
-    # plt.show()
 
 
 @app.command()
-def sa_exp_decay(save: bool = True) -> None:
+def sa_exp_decay(save: bool = False) -> None:
     folder = "./results/simulated_annealing_longer"
     data: dict[float, dict[str, list[float | int]]] = {}
 
@@ -172,9 +176,7 @@ def sa_exp_decay(save: bool = True) -> None:
             content = json.load(file)
         decay = find_floats(filename)[1]
         best_log_e = float(content["log_e"])
-        data.setdefault(decay, {}).setdefault("log_e", []).append(
-            best_log_e
-        )
+        data.setdefault(decay, {}).setdefault("log_e", []).append(best_log_e)
         data.setdefault(decay, {}).setdefault("iccs", []).append(
             int(content["iccs_checked"])
         )
@@ -214,16 +216,16 @@ def sa_exp_decay(save: bool = True) -> None:
         )
 
     plt.legend()
+    plt.xlabel("ICCs calculated")
+    plt.ylabel("log(E)")
+    plt.title("Exponential decay speed")
+    if save:
+        plt.savefig(f"./results/plots/annealing_exp_decay_{asctime()}.svg")
     plt.show()
-
-    print(f"best: {best[0]} with {best[1]}")  # type: ignore
-
-    # plt.boxplot([d[1] for d in log_e_data], tick_labels=[str(d[0]) for d in log_e_data])
-    # plt.show()
 
 
 @app.command()
-def lahc_hist_size(save: bool = True) -> None:
+def lahc_hist_size(save: bool = False) -> None:
     folder = "./results/lahc_hist_size"
     data: dict[float, dict[str, list[float | int]]] = {}
 
@@ -274,6 +276,11 @@ def lahc_hist_size(save: bool = True) -> None:
         )
 
     plt.legend()
+    plt.xlabel("ICCs calculated")
+    plt.ylabel("log(E)")
+    plt.title("Late Acceptance Hill Climbing")
+    if save:
+        plt.savefig(f"./results/plots/lahc_hist_size_{asctime()}.svg")
     plt.show()
 
     for (name, points), color in zip(sorted_data, colors):
@@ -286,11 +293,9 @@ def lahc_hist_size(save: bool = True) -> None:
     plt.xscale("log")
     plt.yscale("log")
     plt.legend()
+    if save:
+        plt.savefig(f"./results/plots/lahc_loglog_{asctime()}.svg")
     plt.show()
-
-
-    # plt.boxplot([d[1] for d in log_e_data], tick_labels=[str(d[0]) for d in log_e_data])
-    # plt.show()
 
 
 class MapToShape:
@@ -341,7 +346,7 @@ class MapToColor:
 
 
 @app.command()
-def greedy(save: bool = True) -> None:
+def greedy(save: bool = False) -> None:
     folder = "./results/greedy"
     data: dict[str, dict[str, list[float | int]]] = {}
 
@@ -373,6 +378,11 @@ def greedy(save: bool = True) -> None:
     shapes.plot_legend()
 
     plt.legend()
+    plt.xlabel("ICCs calculated")
+    plt.ylabel("log(E)")
+    plt.title("Greedy Strategy Comparison")
+    if save:
+        plt.savefig(f"./results/plots/greedy_{asctime()}.svg")
     plt.show()
 
     fig, (merge, constructive, none) = plt.subplots(3, 1)
@@ -395,16 +405,18 @@ def greedy(save: bool = True) -> None:
                 )
             else:
                 none.plot(iccs, log_e, shapes(name), ms=9, mec="k", lw=2, label=name)
-    merge.legend()
-    constructive.legend()
-    none.legend()
+    merge.legend(ncols=3)
+    constructive.legend(ncols=3)
+    none.legend(ncols=3)
+    if save:
+        plt.savefig(f"./results/plots/greedy_split_{asctime()}.svg")
     plt.show()
 
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
 
 @app.command()
-def tabu(save: bool = True) -> None:
+def tabu(save: bool = False) -> None:
     folder = "./results/tabu_divergence"
     data: dict[str, dict[str, list[float | int]]] = {}
 
@@ -433,7 +445,12 @@ def tabu(save: bool = True) -> None:
             best = (name, best_log_e)
 
         plt.plot(iccs, log_e, "o", ms=9, mec="k", lw=2, label=name)
-    plt.legend()
+    plt.legend(ncols=2)
+    plt.xlabel("ICCs calculated")
+    plt.ylabel("log(E)")
+    plt.title("Tabu list size")
+    if save:
+        plt.savefig(f"./results/plots/tabu_{asctime()}.svg")
     plt.show()
 
     colors = chain(plt.cm.tab20c.colors, plt.cm.tab20b.colors)  # type: ignore
@@ -452,14 +469,20 @@ def tabu(save: bool = True) -> None:
         plt.plot(
             range(len(log_e_list)), log_e_list, "-", color=next(colors), label=name
         )
-    plt.legend()
+    plt.legend(ncols=4)
+    plt.xlabel("ICCs calculated")
+    plt.ylabel("log(E)")
+    plt.title("Tabu list size trajectories")
+    plt.ylim((-2430000, -2380000))
+    if save:
+        plt.savefig(f"./results/plots/tabu_trajectory_{asctime()}.svg")
     plt.show()
 
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
 
 @app.command()
-def tabu_2(save: bool = True) -> None:
+def tabu_2(save: bool = False) -> None:
     folder = "./results/tabu_divergence_lower"
     data: dict[str, dict[str, list[float | int]]] = {}
 
@@ -488,7 +511,12 @@ def tabu_2(save: bool = True) -> None:
             best = (name, best_log_e)
 
         plt.plot(iccs, log_e, "o", ms=9, mec="k", lw=2, label=name)
-    plt.legend()
+    plt.legend(ncols=2)
+    plt.xlabel("ICCs calculated")
+    plt.ylabel("log(E)")
+    plt.title("Exponential decay speed")
+    if save:
+        plt.savefig(f"./results/plots/tabu2_{asctime()}.svg")
     plt.show()
 
     colors = chain(plt.cm.tab20c.colors, plt.cm.tab20b.colors)  # type: ignore
@@ -507,7 +535,13 @@ def tabu_2(save: bool = True) -> None:
         plt.plot(
             range(len(log_e_list)), log_e_list, "-", color=next(colors), label=name
         )
-    plt.legend()
+    plt.legend(ncols=4)
+    plt.xlabel("ICCs calculated")
+    plt.ylabel("log(E)")
+    plt.title("Tabu list size trajectories")
+    plt.ylim((-2430000, -2380000))
+    if save:
+        plt.savefig(f"./results/plots/tabu2_trajectory_{asctime()}.svg")
     plt.show()
 
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
@@ -521,7 +555,7 @@ def list_csvs(folder):
 
 
 @app.command()
-def tabu_only(save: bool = True) -> None:
+def tabu_only(save: bool = False) -> None:
     folder = "./results/pure_tabu"
     data: dict[str, dict[str, list[float | int]]] = {}
 
@@ -552,10 +586,16 @@ def tabu_only(save: bool = True) -> None:
             best = (name, best_log_e)
 
         plt.plot(iccs, log_e, "o", color=color, ms=9, mec="k", lw=2)
+
+    plt.xlabel("ICCs calculated")
+    plt.ylabel("log(E)")
+    plt.title("Tabu only strategy")
+    if save:
+        plt.savefig(f"./results/plots/tabu_only_{asctime()}.svg")
     plt.show()
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
-    for (filename, color) in zip(list_csvs(folder), colors):
+    for filename, color in zip(list_csvs(folder), colors):
         with open(folder + "/" + filename, "r") as file:
             content = csv.reader(file.readlines())
         next(content)
@@ -567,15 +607,28 @@ def tabu_only(save: bool = True) -> None:
             log_e_list.append(float(log_e))
 
         if name == best[0]:  # type: ignore
-            plt.plot(range(len(log_e_list)), log_e_list, "-", color="#000000", label=f"best: {name}")
+            plt.plot(
+                range(len(log_e_list)),
+                log_e_list,
+                "-",
+                color="#000000",
+                label=f"best: {name}",
+            )
         else:
             plt.plot(range(len(log_e_list)), log_e_list, "-", color=color)
+
     plt.legend()
+    plt.xlabel("ICCs calculated")
+    plt.ylabel("log(E)")
+    plt.title("Tabu only trajectories")
+    plt.ylim((-2450000, -2380000))
+    if save:
+        plt.savefig(f"./results/plots/tabu_only_trajectory_{asctime()}.svg")
     plt.show()
 
 
 @app.command()
-def merge_beam(save: bool = True) -> None:
+def merge_beam(save: bool = False) -> None:
     folder = "./results/merge_beam"
     data: dict[str, dict[str, list[float | int]]] = {}
 
@@ -606,18 +659,23 @@ def merge_beam(save: bool = True) -> None:
             best = (name, best_log_e)
 
         plt.plot(iccs, log_e, "o", color=color, ms=9, mec="k", lw=2, label=name)
-    # plt.legend()
+    
+    plt.xlabel("ICCs calculated")
+    plt.ylabel("log(E)")
+    plt.title("Merge beam size")
+    if save:
+        plt.savefig(f"./results/plots/merge_beam_{asctime()}.svg")
     plt.show()
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
 
 @app.command()
-def prove_greedy_time_dependence(save: bool = True):
-    prove_time_dependence(save, "./results/construct_beam")
+def prove_greedy_time_dependence(save: bool = False):
+    prove_time_dependence(save, "./results/construct_beam", "Greedy")
 
 
 @app.command()
-def construct_beam(save: bool = True) -> None:
+def construct_beam(save: bool = False) -> None:
     folder = "./results/construct_beam"
     data: dict[str, dict[str, list[float | int]]] = {}
 
@@ -648,12 +706,18 @@ def construct_beam(save: bool = True) -> None:
             best = (name, best_log_e)
 
         plt.plot(iccs, log_e, "o", color=color, ms=9, mec="k", lw=2)
+
+    plt.xlabel("ICCs calculated")
+    plt.ylabel("log(E)")
+    plt.title("Constructive beam size")
+    if save:
+        plt.savefig(f"./results/plots/construct_beam_{asctime()}.svg")
     plt.show()
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
 
 @app.command()
-def adaptive(save: bool = True) -> None:
+def adaptive(save: bool = False) -> None:
     folder = "./results/adaptive_annealing"
     data: dict[str, dict[str, list[float | int]]] = {}
 
@@ -663,14 +727,12 @@ def adaptive(save: bool = True) -> None:
             content = json.load(file)
         name = filename[7:-14]
         best_log_e = float(content["log_e"])
-        data.setdefault(name, {}).setdefault("log_e", []).append(
-            best_log_e
-        )
+        data.setdefault(name, {}).setdefault("log_e", []).append(best_log_e)
         data.setdefault(name, {}).setdefault("iccs", []).append(
             int(content["iccs_checked"])
         )
         if not best or best_log_e > best[1]:
-            best = ( filename[7:-5], best_log_e)
+            best = (filename[7:-5], best_log_e)
 
     sorted_data = [x for x in data.items()]
     sorted_data = sorted(sorted_data, key=lambda x: x[0])
@@ -691,7 +753,6 @@ def adaptive(save: bool = True) -> None:
         log_e = np.array(points["log_e"])
         iccs = np.array(points["iccs"])
         plt.plot(iccs, log_e, shapes(name), color=colors(name), alpha=0.75)
-
 
         log_e_percentiles = np.percentile(log_e, [25, 50, 75])
         iccs_percentiles = np.percentile(iccs, [25, 50, 75])
@@ -717,13 +778,18 @@ def adaptive(save: bool = True) -> None:
     shapes.plot_legend()
 
     plt.legend()
+    plt.xlabel("ICCs calculated")
+    plt.ylabel("log(E)")
+    plt.title("Adaptive annealing")
+    if save:
+        plt.savefig(f"./results/plots/adaptive_annealing_{asctime()}.svg")
     plt.show()
 
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
 
 @app.command()
-def parallel_tempering(save: bool = True) -> None:
+def parallel_tempering(save: bool = False) -> None:
     folder = "./results/parallel_tempering"
     data: dict[str, dict[str, list[float | int]]] = {}
 
@@ -733,9 +799,7 @@ def parallel_tempering(save: bool = True) -> None:
             content = json.load(file)
         name = filename[7:-14]
         best_log_e = float(content["log_e"])
-        data.setdefault(name, {}).setdefault("log_e", []).append(
-            best_log_e
-        )
+        data.setdefault(name, {}).setdefault("log_e", []).append(best_log_e)
         data.setdefault(name, {}).setdefault("iccs", []).append(
             int(content["iccs_checked"])
         )
@@ -788,8 +852,33 @@ def parallel_tempering(save: bool = True) -> None:
     shapes.plot_legend()
 
     plt.legend()
+    plt.xlabel("ICCs calculated")
+    plt.ylabel("log(E)")
+    plt.title("Parallel tempering swap amount")
+    if save:
+        plt.savefig(f"./results/plots/parallel_tempering_{asctime()}.svg")
     plt.show()
 
+
+@app.command()
+def all(save: bool = False):
+    prove_greedy_time_dependence(save)
+    prove_annealing_time_dependence(save)
+    prove_parallel_time_dependence(save)
+
+    greedy(save)
+    tabu(save)
+    tabu_only(save)
+    merge_beam(save)
+    construct_beam(save)
+
+    plot_sa(save)
+    sa_exp_decay(save)
+    sa_shapes(save)
+
+    lahc_hist_size(save)
+    adaptive(save)
+    parallel_tempering(save)
 
 
 if __name__ == "__main__":
