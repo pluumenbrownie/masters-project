@@ -121,17 +121,37 @@
   eprint   = {https://academic.oup.com/gji/article-pdf/196/1/357/39595698/gji_196_1_357.pdf}
 }
 
-@Article{complexity,
-AUTHOR = {Beretta, Alberto and Battistin, Claudia and De Mulatier, Clélia and Mastromatteo, Iacopo and Marsili, Matteo},
-TITLE = {The Stochastic Complexity of Spin Models: Are Pairwise Models Really Simple?},
-JOURNAL = {Entropy},
-VOLUME = {20},
-YEAR = {2018},
-NUMBER = {10},
-ARTICLE-NUMBER = {739},
-URL = {https://www.mdpi.com/1099-4300/20/10/739},
-PubMedID = {33265828},
-ISSN = {1099-4300},
-ABSTRACT = {Models can be simple for different reasons: because they yield a simple and computationally efficient interpretation of a generic dataset (e.g., in terms of pairwise dependencies)—as in statistical learning—or because they capture the laws of a specific phenomenon—as e.g., in physics—leading to non-trivial falsifiable predictions. In information theory, the simplicity of a model is quantified by the stochastic complexity, which measures the number of bits needed to encode its parameters. In order to understand how simple models look like, we study the stochastic complexity of spin models with interactions of arbitrary order. We show that bijections within the space of possible interactions preserve the stochastic complexity, which allows to partition the space of all models into equivalence classes. We thus found that the simplicity of a model is not determined by the order of the interactions, but rather by their mutual arrangements. Models where statistical dependencies are localized on non-overlapping groups of few variables are simple, affording predictions on independencies that are easy to falsify. On the contrary, fully connected pairwise models, which are often used in statistical learning, appear to be highly complex, because of their extended set of interactions, and they are hard to falsify.},
-DOI = {10.3390/e20100739}
+@article{complexity,
+  author         = {Beretta, Alberto and Battistin, Claudia and De Mulatier, Clélia and Mastromatteo, Iacopo and Marsili, Matteo},
+  title          = {The Stochastic Complexity of Spin Models: Are Pairwise Models Really Simple?},
+  journal        = {Entropy},
+  volume         = {20},
+  year           = {2018},
+  number         = {10},
+  article-number = {739},
+  url            = {https://www.mdpi.com/1099-4300/20/10/739},
+  pubmedid       = {33265828},
+  issn           = {1099-4300},
+  abstract       = {Models can be simple for different reasons: because they yield a simple and computationally efficient interpretation of a generic dataset (e.g., in terms of pairwise dependencies)—as in statistical learning—or because they capture the laws of a specific phenomenon—as e.g., in physics—leading to non-trivial falsifiable predictions. In information theory, the simplicity of a model is quantified by the stochastic complexity, which measures the number of bits needed to encode its parameters. In order to understand how simple models look like, we study the stochastic complexity of spin models with interactions of arbitrary order. We show that bijections within the space of possible interactions preserve the stochastic complexity, which allows to partition the space of all models into equivalence classes. We thus found that the simplicity of a model is not determined by the order of the interactions, but rather by their mutual arrangements. Models where statistical dependencies are localized on non-overlapping groups of few variables are simple, affording predictions on independencies that are easy to falsify. On the contrary, fully connected pairwise models, which are often used in statistical learning, appear to be highly complex, because of their extended set of interactions, and they are hard to falsify.},
+  doi            = {10.3390/e20100739}
+}
+
+@article{rust,
+  author     = {Matsakis, Nicholas D. and Klock, Felix S.},
+  title      = {The rust language},
+  year       = {2014},
+  issue_date = {December 2014},
+  publisher  = {Association for Computing Machinery},
+  address    = {New York, NY, USA},
+  volume     = {34},
+  number     = {3},
+  issn       = {1094-3641},
+  url        = {https://doi.org/10.1145/2692956.2663188},
+  doi        = {10.1145/2692956.2663188},
+  abstract   = {Rust is a new programming language for developing reliable and efficient systems. It is designed to support concurrency and parallelism in building applications and libraries that take full advantage of modern hardware. Rust's static type system is safe1 and expressive and provides strong guarantees about isolation, concurrency, and memory safety.Rust also offers a clear performance model, making it easier to predict and reason about program efficiency. One important way it accomplishes this is by allowing fine-grained control over memory representations, with direct support for stack allocation and contiguous record storage. The language balances such controls with the absolute requirement for safety: Rust's type system and runtime guarantee the absence of data races, buffer overflows, stack overflows, and accesses to uninitialized or deallocated memory.},
+  journal    = {Ada Lett.},
+  month      = {oct},
+  pages      = {103-104},
+  numpages   = {2},
+  keywords   = {systems programming, rust, memory management, affine type systems}
 }
