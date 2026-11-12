@@ -40,6 +40,9 @@ enum Commands {
     Adaptive,
     ParallelTiming,
     ParallelTempering,
+    ParallelTemperingShorter,
+    ParallelTemperingLessShort,
+    ParallelTemperingLonger,
     Lahc,
 }
 
@@ -59,6 +62,9 @@ fn main() -> Result<()> {
         Commands::Adaptive => annealing::adaptive_annealing()?,
         Commands::ParallelTiming => parallel::parallel_timing()?,
         Commands::ParallelTempering => parallel::parallel_tempering()?,
+        Commands::ParallelTemperingShorter => parallel::parallel_tempering_shorter()?,
+        Commands::ParallelTemperingLessShort => parallel::parallel_tempering_less_short()?,
+        Commands::ParallelTemperingLonger => parallel::parallel_tempering_longer()?,
         Commands::Lahc => lahc_hist_size()?,
     };
 
@@ -77,16 +83,22 @@ pub fn gen_id() -> String {
 fn lahc_hist_size() -> Result<()> {
     let dataset = Path::new("mcm-finder-lib/tests/data/MNIST11.sorted");
 
-    let iterator: Vec<_> = [1, 2, 10, 50, 200]
-        .into_iter()
-        .flat_map(|nr| [nr; 100])
-        .enumerate()
-        .collect();
+    let iterator: Vec<_> = [
+        // 1, 2, 10,
+        // 20,
+        // 50,
+        100,
+        // 50, 200
+    ]
+    .into_iter()
+    .flat_map(|nr| [nr; 100])
+    .enumerate()
+    .collect();
 
     par_tqdm!(iterator.into_par_iter()).try_for_each(|(nr, hist_size)| -> Result<()> {
         let (collector, sender) = CollectorBuilder::<SolverEvent>::new()
             .with_handler(mcm_finder_lib::logger::HillClimbingHandler::with_paths(
-                format!("./results/lahc_hist_size/log_e_{nr}_{hist_size}.csv").into(),
+                format!("./results/lahc_hist_size/log_e_a_{nr}_{hist_size}.csv").into(),
             ))
             .build();
         std::thread::spawn(|| collector.run());
@@ -101,7 +113,7 @@ fn lahc_hist_size() -> Result<()> {
 
         let result = solver.solve();
         result
-            .save_json(format!("./results/lahc_hist_size/result_{nr}_{hist_size}.json").into())
+            .save_json(format!("./results/lahc_hist_size/result_a_{nr}_{hist_size}.json").into())
             .into_diagnostic()?;
         Ok(())
     })?;
@@ -386,7 +398,20 @@ fn merge_beam() -> Result<()> {
 }
 
 fn construct_beam_timing() -> Result<()> {
-    let dataset = Path::new("mcm-finder-lib/tests/data/MNIST11.sorted");
+    let datasets = [
+        // (
+        //     Path::new("mcm-finder-lib/tests/data/MNIST11.sorted"),
+        //     "mnist11",
+        // ),
+        (
+            Path::new("mcm-finder-lib/tests/data/MNIST14.sorted"),
+            "mnist14",
+        ),
+        (
+            Path::new("mcm-finder-lib/tests/data/MNIST22.sorted"),
+            "mnist22",
+        ),
+    ];
     const FOLDER: &str = "results/construct_beam";
 
     let iterator: Vec<_> = (1..=100)
@@ -397,26 +422,29 @@ fn construct_beam_timing() -> Result<()> {
                 format!("c_{q}"),
             )
         })
+        .flat_map(|s| datasets.iter().map(move |d| (s.clone(), d)))
         .collect();
 
-    tqdm!(iterator.into_iter()).try_for_each(|(initial, name)| -> Result<()> {
-        let (collector, sender) = CollectorBuilder::<SolverEvent>::new()
-            .with_handler(mcm_finder_lib::logger::GreedyHandler::with_paths(
-                format!("./{FOLDER}/log_e_{name}.csv").into(),
-            ))
-            .build();
-        std::thread::spawn(|| collector.run());
+    tqdm!(iterator.into_iter()).try_for_each(
+        |((initial, name), (dataset, data_name))| -> Result<()> {
+            let (collector, sender) = CollectorBuilder::<SolverEvent>::new()
+                .with_handler(mcm_finder_lib::logger::GreedyHandler::with_paths(
+                    format!("./{FOLDER}/log_e_{name}_{data_name}.csv").into(),
+                ))
+                .build();
+            std::thread::spawn(|| collector.run());
 
-        let solver = GreedySolver::from_file(dataset)?
-            .set_sender(sender)
-            .set_silent(true)
-            .set_initial_solver(initial);
-        let result = solver.solve();
-        result
-            .save_json(format!("./{FOLDER}/result_{name}.json").into())
-            .into_diagnostic()?;
-        Ok(())
-    })?;
+            let solver = GreedySolver::from_file(dataset)?
+                .set_sender(sender)
+                .set_silent(true)
+                .set_initial_solver(initial);
+            let result = solver.solve();
+            result
+                .save_json(format!("./{FOLDER}/result_{name}_{data_name}.json").into())
+                .into_diagnostic()?;
+            Ok(())
+        },
+    )?;
 
     Ok(())
 }

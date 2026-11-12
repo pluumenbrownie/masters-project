@@ -12,7 +12,9 @@ from scipy.stats import linregress  # type: ignore
 from itertools import cycle, chain
 
 plt.rcParams["figure.constrained_layout.use"] = True
-plt.rcParams["figure.figsize"] = (10, 8)
+plt.rcParams["figure.figsize"] = (9, 5)
+
+EXPORT_FORMAT = "pdf"
 
 app = typer.Typer()
 
@@ -43,6 +45,7 @@ def prove_time_dependence(save: bool, folder: str, name: str) -> None:
 
     x_range = [min(iccs_covered) * 0.995, max(iccs_covered) * 1.005]
     fit = linregress(iccs_covered, time_seconds)
+    print(fit)
     fitline = lambda x: fit.slope * x + fit.intercept
 
     plt.plot(iccs_covered, time_seconds, "o", label="datapoints")
@@ -54,7 +57,9 @@ def prove_time_dependence(save: bool, folder: str, name: str) -> None:
     plt.legend()
     plt.xlim(*x_range)
     if save:
-        plt.savefig(f"./results/plots/{name}_time_dependence_{asctime()}.svg")
+        plt.savefig(
+            f"./results/plots/{name}_time_dependence_{asctime()}.{EXPORT_FORMAT}"
+        )
     plt.show()
 
 
@@ -88,7 +93,7 @@ def plot_sa(save: bool = False) -> None:
     plt.legend()
     ax.set_xlim(-50, len(log_e))
     if save:
-        plt.savefig(f"./results/plots/simulated_annealing_{asctime()}.svg")
+        plt.savefig(f"./results/plots/simulated_annealing_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
 
 
@@ -123,7 +128,7 @@ def plot_sa_adaptive(save: bool = False) -> None:
     plt.legend()
     ax.set_xlim(-50, len(log_e))
     if save:
-        plt.savefig(f"./results/plots/adaptive_annealing_{asctime()}.svg")
+        plt.savefig(f"./results/plots/adaptive_annealing_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
 
 
@@ -198,7 +203,7 @@ def sa_shapes(save: bool = False) -> None:
     plt.ylabel("log(E)")
     plt.title("Annealing shapes comparison")
     if save:
-        plt.savefig(f"./results/plots/annealing_shapes_{asctime()}.svg")
+        plt.savefig(f"./results/plots/annealing_shapes_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
 
 
@@ -257,14 +262,14 @@ def sa_exp_decay(save: bool = False) -> None:
     plt.ylabel("log(E)")
     plt.title("Exponential decay speed")
     if save:
-        plt.savefig(f"./results/plots/annealing_exp_decay_{asctime()}.svg")
+        plt.savefig(f"./results/plots/annealing_exp_decay_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
 
 
 @app.command()
 def lahc_hist_size(save: bool = False) -> None:
     folder = "./results/lahc_hist_size"
-    data: dict[float, dict[str, list[float | int]]] = {}
+    data: dict[str, dict[str, list[float | int]]] = {}
 
     best: None | tuple[str, float] = None
     for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
@@ -276,15 +281,33 @@ def lahc_hist_size(save: bool = False) -> None:
         if not best or log_e > best[1]:
             best = (filename, log_e)
 
-        data.setdefault(history_size, {}).setdefault("log_e", []).append(float(log_e))
-        data.setdefault(history_size, {}).setdefault("iccs", []).append(
-            int(content["iccs_checked"])
-        )
+        if "_a_" in filename:
+            data.setdefault(f"{history_size}_a", {}).setdefault("log_e", []).append(
+                float(log_e)
+            )
+            data.setdefault(f"{history_size}_a", {}).setdefault("iccs", []).append(
+                int(content["iccs_checked"])
+            )
+        else:
+            data.setdefault(str(history_size), {}).setdefault("log_e", []).append(
+                float(log_e)
+            )
+            data.setdefault(str(history_size), {}).setdefault("iccs", []).append(
+                int(content["iccs_checked"])
+            )
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
     sorted_data = [x for x in data.items()]
     sorted_data = sorted(sorted_data, key=lambda x: x[0])
     colors = plt.cm.tab10.colors  # type: ignore
+    shapes = MapToShape(
+        [
+            "a",
+            "",
+        ],
+        ["^", "o"],
+        ["Normal", "Alternative"],
+    )
 
     for (name, points), color in zip(sorted_data, colors):
         log_e = np.array(points["log_e"])
@@ -304,7 +327,7 @@ def lahc_hist_size(save: bool = False) -> None:
                 [log_e_percentiles[1] - log_e_percentiles[0]],
                 [log_e_percentiles[2] - log_e_percentiles[1]],
             ],
-            fmt="o",
+            fmt=shapes(name),
             color=color,
             ms=9,
             mec="k",
@@ -317,7 +340,7 @@ def lahc_hist_size(save: bool = False) -> None:
     plt.ylabel("log(E)")
     plt.title("Late Acceptance Hill Climbing")
     if save:
-        plt.savefig(f"./results/plots/lahc_hist_size_{asctime()}.svg")
+        plt.savefig(f"./results/plots/lahc_hist_size_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
 
     for (name, points), color in zip(sorted_data, colors):
@@ -331,7 +354,7 @@ def lahc_hist_size(save: bool = False) -> None:
     plt.yscale("log")
     plt.legend()
     if save:
-        plt.savefig(f"./results/plots/lahc_loglog_{asctime()}.svg")
+        plt.savefig(f"./results/plots/lahc_loglog_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
 
 
@@ -387,21 +410,25 @@ def greedy(save: bool = False) -> None:
     folder = "./results/greedy"
     data: dict[str, dict[str, list[float | int]]] = {}
 
+    best: None | tuple[str, float] = None
     for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
         with open(folder + "/" + filename, "r") as file:
             content = json.load(file)
         name = filename[15:-5]
-        data.setdefault(name, {}).setdefault("log_e", []).append(
-            float(content["log_e"])
-        )
+
+        best_log_e = float(content["log_e"])
+        if not best or best_log_e > best[1]:
+            best = (name, best_log_e)
+        data.setdefault(name, {}).setdefault("log_e", []).append(best_log_e)
         data.setdefault(name, {}).setdefault("iccs", []).append(
             int(content["iccs_checked"])
         )
+    print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
     sorted_data = [x for x in data.items()]
     sorted_data = sort_datapoints(sorted_data)
     colors = MapToColor(
-        ["n", "m", "c"], plt.cm.tab10.colors[0:3], ["None", "Merge", "Constructive"]  # type: ignore
+        ["n_", "m", "c"], plt.cm.tab10.colors[0:3], ["None", "Merge", "Constructive"]  # type: ignore
     )
 
     shapes = MapToShape(["t", "l", "nr"], ["^", "s", "o"], ["Tabu", "Local", "None"])
@@ -419,37 +446,34 @@ def greedy(save: bool = False) -> None:
     plt.ylabel("log(E)")
     plt.title("Greedy Strategy Comparison")
     if save:
-        plt.savefig(f"./results/plots/greedy_{asctime()}.svg")
+        plt.savefig(f"./results/plots/greedy_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
 
-    fig, (merge, constructive, none) = plt.subplots(3, 1)
+    # fig, (merge, constructive, none) = plt.subplots(3, 1)
 
-    best: None | tuple[str, float] = None
-    for name, points in sorted_data:
-        log_e = np.array(points["log_e"])
-        iccs = np.array(points["iccs"])
+    # for name, points in sorted_data:
+    #     log_e = np.array(points["log_e"])
+    #     iccs = np.array(points["iccs"])
 
-        best_log_e = log_e.max()
-        if not best or best_log_e > best[1]:
-            best = (name, best_log_e)
+    #     best_log_e = log_e.max()
+    #     if not best or best_log_e > best[1]:
+    #         best = (name, best_log_e)
 
-        if "t" in name:
-            if "m" in name:
-                merge.plot(iccs, log_e, shapes(name), ms=9, mec="k", lw=2, label=name)
-            elif "c" in name:
-                constructive.plot(
-                    iccs, log_e, shapes(name), ms=9, mec="k", lw=2, label=name
-                )
-            else:
-                none.plot(iccs, log_e, shapes(name), ms=9, mec="k", lw=2, label=name)
-    merge.legend(ncols=3)
-    constructive.legend(ncols=3)
-    none.legend(ncols=3)
-    if save:
-        plt.savefig(f"./results/plots/greedy_split_{asctime()}.svg")
-    plt.show()
-
-    print(f"best: {best[0]} with {best[1]}")  # type: ignore
+    #     if "t" in name:
+    #         if "m" in name:
+    #             merge.plot(iccs, log_e, shapes(name), ms=9, mec="k", lw=2, label=name)
+    #         elif "c" in name:
+    #             constructive.plot(
+    #                 iccs, log_e, shapes(name), ms=9, mec="k", lw=2, label=name
+    #             )
+    #         else:
+    #             none.plot(iccs, log_e, shapes(name), ms=9, mec="k", lw=2, label=name)
+    # merge.legend(ncols=3)
+    # constructive.legend(ncols=3)
+    # none.legend(ncols=3)
+    # if save:
+    #     plt.savefig(f"./results/plots/greedy_split_{asctime()}.{EXPORT_FORMAT}")
+    # plt.show()
 
 
 @app.command()
@@ -487,7 +511,7 @@ def tabu(save: bool = False) -> None:
     plt.ylabel("log(E)")
     plt.title("Tabu list size")
     if save:
-        plt.savefig(f"./results/plots/tabu_{asctime()}.svg")
+        plt.savefig(f"./results/plots/tabu_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
 
     colors = chain(plt.cm.tab20c.colors, plt.cm.tab20b.colors)  # type: ignore
@@ -512,7 +536,7 @@ def tabu(save: bool = False) -> None:
     plt.title("Tabu list size trajectories")
     plt.ylim((-2430000, -2380000))
     if save:
-        plt.savefig(f"./results/plots/tabu_trajectory_{asctime()}.svg")
+        plt.savefig(f"./results/plots/tabu_trajectory_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
 
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
@@ -553,7 +577,7 @@ def tabu_2(save: bool = False) -> None:
     plt.ylabel("log(E)")
     plt.title("Exponential decay speed")
     if save:
-        plt.savefig(f"./results/plots/tabu2_{asctime()}.svg")
+        plt.savefig(f"./results/plots/tabu2_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
 
     colors = chain(plt.cm.tab20c.colors, plt.cm.tab20b.colors)  # type: ignore
@@ -578,7 +602,7 @@ def tabu_2(save: bool = False) -> None:
     plt.title("Tabu list size trajectories")
     plt.ylim((-2430000, -2380000))
     if save:
-        plt.savefig(f"./results/plots/tabu2_trajectory_{asctime()}.svg")
+        plt.savefig(f"./results/plots/tabu2_trajectory_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
 
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
@@ -628,7 +652,7 @@ def tabu_only(save: bool = False) -> None:
     plt.ylabel("log(E)")
     plt.title("Tabu only strategy")
     if save:
-        plt.savefig(f"./results/plots/tabu_only_{asctime()}.svg")
+        plt.savefig(f"./results/plots/tabu_only_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
@@ -660,7 +684,7 @@ def tabu_only(save: bool = False) -> None:
     plt.title("Tabu only trajectories")
     plt.ylim((-2450000, -2380000))
     if save:
-        plt.savefig(f"./results/plots/tabu_only_trajectory_{asctime()}.svg")
+        plt.savefig(f"./results/plots/tabu_only_trajectory_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
 
 
@@ -701,7 +725,7 @@ def merge_beam(save: bool = False) -> None:
     plt.ylabel("log(E)")
     plt.title("Merge beam size")
     if save:
-        plt.savefig(f"./results/plots/merge_beam_{asctime()}.svg")
+        plt.savefig(f"./results/plots/merge_beam_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
@@ -748,7 +772,7 @@ def construct_beam(save: bool = False) -> None:
     plt.ylabel("log(E)")
     plt.title("Constructive beam size")
     if save:
-        plt.savefig(f"./results/plots/construct_beam_{asctime()}.svg")
+        plt.savefig(f"./results/plots/construct_beam_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
@@ -819,7 +843,7 @@ def adaptive(save: bool = False) -> None:
     plt.ylabel("log(E)")
     plt.title("Adaptive annealing")
     if save:
-        plt.savefig(f"./results/plots/adaptive_annealing_{asctime()}.svg")
+        plt.savefig(f"./results/plots/adaptive_annealing_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
 
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
@@ -893,7 +917,7 @@ def parallel_tempering(save: bool = False) -> None:
     plt.ylabel("log(E)")
     plt.title("Parallel tempering swap amount")
     if save:
-        plt.savefig(f"./results/plots/parallel_tempering_{asctime()}.svg")
+        plt.savefig(f"./results/plots/parallel_tempering_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
 
 
