@@ -1,4 +1,5 @@
 import csv
+from typing import Annotated
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator, FixedLocator
 import matplotlib as mpl
@@ -12,9 +13,14 @@ app = typer.Typer()
 
 
 @app.command()
-def par_temp_pools(save: bool = False) -> None:
-    header, mcm_history = read_par_temp_ids()
-    log_e = read_par_temp_log_e(header)
+def par_temp_pools(
+    save: bool = False,
+    filepath_ids: str = "./results/mcm_ids.csv",
+    filepath_log_e: str = "./results/par_temp_log_e.csv",
+    show: Annotated[bool, typer.Option(hidden=True)] = True,
+) -> None:
+    header, mcm_history = read_par_temp_ids(filepath_ids)
+    log_e = read_par_temp_log_e(header, filepath_log_e)
 
     fig, axes = plt.subplots(len(header), 1, figsize=(10, 10))
     for mcm, pool_data, mcm_log_e in zip(range(len(header)), mcm_history, log_e):
@@ -30,7 +36,12 @@ def par_temp_pools(save: bool = False) -> None:
         axes[mcm].set_ylabel("T")
 
         ax2 = axes[mcm].twinx()
-        ax2.plot(np.linspace(0, len(pool_data), num=len(mcm_log_e)), mcm_log_e, "r-", label="log E")
+        ax2.plot(
+            np.linspace(0, len(pool_data), num=len(mcm_log_e)),
+            mcm_log_e,
+            "r-",
+            label="log E",
+        )
         ax2.set_ylabel("log(E)")
 
         if not mcm == len(header) - 1:
@@ -41,11 +52,12 @@ def par_temp_pools(save: bool = False) -> None:
 
     if save:
         plt.savefig(f"./results/par_temp_pools_{asctime()}.svg")
-    plt.show()
+    if show:
+        plt.show()
 
 
-def read_par_temp_log_e(header) -> list[list[float]]:
-    with open("./results/par_temp_log_e.csv", "r") as file:
+def read_par_temp_log_e(header, filepath: str) -> list[list[float]]:
+    with open(filepath, "r") as file:
         data = csv.reader(file.readlines())
         _ = next(data)
         log_e: list[list[float]] = [[] for i in header]
@@ -54,8 +66,8 @@ def read_par_temp_log_e(header) -> list[list[float]]:
     return log_e
 
 
-def read_par_temp_ids() -> tuple[list[str], list[list[int]]]:
-    with open("./results/mcm_ids.csv", "r") as file:
+def read_par_temp_ids(filepath: str) -> tuple[list[str], list[list[int]]]:
+    with open(filepath, "r") as file:
         data = csv.reader(file.readlines())
         header = next(data)
         mcm_history: list[list[int]] = [[] for i in range(len(header))]
@@ -66,9 +78,14 @@ def read_par_temp_ids() -> tuple[list[str], list[list[int]]]:
 
 
 @app.command()
-def par_temp_log_e(save: bool = False) -> None:
-    header, _ = read_par_temp_ids()
-    log_e = read_par_temp_log_e(header)
+def par_temp_log_e(
+    save: bool = False,
+    filepath_ids: str = "./results/mcm_ids.csv",
+    filepath_log_e: str = "./results/par_temp_log_e.csv",
+    show: Annotated[bool, typer.Option(hidden=True)] = True,
+) -> None:
+    header, _ = read_par_temp_ids(filepath_ids)
+    log_e = read_par_temp_log_e(header, filepath_log_e)
 
     for mcm, mcm_log_e in enumerate(log_e):
         plt.plot(range(len(mcm_log_e)), mcm_log_e, "-", label=f"{mcm}")
@@ -76,13 +93,18 @@ def par_temp_log_e(save: bool = False) -> None:
     if save:
         plt.savefig(f"./results/par_temp_log_e_{asctime()}.svg")
     plt.legend()
-    plt.show()
+    if show:
+        plt.show()
 
 
 @app.command()
-def mutation_history(save: bool = False) -> None:
+def mutation_history(
+    save: bool = False,
+    filename: str = "./results/mutation_history.csv",
+    show: Annotated[bool, typer.Option(hidden=True)] = True,
+) -> None:
     chunk_size = 100
-    with open("./results/mutation_history.csv", "r") as file:
+    with open(filename, "r") as file:
         data = csv.reader(file.readlines())
         header = next(data)
 
@@ -141,15 +163,20 @@ def mutation_history(save: bool = False) -> None:
 
     if save:
         plt.savefig(f"./results/mutation_history_{asctime()}.svg")
-    plt.show()
+    if show:
+        plt.show()
 
 
 @app.command()
-def par_temp_mutations(save: bool = False) -> None:
+def par_temp_mutations(
+    save: bool = False,
+    filename: str = "./results/mutation_history.csv",
+    show: Annotated[bool, typer.Option(hidden=True)] = True,
+) -> None:
     chunk_size = 200
 
     data_per_temperature: dict[float, list[list[str]]] = {}
-    with open("./results/mutation_history.csv", "r") as file:
+    with open(filename, "r") as file:
         data = csv.reader(file.readlines())
         header = next(data)
         for line in data:
@@ -232,12 +259,17 @@ def par_temp_mutations(save: bool = False) -> None:
 
     if save:
         plt.savefig(f"./results/mutation_pool_history_{(asctime())}.svg")
-    plt.show()
+    if show:
+        plt.show()
 
 
 @app.command()
-def log_e(save: bool = False) -> None:
-    with open("./results/log_e_history.csv") as file:
+def log_e(
+    save: bool = False,
+    filename: str = "./results/log_e_history.csv",
+    show: Annotated[bool, typer.Option(hidden=True)] = True,
+) -> None:
+    with open(filename) as file:
         data = csv.reader(file.readlines())
         header = next(data)
 
@@ -246,12 +278,17 @@ def log_e(save: bool = False) -> None:
 
     if save:
         plt.savefig(f"./results/log_e_history_{(asctime())}.svg")
-    plt.show()
+    if show:
+        plt.show()
 
 
 @app.command()
-def log_e_greedy(save: bool = False) -> None:
-    with open("./results/log_e_greedy.csv") as file:
+def log_e_greedy(
+    save: bool = False,
+    filename: str = "./results/log_e_greedy.csv",
+    show: Annotated[bool, typer.Option(hidden=True)] = True,
+) -> None:
+    with open(filename) as file:
         data = csv.reader(file.readlines())
         header = next(data)
 
@@ -275,12 +312,17 @@ def log_e_greedy(save: bool = False) -> None:
 
     if save:
         plt.savefig(f"./results/log_e_greedy_history_{(asctime())}.svg")
-    plt.show()
+    if show:
+        plt.show()
 
 
 @app.command()
-def log_e_annealing(save: bool = False) -> None:
-    with open("./results/log_e_annealing.csv") as file:
+def log_e_annealing(
+    save: bool = False,
+    filename: str = "./results/log_e_annealing.csv",
+    show: Annotated[bool, typer.Option(hidden=True)] = True,
+) -> None:
+    with open(filename) as file:
         data = csv.reader(file.readlines())
         header = next(data)
 
@@ -298,12 +340,17 @@ def log_e_annealing(save: bool = False) -> None:
 
     if save:
         plt.savefig(f"./results/log_e_annealing_history_{(asctime())}.svg")
-    plt.show()
+    if show:
+        plt.show()
 
 
 @app.command()
-def log_e_hill_climbing(save: bool = False) -> None:
-    with open("./results/log_e_hill_climbing.csv") as file:
+def log_e_hill_climbing(
+    save: bool = False,
+    filename: str = "./results/log_e_hill_climbing.csv",
+    show: Annotated[bool, typer.Option(hidden=True)] = True,
+) -> None:
+    with open(filename) as file:
         data = csv.reader(file.readlines())
         header = next(data)
 
@@ -321,7 +368,8 @@ def log_e_hill_climbing(save: bool = False) -> None:
 
     if save:
         plt.savefig(f"./results/log_e_hill_climbing_{(asctime())}.svg")
-    plt.show()
+    if show:
+        plt.show()
 
 
 @app.command()

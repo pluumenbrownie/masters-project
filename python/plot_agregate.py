@@ -1,7 +1,10 @@
 import csv
+from functools import cache
 from typing import Any
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from matplotlib.ticker import FuncFormatter
+from matplotlib.patches import Rectangle
 import numpy as np
 import typer
 from time import asctime
@@ -11,10 +14,12 @@ import re
 from scipy.stats import linregress  # type: ignore
 from itertools import cycle, chain
 
-plt.rcParams["figure.constrained_layout.use"] = True
-plt.rcParams["figure.figsize"] = (9, 5)
+from plot_data import par_temp_pools, par_temp_log_e, log_e_hill_climbing, log_e_annealing
 
-EXPORT_FORMAT = "pdf"
+plt.rcParams["figure.constrained_layout.use"] = True
+plt.rcParams["figure.figsize"] = (10, 8)
+
+EXPORT_FORMAT = "svg"
 
 app = typer.Typer()
 
@@ -98,41 +103,6 @@ def plot_sa(save: bool = False) -> None:
 
 
 @app.command()
-def plot_sa_adaptive(save: bool = False) -> None:
-    folder = "./results/adaptive_annealing"
-    temp_plotted = False
-    fig, ax = plt.subplots(1, 1)
-    ax2 = ax.twinx()
-
-    for filename in filter(
-        lambda name: name[-4:] == ".csv" and "0.0015_0.75_bU6" in name,
-        os.listdir(folder),
-    ):
-        with open(folder + "/" + filename, "r") as file:
-            content = csv.reader(file.readlines())
-        log_e = []
-        temperature = []
-
-        next(content)
-        for line in content:
-            log_e.append(float(line[0]))
-            temperature.append(float(line[1]))
-
-        ax.plot(range(len(log_e)), log_e, "-", color="#1f77b4")
-        ax2.semilogy(range(len(temperature)), temperature, "r-", label="T")
-
-    ax.set_xlabel("step")
-    ax.set_ylabel("log(E)")
-    ax2.set_ylabel("log(T)")
-    fig.suptitle("Log(E) of Adaptive Annealing")
-    plt.legend()
-    ax.set_xlim(-50, len(log_e))
-    if save:
-        plt.savefig(f"./results/plots/adaptive_annealing_{asctime()}.{EXPORT_FORMAT}")
-    plt.show()
-
-
-@app.command()
 def prove_parallel_time_dependence(save: bool = False) -> None:
     prove_time_dependence(
         save, "./results/parallel_tempering_timing", "Parallel tempering"
@@ -202,6 +172,7 @@ def sa_shapes(save: bool = False) -> None:
     plt.xlabel("ICCs calculated")
     plt.ylabel("log(E)")
     plt.title("Annealing shapes comparison")
+    add_runtime_axis("simulated_annealing")
     if save:
         plt.savefig(f"./results/plots/annealing_shapes_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
@@ -261,6 +232,7 @@ def sa_exp_decay(save: bool = False) -> None:
     plt.xlabel("ICCs calculated")
     plt.ylabel("log(E)")
     plt.title("Exponential decay speed")
+    add_runtime_axis("simulated_annealing")
     if save:
         plt.savefig(f"./results/plots/annealing_exp_decay_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
@@ -295,19 +267,12 @@ def lahc_hist_size(save: bool = False) -> None:
             data.setdefault(str(history_size), {}).setdefault("iccs", []).append(
                 int(content["iccs_checked"])
             )
-    print(f"best: {best[0]} with {best[1]}")  # type: ignore
+    assert best
+    print(f"best: {best[0]} with {best[1]}")  
 
     sorted_data = [x for x in data.items()]
     sorted_data = sorted(sorted_data, key=lambda x: x[0])
     colors = plt.cm.tab10.colors  # type: ignore
-    shapes = MapToShape(
-        [
-            "a",
-            "",
-        ],
-        ["^", "o"],
-        ["Normal", "Alternative"],
-    )
 
     for (name, points), color in zip(sorted_data, colors):
         log_e = np.array(points["log_e"])
@@ -327,7 +292,7 @@ def lahc_hist_size(save: bool = False) -> None:
                 [log_e_percentiles[1] - log_e_percentiles[0]],
                 [log_e_percentiles[2] - log_e_percentiles[1]],
             ],
-            fmt=shapes(name),
+            fmt="o",
             color=color,
             ms=9,
             mec="k",
@@ -339,6 +304,7 @@ def lahc_hist_size(save: bool = False) -> None:
     plt.xlabel("ICCs calculated")
     plt.ylabel("log(E)")
     plt.title("Late Acceptance Hill Climbing")
+    add_runtime_axis("simulated_annealing")
     if save:
         plt.savefig(f"./results/plots/lahc_hist_size_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
@@ -356,6 +322,12 @@ def lahc_hist_size(save: bool = False) -> None:
     if save:
         plt.savefig(f"./results/plots/lahc_loglog_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
+
+    log_e_hill_climbing(filename=f"./results/lahc_hist_size/log_e_{best[0][7:-5]}.csv", show=False)
+    if save:
+        plt.savefig(f"./results/plots/lahc_hist_best_log_e_{asctime()}.{EXPORT_FORMAT}")
+    plt.show()
+
 
 
 class MapToShape:
@@ -445,35 +417,10 @@ def greedy(save: bool = False) -> None:
     plt.xlabel("ICCs calculated")
     plt.ylabel("log(E)")
     plt.title("Greedy Strategy Comparison")
+    add_runtime_axis("construct_beam")
     if save:
         plt.savefig(f"./results/plots/greedy_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
-
-    # fig, (merge, constructive, none) = plt.subplots(3, 1)
-
-    # for name, points in sorted_data:
-    #     log_e = np.array(points["log_e"])
-    #     iccs = np.array(points["iccs"])
-
-    #     best_log_e = log_e.max()
-    #     if not best or best_log_e > best[1]:
-    #         best = (name, best_log_e)
-
-    #     if "t" in name:
-    #         if "m" in name:
-    #             merge.plot(iccs, log_e, shapes(name), ms=9, mec="k", lw=2, label=name)
-    #         elif "c" in name:
-    #             constructive.plot(
-    #                 iccs, log_e, shapes(name), ms=9, mec="k", lw=2, label=name
-    #             )
-    #         else:
-    #             none.plot(iccs, log_e, shapes(name), ms=9, mec="k", lw=2, label=name)
-    # merge.legend(ncols=3)
-    # constructive.legend(ncols=3)
-    # none.legend(ncols=3)
-    # if save:
-    #     plt.savefig(f"./results/plots/greedy_split_{asctime()}.{EXPORT_FORMAT}")
-    # plt.show()
 
 
 @app.command()
@@ -510,6 +457,7 @@ def tabu(save: bool = False) -> None:
     plt.xlabel("ICCs calculated")
     plt.ylabel("log(E)")
     plt.title("Tabu list size")
+    add_runtime_axis("construct_beam")
     if save:
         plt.savefig(f"./results/plots/tabu_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
@@ -535,6 +483,7 @@ def tabu(save: bool = False) -> None:
     plt.ylabel("log(E)")
     plt.title("Tabu list size trajectories")
     plt.ylim((-2430000, -2380000))
+    add_runtime_axis("construct_beam")
     if save:
         plt.savefig(f"./results/plots/tabu_trajectory_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
@@ -576,6 +525,7 @@ def tabu_2(save: bool = False) -> None:
     plt.xlabel("ICCs calculated")
     plt.ylabel("log(E)")
     plt.title("Exponential decay speed")
+    add_runtime_axis("construct_beam")
     if save:
         plt.savefig(f"./results/plots/tabu2_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
@@ -601,6 +551,7 @@ def tabu_2(save: bool = False) -> None:
     plt.ylabel("log(E)")
     plt.title("Tabu list size trajectories")
     plt.ylim((-2430000, -2380000))
+    add_runtime_axis("construct_beam")
     if save:
         plt.savefig(f"./results/plots/tabu2_trajectory_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
@@ -651,6 +602,7 @@ def tabu_only(save: bool = False) -> None:
     plt.xlabel("ICCs calculated")
     plt.ylabel("log(E)")
     plt.title("Tabu only strategy")
+    add_runtime_axis("construct_beam")
     if save:
         plt.savefig(f"./results/plots/tabu_only_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
@@ -683,6 +635,7 @@ def tabu_only(save: bool = False) -> None:
     plt.ylabel("log(E)")
     plt.title("Tabu only trajectories")
     plt.ylim((-2450000, -2380000))
+    add_runtime_axis("construct_beam")
     if save:
         plt.savefig(f"./results/plots/tabu_only_trajectory_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
@@ -724,6 +677,7 @@ def merge_beam(save: bool = False) -> None:
     plt.xlabel("ICCs calculated")
     plt.ylabel("log(E)")
     plt.title("Merge beam size")
+    add_runtime_axis("construct_beam")
     if save:
         plt.savefig(f"./results/plots/merge_beam_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
@@ -771,6 +725,7 @@ def construct_beam(save: bool = False) -> None:
     plt.xlabel("ICCs calculated")
     plt.ylabel("log(E)")
     plt.title("Constructive beam size")
+    add_runtime_axis("construct_beam")
     if save:
         plt.savefig(f"./results/plots/construct_beam_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
@@ -794,6 +749,7 @@ def adaptive(save: bool = False) -> None:
         )
         if not best or best_log_e > best[1]:
             best = (filename[7:-5], best_log_e)
+    assert best
 
     sorted_data = [x for x in data.items()]
     sorted_data = sorted(sorted_data, key=lambda x: x[0])
@@ -842,11 +798,63 @@ def adaptive(save: bool = False) -> None:
     plt.xlabel("ICCs calculated")
     plt.ylabel("log(E)")
     plt.title("Adaptive annealing")
+    add_runtime_axis("simulated_annealing")
     if save:
         plt.savefig(f"./results/plots/adaptive_annealing_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
 
-    print(f"best: {best[0]} with {best[1]}")  # type: ignore
+    print(f"best: {best[0]} with {best[1]}")  
+
+    log_e_annealing(filename=f"./results/adaptive_annealing/log_e_{best[0]}.csv", show=False)
+    if save:
+        plt.savefig(f"./results/plots/adaptive_annealing_best_log_e_{asctime()}.{EXPORT_FORMAT}")
+    plt.show()
+
+
+STEPS = {"-1": 8192, "-0": 16384, "+1": 32768, "+2": 65536}
+
+
+def shuffle_tag(name: str) -> str | None:
+    """Extracts '-1', '-0', '+1' or '+2' from a group name."""
+    match = re.search(r"[-+]\d", name)
+    return match.group(0) if match and match.group(0) in STEPS else None
+
+
+def draw_group_boxes(
+    boxes: dict[str, tuple[list[float], list[float]]], pad: float = 0.02
+) -> None:
+    """Dashed box + label around all points of each shuffle group."""
+    ax = plt.gca()
+    all_x = [x for xs, _ in boxes.values() for x in xs]
+    all_y = [y for _, ys in boxes.values() for y in ys]
+    pad_x = (max(all_x) - min(all_x)) * pad
+    pad_y = (max(all_y) - min(all_y)) * pad
+
+    for tag, (xs, ys) in sorted(boxes.items(), key=lambda item: STEPS[item[0]]):
+        x0, x1 = min(xs) - pad_x, max(xs) + pad_x
+        y0, y1 = min(ys) - pad_y, max(ys) + pad_y
+        ax.add_patch(
+            Rectangle(
+                (x0, y0),
+                x1 - x0,
+                y1 - y0,
+                fill=False,
+                linestyle="--",
+                edgecolor="k",
+                linewidth=1.2,
+                zorder=0,
+            )
+        )
+        ax.text(
+            (x0 + x1) / 2,
+            y1 + pad_y * 0.5,
+            f"{STEPS[tag]:,} steps",
+            ha="center",
+            va="bottom",
+            fontsize="small",
+        )
+    ax.margins(y=0.1)  # leave room for the labels
+    ax.autoscale_view()
 
 
 @app.command()
@@ -854,7 +862,7 @@ def parallel_tempering(save: bool = False) -> None:
     folder = "./results/parallel_tempering"
     data: dict[str, dict[str, list[float | int]]] = {}
 
-    best: None | tuple[str, float] = None
+    best: None | tuple[str, float, str] = None
     for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
         with open(folder + "/" + filename, "r") as file:
             content = json.load(file)
@@ -865,7 +873,8 @@ def parallel_tempering(save: bool = False) -> None:
             int(content["iccs_checked"])
         )
         if not best or best_log_e > best[1]:
-            best = (filename[7:-5], best_log_e)
+            best = (filename[7:-5], best_log_e, filename)
+    assert best
 
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
@@ -884,9 +893,17 @@ def parallel_tempering(save: bool = False) -> None:
         ["exponential", "geometric", "inverse linear", "linear"],
     )
 
+    boxes: dict[str, tuple[list[float], list[float]]] = {}
     for name, points in sorted_data:
         log_e = np.array(points["log_e"])
         iccs = np.array(points["iccs"])
+
+        tag = shuffle_tag(name)
+        if tag is not None:
+            xs, ys = boxes.setdefault(tag, ([], []))
+            xs.extend(iccs.tolist())
+            ys.extend(log_e.tolist())
+
         plt.plot(iccs, log_e, shapes(name), color=colors(name), alpha=0.75)
 
         log_e_percentiles = np.percentile(log_e, [25, 50, 75])
@@ -909,6 +926,7 @@ def parallel_tempering(save: bool = False) -> None:
             capsize=4,
             lw=2,
         )
+    draw_group_boxes(boxes)
     colors.plot_legend()
     shapes.plot_legend()
 
@@ -916,9 +934,226 @@ def parallel_tempering(save: bool = False) -> None:
     plt.xlabel("ICCs calculated")
     plt.ylabel("log(E)")
     plt.title("Parallel tempering swap amount")
+    add_runtime_axis("parallel_tempering_timing")
     if save:
         plt.savefig(f"./results/plots/parallel_tempering_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
+
+    par_temp_pools(
+        filepath_ids=f"./results/parallel_tempering/mcm_id_{best[0]}.csv",
+        filepath_log_e=f"./results/parallel_tempering/log_e_{best[0]}.csv",
+        show=False,
+    )
+    if save:
+        plt.savefig(
+            f"./results/plots/parallel_tempering_best_pools_{asctime()}.{EXPORT_FORMAT}"
+        )
+    plt.show()
+    par_temp_log_e(
+        filepath_ids=f"./results/parallel_tempering/mcm_id_{best[0]}.csv",
+        filepath_log_e=f"./results/parallel_tempering/log_e_{best[0]}.csv",
+        show=False,
+    )
+    if save:
+        plt.savefig(
+            f"./results/plots/parallel_tempering_best_log_e_{asctime()}.{EXPORT_FORMAT}"
+        )
+    plt.show()
+
+
+# dataset folder -> (filename-to-group-name function, folder used for the runtime fit)
+PERCENTILE_DATASETS: dict[str, tuple[Any, str]] = {
+    "greedy": (lambda f: f[15:-5], "construct_beam"),
+    "simulated_annealing_shapes": (lambda f: f[7:-14], "simulated_annealing"),
+    "simulated_annealing_longer": (
+        lambda f: str(find_floats(f)[1]),
+        "simulated_annealing",
+    ),
+    "lahc_hist_size": (
+        lambda f: str(int(find_floats(f)[1])) + ("_a" if "_a_" in f else ""),
+        "simulated_annealing",
+    ),
+    "adaptive_annealing": (lambda f: f[7:-14], "simulated_annealing"),
+    "parallel_tempering": (lambda f: f[7:-14], "parallel_tempering_timing"),
+}
+
+
+def load_time_fit(folder: str):
+    """Same linear fit (time_seconds vs ICCs) as prove_time_dependence."""
+    time_seconds = []
+    iccs_covered = []
+    for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
+        with open(folder + "/" + filename, "r") as file:
+            content = json.load(file)
+        time_seconds.append(float(content["time_seconds"]))
+        iccs_covered.append(int(content["iccs_checked"]))
+    return linregress(iccs_covered, time_seconds)
+
+
+@cache
+def cached_time_fit(time_folder: str):
+    return load_time_fit(f"./results/{time_folder}")
+
+
+def add_runtime_axis(time_folder: str) -> None:
+    """Adds a top x-axis with the extrapolated runtime to the current axes."""
+    ax = plt.gca()
+    fit = cached_time_fit(time_folder)
+    secax = ax.secondary_xaxis(
+        "top",
+        functions=(
+            lambda iccs: fit.slope * iccs + fit.intercept,
+            lambda seconds: (seconds - fit.intercept) / fit.slope,
+        ),
+    )
+    secax.set_xlabel("extrapolated runtime (s)")
+    secax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.0f}"))
+
+    # full y numbers instead of "-2.38" + "1e6" offset text, which collides with the top axis
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{y:.0f}"))
+    ax.yaxis.get_offset_text().set_visible(False)
+
+
+def collect_percentile_points(
+    folder: str, namer
+) -> list[tuple[str, np.ndarray, np.ndarray]]:
+    """Returns, per group in `folder`, the (iccs, log_e) 25/50/75 percentiles."""
+    data: dict[str, dict[str, list[float | int]]] = {}
+    for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
+        with open(folder + "/" + filename, "r") as file:
+            content = json.load(file)
+        name = namer(filename)
+        data.setdefault(name, {}).setdefault("log_e", []).append(
+            float(content["log_e"])
+        )
+        data.setdefault(name, {}).setdefault("iccs", []).append(
+            int(content["iccs_checked"])
+        )
+
+    return [
+        (
+            name,
+            np.percentile(points["iccs"], [25, 50, 75]),
+            np.percentile(points["log_e"], [25, 50, 75]),
+        )
+        for name, points in data.items()
+    ]
+
+
+def plot_percentiles_all_datasets(
+    save: bool = False,
+    ylim: tuple[float, float] | None = None,
+    suffix: str = "",
+    runtime: bool = False,
+) -> None:
+    base = "./results"
+
+    # greedy keeps its own colors (tab10[0:3]) and shapes, as in the greedy plot
+    greedy_colors = MapToColor(
+        ["n_", "m", "c"],
+        plt.cm.tab10.colors[0:3],  # type: ignore
+        ["Greedy: None", "Greedy: Merge", "Greedy: Constructive"],
+    )
+    greedy_shapes = MapToShape(
+        ["t", "l", "nr"],
+        ["^", "s", "o"],
+        ["Greedy: Tabu", "Greedy: Local", "Greedy: None"],
+    )
+
+    # other datasets use the remaining tab10 colors so they don't clash with greedy
+    other_colors = iter(plt.cm.tab10.colors[3:])  # type: ignore
+    dataset_colors = {
+        dataset: (None if dataset == "greedy" else next(other_colors))
+        for dataset in PERCENTILE_DATASETS
+    }
+
+    fits: dict[str, Any] = {}
+    greedy_plotted = False
+    for dataset, (namer, time_folder) in PERCENTILE_DATASETS.items():
+        is_greedy = dataset == "greedy"
+        folder = f"{base}/{dataset}"
+        if not os.path.isdir(folder):
+            print(f"skipping {dataset}: folder not found")
+            continue
+
+        if runtime:
+            if time_folder not in fits:
+                time_path = f"{base}/{time_folder}"
+                if not os.path.isdir(time_path):
+                    print(f"skipping {dataset}: timing folder {time_folder} not found")
+                    continue
+                fits[time_folder] = load_time_fit(time_path)
+            fit = fits[time_folder]
+
+        for i, (name, iccs_p, log_e_p) in enumerate(
+            collect_percentile_points(folder, namer)
+        ):
+            if is_greedy:
+                point_color = greedy_colors(name)
+                point_shape = greedy_shapes(name)
+                label = None  # greedy is covered by the color/shape legend below
+                greedy_plotted = True
+            else:
+                point_color = dataset_colors[dataset]
+                point_shape = "o"
+                label = dataset if i == 0 else None
+
+            if runtime:
+                x_p = np.sort(fit.slope * iccs_p + fit.intercept)
+            else:
+                x_p = iccs_p
+
+            plt.errorbar(
+                x_p[1],
+                log_e_p[1],
+                xerr=[[x_p[1] - x_p[0]], [x_p[2] - x_p[1]]],
+                yerr=[[log_e_p[1] - log_e_p[0]], [log_e_p[2] - log_e_p[1]]],
+                fmt=point_shape,
+                color=point_color,
+                ms=9 if is_greedy else 7,
+                capsize=3,
+                lw=2 if is_greedy else 1.5,
+                alpha=1.0 if is_greedy else 0.85,
+                label=label,
+            )
+
+    if greedy_plotted:
+        greedy_colors.plot_legend()
+        greedy_shapes.plot_legend()
+
+    plt.legend(ncol=2, fontsize="small")
+    plt.xlabel("extrapolated runtime (s)" if runtime else "ICCs calculated")
+    plt.ylabel("log(E)")
+    plt.title("Percentile points of all datasets")
+    if ylim is not None:
+        plt.ylim(ylim)
+    if save:
+        file_name = "percentiles_runtime" if runtime else "percentiles_all"
+        plt.savefig(f"./results/plots/{file_name}{suffix}_{asctime()}.{EXPORT_FORMAT}")
+    plt.show()
+
+
+ZOOM_YLIM = (-2_440_000, -2_380_000)
+
+
+@app.command()
+def percentiles_all(save: bool = False) -> None:
+    plot_percentiles_all_datasets(save)
+
+
+@app.command()
+def percentiles_all_zoomed(save: bool = False) -> None:
+    plot_percentiles_all_datasets(save, ylim=ZOOM_YLIM, suffix="_zoomed")
+
+
+@app.command()
+def percentiles_runtime(save: bool = False, zoomed: bool = False) -> None:
+    plot_percentiles_all_datasets(
+        save,
+        ylim=ZOOM_YLIM if zoomed else None,
+        suffix="_zoomed" if zoomed else "",
+        runtime=True,
+    )
 
 
 @app.command()
@@ -940,6 +1175,11 @@ def all(save: bool = False):
     lahc_hist_size(save)
     adaptive(save)
     parallel_tempering(save)
+
+    percentiles_all(save)
+    percentiles_all_zoomed(save)
+    percentiles_runtime(save)
+    percentiles_runtime(save, zoomed=True)
 
 
 if __name__ == "__main__":

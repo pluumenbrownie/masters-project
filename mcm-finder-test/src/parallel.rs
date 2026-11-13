@@ -74,9 +74,9 @@ pub(crate) fn parallel_tempering() -> Result<()> {
 
             let (collector, sender) = CollectorBuilder::<SolverEvent>::new()
                 .with_handler(mcm_finder_lib::logger::ParTempHandler::with_paths(
-                    format!("./{FOLDER}/log_e_{curve_name}_{per_shuffle}_{id}.csv").into(),
-                    format!("./{FOLDER}/swap_history_{curve_name}_{per_shuffle}_{id}.csv").into(),
-                    format!("./{FOLDER}/mcm_id_{curve_name}_{per_shuffle}_{id}.csv").into(),
+                    format!("./{FOLDER}/log_e_{curve_name}_{per_shuffle}_{id}_+1.csv").into(),
+                    format!("./{FOLDER}/swap_history_{curve_name}_{per_shuffle}_{id}_+1.csv").into(),
+                    format!("./{FOLDER}/mcm_id_{curve_name}_{per_shuffle}_{id}_+1.csv").into(),
                 ))
                 .build();
             std::thread::spawn(|| collector.run());
@@ -93,7 +93,7 @@ pub(crate) fn parallel_tempering() -> Result<()> {
                 .set_arbitrary_swaps(false);
             let result = solver.solve();
             result
-                .save_json(format!("./{FOLDER}/result_{curve_name}_{per_shuffle}_{id}.json").into())
+                .save_json(format!("./{FOLDER}/result_{curve_name}_{per_shuffle}_{id}_+1.json").into())
                 .into_diagnostic()?;
             Ok(())
         },
