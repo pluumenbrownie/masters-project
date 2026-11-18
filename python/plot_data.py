@@ -373,10 +373,15 @@ def log_e_hill_climbing(
 
 
 @app.command()
-def par_temp(save: bool = False) -> None:
-    par_temp_log_e(save)
-    par_temp_pools(save)
-    par_temp_mutations(save)
+def par_temp(
+    save: bool = False,
+    filepath_ids: str = "./results/mcm_ids.csv",
+    filepath_log_e: str = "./results/par_temp_log_e.csv",
+    filename_mutation: str = "./results/mutation_history.csv",
+) -> None:
+    par_temp_log_e(save, filepath_ids=filepath_ids, filepath_log_e=filepath_log_e)
+    par_temp_pools(save, filepath_ids=filepath_ids, filepath_log_e=filepath_log_e)
+    par_temp_mutations(save, filename=filename_mutation)
 
 
 @app.command()

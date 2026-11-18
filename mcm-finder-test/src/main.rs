@@ -43,6 +43,10 @@ enum Commands {
     ParallelTemperingShorter,
     ParallelTemperingLessShort,
     ParallelTemperingLonger,
+    ParallelWithTabu,
+    ParallelHotter,
+    ParallelLessPools,
+    ParallelRandomSwaps,
     Lahc,
 }
 
@@ -65,6 +69,10 @@ fn main() -> Result<()> {
         Commands::ParallelTemperingShorter => parallel::parallel_tempering_shorter()?,
         Commands::ParallelTemperingLessShort => parallel::parallel_tempering_less_short()?,
         Commands::ParallelTemperingLonger => parallel::parallel_tempering_longer()?,
+        Commands::ParallelWithTabu => parallel::parallel_tempering_tabu()?,
+        Commands::ParallelHotter => parallel::parallel_tempering_hotter()?,
+        Commands::ParallelLessPools => parallel::parallel_tempering_less_pools()?,
+        Commands::ParallelRandomSwaps => parallel::parallel_tempering_random_swaps()?,
         Commands::Lahc => lahc_hist_size()?,
     };
 

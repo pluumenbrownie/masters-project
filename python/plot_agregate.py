@@ -14,12 +14,17 @@ import re
 from scipy.stats import linregress  # type: ignore
 from itertools import cycle, chain
 
-from plot_data import par_temp_pools, par_temp_log_e, log_e_hill_climbing, log_e_annealing
+from plot_data import (
+    par_temp_pools,
+    par_temp_log_e,
+    log_e_hill_climbing,
+    log_e_annealing,
+)
 
 plt.rcParams["figure.constrained_layout.use"] = True
-plt.rcParams["figure.figsize"] = (10, 8)
+plt.rcParams["figure.figsize"] = (9, 5)
 
-EXPORT_FORMAT = "svg"
+EXPORT_FORMAT = "pdf"
 
 app = typer.Typer()
 
@@ -268,7 +273,7 @@ def lahc_hist_size(save: bool = False) -> None:
                 int(content["iccs_checked"])
             )
     assert best
-    print(f"best: {best[0]} with {best[1]}")  
+    print(f"best: {best[0]} with {best[1]}")
 
     sorted_data = [x for x in data.items()]
     sorted_data = sorted(sorted_data, key=lambda x: x[0])
@@ -323,11 +328,12 @@ def lahc_hist_size(save: bool = False) -> None:
         plt.savefig(f"./results/plots/lahc_loglog_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
 
-    log_e_hill_climbing(filename=f"./results/lahc_hist_size/log_e_{best[0][7:-5]}.csv", show=False)
+    log_e_hill_climbing(
+        filename=f"./results/lahc_hist_size/log_e_{best[0][7:-5]}.csv", show=False
+    )
     if save:
         plt.savefig(f"./results/plots/lahc_hist_best_log_e_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
-
 
 
 class MapToShape:
@@ -803,11 +809,15 @@ def adaptive(save: bool = False) -> None:
         plt.savefig(f"./results/plots/adaptive_annealing_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
 
-    print(f"best: {best[0]} with {best[1]}")  
+    print(f"best: {best[0]} with {best[1]}")
 
-    log_e_annealing(filename=f"./results/adaptive_annealing/log_e_{best[0]}.csv", show=False)
+    log_e_annealing(
+        filename=f"./results/adaptive_annealing/log_e_{best[0]}.csv", show=False
+    )
     if save:
-        plt.savefig(f"./results/plots/adaptive_annealing_best_log_e_{asctime()}.{EXPORT_FORMAT}")
+        plt.savefig(
+            f"./results/plots/adaptive_annealing_best_log_e_{asctime()}.{EXPORT_FORMAT}"
+        )
     plt.show()
 
 
@@ -818,6 +828,12 @@ def shuffle_tag(name: str) -> str | None:
     """Extracts '-1', '-0', '+1' or '+2' from a group name."""
     match = re.search(r"[-+]\d", name)
     return match.group(0) if match and match.group(0) in STEPS else None
+
+
+def tabu_tag(name: str) -> str | None:
+    """Extracts '-1', '-0', '+1' or '+2' from a group name."""
+    match = re.search(r"_t_[0-9]+\d", name)
+    return match.group(0) if match else None
 
 
 def draw_group_boxes(
@@ -859,21 +875,25 @@ def draw_group_boxes(
 
 @app.command()
 def parallel_tempering(save: bool = False) -> None:
-    folder = "./results/parallel_tempering"
+    folders = [
+        "./results/parallel_tempering", 
+        # "./results/parallel_tempering_random_swaps"
+        ]
     data: dict[str, dict[str, list[float | int]]] = {}
 
     best: None | tuple[str, float, str] = None
-    for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
-        with open(folder + "/" + filename, "r") as file:
-            content = json.load(file)
-        name = filename[7:-14]
-        best_log_e = float(content["log_e"])
-        data.setdefault(name, {}).setdefault("log_e", []).append(best_log_e)
-        data.setdefault(name, {}).setdefault("iccs", []).append(
-            int(content["iccs_checked"])
-        )
-        if not best or best_log_e > best[1]:
-            best = (filename[7:-5], best_log_e, filename)
+    for folder in folders:
+        for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
+            with open(folder + "/" + filename, "r") as file:
+                content = json.load(file)
+            name = filename[7:-14]
+            best_log_e = float(content["log_e"])
+            data.setdefault(name, {}).setdefault("log_e", []).append(best_log_e)
+            data.setdefault(name, {}).setdefault("iccs", []).append(
+                int(content["iccs_checked"])
+            )
+            if not best or best_log_e > best[1]:
+                best = (filename[7:-5], best_log_e, filename)
     assert best
 
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
@@ -888,9 +908,9 @@ def parallel_tempering(save: bool = False) -> None:
     )
 
     shapes = MapToShape(
-        ["e", "g", "i", "l"],
-        ["o", "s", "^", "*"],
-        ["exponential", "geometric", "inverse linear", "linear"],
+        ["t", "e", "g", "i", "l"],
+        ["h", "o", "s", "^", "*"],
+        ["less pools", "exponential", "geometric", "inverse linear", "linear"],
     )
 
     boxes: dict[str, tuple[list[float], list[float]]] = {}

@@ -1,7 +1,7 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     mem,
-    num::NonZero,
+    num::{NonZero, NonZeroUsize},
     path::Path,
     sync::{Arc, Mutex},
     time::Instant,
@@ -22,7 +22,10 @@ use serde::Serialize;
 use crate::{
     dataset::{Dataset, simple::VecDataset},
     logger::{SolverEvent, SolverEventSender},
-    mcm::{MCMData, MinimallyComplexModel, MutationEvent, ParLogEResult},
+    mcm::{
+        MCMData, MinimallyComplexModel, MutationEvent, MutationType, ParLogEResult,
+        icc::IndependentCompleteComponent,
+    },
     mcm_error::MCMError,
     solvers::{
         AnnealingStarter, get_par_log_e_cache,
@@ -64,6 +67,7 @@ pub struct ParallelTemperingSolver<T: Dataset> {
     acception_fraction: f64,
     arbitrary_swaps: bool,
     count_non_cached: bool,
+    tabu_list: Option<NonZeroUsize>,
     silent: bool,
     sender: Option<SolverEventSender>,
 }
@@ -166,6 +170,17 @@ impl<T: Dataset + Sync> ParallelTemperingSolver<T> {
     /// their direct neighbors.
     pub fn set_arbitrary_swaps(mut self, arbitrary: bool) -> Self {
         self.arbitrary_swaps = arbitrary;
+        self
+    }
+
+    /// Give each potential solution a tabu list .
+    pub fn set_tabu_list(mut self, list: Option<usize>) -> Self {
+        if list == Some(0) {
+            println!("Tabu list size set to zero, list disabled.")
+        };
+        if let Some(size) = list {
+            self.tabu_list = NonZeroUsize::try_from(size).ok();
+        };
         self
     }
 
@@ -336,6 +351,7 @@ impl<T: Dataset + Sync> Solver for ParallelTemperingSolver<T> {
             acception_fraction: 0.23,
             arbitrary_swaps: false,
             count_non_cached: false,
+            tabu_list: None,
             silent: false,
             sender: None,
         })
@@ -369,6 +385,7 @@ impl<T: Dataset + Sync> Solver for ParallelTemperingSolver<T> {
                     &self.dataset,
                     nr,
                     self.count_non_cached,
+                    self.tabu_list,
                     self.sender.clone(),
                 )
             })
@@ -400,6 +417,7 @@ impl<T: Dataset + Sync> Solver for ParallelTemperingSolver<T> {
             let swaps = self.get_swaps(i);
             let rng = rand::rng();
             swap_pools(&mut pools, swaps, rng);
+            pools.iter_mut().for_each(|p| p.clear_tabu());
         }
 
         let best_pool = pools
@@ -441,6 +459,7 @@ pub struct TemperPool {
     id: usize,
     mcm_id: usize,
     count_new_iccs: bool,
+    tabu_list: Option<(usize, VecDeque<IndependentCompleteComponent>)>,
     sender: Option<SolverEventSender>,
 }
 
@@ -451,6 +470,7 @@ impl TemperPool {
         dataset: &T,
         id: usize,
         count_new_iccs: bool,
+        tabu_size: Option<NonZeroUsize>,
         sender: Option<SolverEventSender>,
     ) -> Self {
         let log_e = mcm.log_e(dataset, &mut None);
@@ -463,6 +483,7 @@ impl TemperPool {
             id,
             mcm_id: id,
             count_new_iccs,
+            tabu_list: tabu_size.map(|s| (s.into(), VecDeque::with_capacity(s.into()))),
             sender,
         }
     }
@@ -480,7 +501,7 @@ impl TemperPool {
         rng: &mut ThreadRng,
         log_e_cache: &Option<Arc<DashMap<FixedBitSet, f64>>>,
     ) -> usize {
-        let (new_mcm, mut_type) = self.mcm.mutate(rng);
+        let (new_mcm, mut_type, old_icc_one, old_icc_two) = self.generate_new_mcm(rng);
         let result = new_mcm.par_log_e(dataset, log_e_cache);
         let new_log_e = result.value;
 
@@ -494,6 +515,8 @@ impl TemperPool {
 
             self.mcm = new_mcm;
             self.log_e = new_log_e;
+
+            self.update_tabu(old_icc_one, old_icc_two);
         }
 
         self.send(MCMData::Mutation(MutationEvent {
@@ -507,6 +530,28 @@ impl TemperPool {
         }));
 
         result.new_icc_count
+    }
+
+    fn generate_new_mcm(
+        &mut self,
+        rng: &mut ThreadRng,
+    ) -> (
+        MinimallyComplexModel,
+        MutationType,
+        Option<IndependentCompleteComponent>,
+        Option<IndependentCompleteComponent>,
+    ) {
+        if let Some((_, ref tabu_list)) = self.tabu_list {
+            loop {
+                let result = self.mcm.mutate_tabu(rng);
+                if !result.0.is_tabu(tabu_list) {
+                    break result;
+                }
+            }
+        } else {
+            let result = self.mcm.mutate(rng);
+            (result.0, result.1, None, None)
+        }
     }
 
     /// Perform n Metropolis steps. Also updates the progress bar.
@@ -558,6 +603,34 @@ impl TemperPool {
                 accepted,
             };
             self.send(ParTempData::Swap(swap_event));
+        }
+    }
+
+    /// Empty the tabu list.
+    fn clear_tabu(&mut self) {
+        if let Some((_, ref mut list)) = self.tabu_list {
+            list.clear();
+        }
+    }
+
+    fn update_tabu(
+        &mut self,
+        tabu_icc_one: Option<IndependentCompleteComponent>,
+        tabu_icc_two: Option<IndependentCompleteComponent>,
+    ) {
+        if let Some((max_len, ref mut tabu_list)) = self.tabu_list {
+            if let Some(icc) = tabu_icc_one {
+                if tabu_list.len() > max_len {
+                    tabu_list.pop_front();
+                }
+                tabu_list.push_back(icc);
+            }
+            if let Some(icc) = tabu_icc_two {
+                if tabu_list.len() > max_len {
+                    tabu_list.pop_front();
+                }
+                tabu_list.push_back(icc);
+            }
         }
     }
 }

@@ -720,60 +720,113 @@ impl MinimallyComplexModel {
             MutationType::rand(rng, [1.0, 1.0, 1.0])
         };
 
-        let new_mcm = match mut_type {
-            MutationType::Merge => {
-                let targets = (0..self.count_icc()).sample(rng, 2);
-                self.merge(targets[0], targets[1])
-            }
-            MutationType::Split => {
-                let candidates: Vec<usize> = self
-                    .partition
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(nr, icc)| {
-                        if icc.count_ones(..) > 1 {
-                            Some(nr)
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-                let basis = *candidates.choose(rng).unwrap();
-
-                let variable_count = self.partition[basis].count_ones(..);
-                let distribution = Binomial::new(0.5, (variable_count - 2) as u64).unwrap();
-                let sample: u64 = distribution.sample(rng);
-
-                let amount = (sample + 1) as usize;
-                let random_variables = self.partition[basis].ones().sample(rng, amount);
-
-                let mut split = FixedBitSet::with_capacity(self.variables());
-                for i in random_variables {
-                    split.insert(i);
-                }
-
-                self.split(basis, split)
-            }
-            MutationType::Swap => {
-                if self.partition.len() == 1 && self.rank() == 0 {
-                    panic!("Running mutation on empty MCM.")
-                }
-                let (choice, candidate_index) = loop {
-                    // This will loop forever when the MCM is empty, but don't mutate an empty MCM.
-                    let candidate_variable = (0..self.variables()).choose(rng).unwrap_or_default();
-                    if let Some(index) = self.get_index(candidate_variable) {
-                        break (candidate_variable, index);
-                    }
-                };
-                let destination = (0usize..=self.count_icc())
-                    .filter(|n| *n != candidate_index)
-                    .choose(rng)
-                    .unwrap();
-
-                self.swap(choice, destination)
-            }
+        let (new_mcm, _, _) = match mut_type {
+            MutationType::Merge => self.random_merge(rng),
+            MutationType::Split => self.random_split(rng),
+            MutationType::Swap => self.random_swap(rng),
         };
         (new_mcm, mut_type)
+    }
+
+    /// Returns a new MCM with a random ICC mutation
+    pub fn mutate_tabu(
+        &self,
+        rng: &mut rand::rngs::ThreadRng,
+    ) -> (
+        MinimallyComplexModel,
+        MutationType,
+        Option<IndependentCompleteComponent>,
+        Option<IndependentCompleteComponent>,
+    ) {
+        let mut_type = if self.count_icc() == 1 {
+            MutationType::Split
+        } else if self.count_nontrivial_icc() == 0 {
+            MutationType::Merge
+        } else {
+            MutationType::rand(rng, [1.0, 1.0, 1.0])
+        };
+
+        let (new_mcm, one, two) = match mut_type {
+            MutationType::Merge => self.random_merge(rng),
+            MutationType::Split => self.random_split(rng),
+            MutationType::Swap => self.random_swap(rng),
+        };
+        (new_mcm, mut_type, one, two)
+    }
+
+    fn random_merge(
+        &self,
+        rng: &mut rand::prelude::ThreadRng,
+    ) -> (
+        MinimallyComplexModel,
+        Option<IndependentCompleteComponent>,
+        Option<IndependentCompleteComponent>,
+    ) {
+        let targets = (0..self.count_icc()).sample(rng, 2);
+        let one = Some(self.partition[targets[0]].clone());
+        let two = Some(self.partition[targets[1]].clone());
+        (self.merge(targets[0], targets[1]), one, two)
+    }
+
+    fn random_swap(
+        &self,
+        rng: &mut rand::prelude::ThreadRng,
+    ) -> (
+        MinimallyComplexModel,
+        Option<IndependentCompleteComponent>,
+        Option<IndependentCompleteComponent>,
+    ) {
+        if self.partition.len() == 1 && self.rank() == 0 {
+            panic!("Running mutation on empty MCM.")
+        }
+        let (choice, candidate_index) = loop {
+            // This will loop forever when the MCM is empty, but don't mutate an empty MCM.
+            let candidate_variable = (0..self.variables()).choose(rng).unwrap_or_default();
+            if let Some(index) = self.get_index(candidate_variable) {
+                break (candidate_variable, index);
+            }
+        };
+        let destination = (0usize..=self.count_icc())
+            .filter(|n| *n != candidate_index)
+            .choose(rng)
+            .unwrap();
+        self.swap_tabu(choice, destination)
+    }
+
+    fn random_split(
+        &self,
+        rng: &mut rand::prelude::ThreadRng,
+    ) -> (
+        MinimallyComplexModel,
+        Option<IndependentCompleteComponent>,
+        Option<IndependentCompleteComponent>,
+    ) {
+        let candidates: Vec<usize> = self
+            .partition
+            .iter()
+            .enumerate()
+            .filter_map(|(nr, icc)| {
+                if icc.count_ones(..) > 1 {
+                    Some(nr)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let basis = *candidates.choose(rng).unwrap();
+
+        let icc = self.partition[basis].clone();
+        let variable_count = &icc.count_ones(..);
+        let distribution = Binomial::new(0.5, (variable_count - 2) as u64).unwrap();
+        let sample: u64 = distribution.sample(rng);
+        let amount = (sample + 1) as usize;
+        let random_variables = &icc.ones().sample(rng, amount);
+
+        let mut split = FixedBitSet::with_capacity(self.variables());
+        for i in random_variables {
+            split.insert(*i);
+        }
+        (self.split(basis, split), Some(icc), None)
     }
 
     /// Calculate the logarithm of the evidence of this MCM, via the equation
