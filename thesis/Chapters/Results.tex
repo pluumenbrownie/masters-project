@@ -23,7 +23,7 @@ The timing test for the parallel tempering solvers can be seen in Figure~\ref{pa
   \caption{The amount of ICCs which have been calculated by different runs of a parallel tempering algorithm against their runtime in seconds. Here the linear correlation may appear less clear, but a linear fit still reveals a linear relation between the runtime and ICCs calculates. The fit gives a slope of \(3.7\cdot 10^{-4} \pm 3.49\cdot 10^{-5}\ s\ \text{ICC}^{-1}\), which is about 2703 ICCs per second, and an intercept of \(-53.4 \pm 17.9\ \text{ICCs}\).}\label{parallel_time}
 \end{figure}
 
-A summary of these results can be found in Table~\ref{timing_summary}. Of the three solvers measured here, the parallel tempering manages to process the most ICCs per second, as this algorithm processes 4.62 times more ICCs per second than the greedy algorithm and 8.37 times more than the annealing algorithm. This does not take into account that this algorithm is inherently multithreaded, however. This test was run on an AMD r5 7600, which has 6 cores and 12 threads. The parallel tempering algorithm therefore should have a six to twelve times higher throughput than an equivalent serial algorithm. When the throughput of this algorithm is compensated for the amount of cores, the algorithm 
+A summary of these results can be found in Table~\ref{timing_summary}. Of the three solvers measured here, the parallel tempering manages to process the most ICCs per second, as this algorithm processes 4.62 times more ICCs per second than the greedy algorithm and 8.37 times more than the annealing algorithm. This does not take into account that this algorithm is inherently multithreaded, however. This test was run on an AMD r5 7600, which has 6 cores and 12 threads. The parallel tempering algorithm therefore should have a six to twelve times higher throughput than an equivalent serial algorithm. When the throughput of this algorithm is compensated for the amount of cores, the algorithm performs between the greedy and annealing algorithms. 
 
 \begin{table}[b!]
     \centering
@@ -40,3 +40,18 @@ A summary of these results can be found in Table~\ref{timing_summary}. Of the th
     \bottomrule
     \end{tabular}\label{timing_summary}
 \end{table}
+
+\begin{figure}
+  \centering
+  \includegraphics[width=\textwidth]{./Figures/Greedy_compilation.pdf}
+  \caption{A selection of configuration combinations for the greedy algorithms. Here the color of each point indicates which initial solver was used, and the shape indicates which refinement was used after the initial solve. The merge, constructive and local algorithms have also been tested with beam sized of 2, 5, 20 and 100 and the tabu searches with list sizes of 10, 25, 50 and 100, though these are not distinguished in the figure.}\label{greedyComp}
+\end{figure}
+
+\section{Greedy Algorithms}
+Because there are many options in configuring the various greedy algorithms, a selection of combinations is shown in Figure~\ref{greedyComp}. Here the color of each point indicates which initial solver was used, and the shape indicates which refinement was used after the initial solve. The merge, constructive and local algorithms have also been tested with beam sized of 2, 5, 20 and 100 and the tabu searches with list sizes of 10, 25, 50 and 100, though these are not distinguished in the figure. The figure shows a few groups of points: a big cluster of points in the top left; a downwards tail on the left side; and a tail towards the top right.
+
+The tail on the bottom left mainly contains the constructive algorithms. These show that the constructive algorithm on its own tends to find results of worse quality, but does complete very quickly: the beamless algorithm has found an MCM with a \loge{} of -2661647 by searching only 733 ICCs. The algorithm is also seen to do better with a higher beam size, at the cost calculating more ICCs: the algorithm with a beam size of 100 has found an MCM with a \loge{} of -2469680 by searching through 9060 ICCs. 
+
+The bottom tail also includes the beamless merge and the local algorithm. In fact, all runs which used only one of the available algorithms tended to perform worse than the runs which used a combination of algorithms. This can be seen in the dense group of results in the top left of the plot. These combination algorithms tend to perform on par of even better than the individual algorithms on their own. It can even be said that it is almost always advantageous to pick a combination of solving strategies, except under extreme compute constraints, in which case a constructive algorithm may be the best option. 
+
+Figure~\ref{greedyComp} also shows that running an algorithm for longer and letting it explore more ICCs does not guarantee a better outcome. In fact, the obtained result could be worse. A great example of this is the difference between the merging algorithms with a beam of 20 and 100. While the beam 20 algorithm needs to calculate the \loge{} for 51510 ICCs to find a final result of -2415728, the beam 100 explored 108046 ICCs to end on a result of -2426035. The larger beam algorithm ran for double the time to come up with a worse result. This may seem counterintuitive, as it would seem that an algorithm with a larger beam size should include more possible paths to good solutions, rather than excluding ones. It could happen, however, that the next generation solution candidates from solution \(x\) could be crowded out by candidates from solution \(y\), which are better in the short term, but lead to a worse outcome later on. 
