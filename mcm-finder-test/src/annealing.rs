@@ -160,6 +160,22 @@ pub(crate) fn annealing_shapes() -> Result<()> {
                 .then_exponential(0.0001, 0.0002),
             "cus_02",
         ),
+        (
+            AnnealingTemperature::sigmoid(3_000.0, 100.0/3.0, 0.3, 0.7, 50_000.0),
+            "sig_50",
+        ),
+        (
+            AnnealingTemperature::sigmoid(3_000.0, 100.0/3.0, 0.3, 0.7, 40_000.0),
+            "sig_40",
+        ),
+        (
+            AnnealingTemperature::sigmoid(3_000.0, 100.0/3.0, 0.3, 0.7, 30_000.0),
+            "sig_30",
+        ),
+        (
+            AnnealingTemperature::sigmoid(3_000.0, 100.0/3.0, 0.3, 0.7, 20_000.0),
+            "sig_20",
+        ),
     ]
     .into_iter()
     .flat_map(|t| [t].into_iter().cycle().take(25))

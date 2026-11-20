@@ -3,6 +3,7 @@ pub enum TempType {
     Exponential { per_step: f64 },
     Logarithmic,
     Linear { slope: f64 },
+    Sigmoid { a: f64, b: f64, c: f64, ntot: f64 },
     Constant { steps: usize },
 }
 
@@ -106,6 +107,25 @@ impl AnnealingTemperature {
         );
         assert!(slope > 0.0, "Slope should be higher than zero.");
         AnnealingTemperature::new(start, end, TempType::Linear { slope })
+    }
+
+    /// Create a new hybrid exponential/sigmoid curve for use in simulated annealing.
+    /// The temperature will start at `start`, stay high for a while and then drop down
+    /// quickly. The
+    ///
+    /// The curve can be extended with an additional curve with a different function
+    /// and parameters with the `then_<function>()` methods.
+    ///
+    /// # Examples
+    /// ```
+    /// # use mcm_finder_lib::solvers::{AnnealingTemperature};
+    /// let temp_curve = AnnealingTemperature::sigmoid(10_000.0, 100.0/3.0, 0.4, 0.5, 10_000.0);
+    /// ```
+    pub fn sigmoid(start: f64, a: f64, b: f64, c: f64, ntot: f64) -> AnnealingTemperature {
+        assert!(a > 0.0, "a should be higher than zero.");
+        assert!(b > 0.0, "a should be higher than zero.");
+        assert!(c > 0.0 && c < 1.0, "c should be between zero and one.");
+        AnnealingTemperature::new(start, 0.00001, TempType::Sigmoid { a, b, c, ntot })
     }
 
     /// Keeps the simulated annealing solver at a given temperature for the given
@@ -212,6 +232,27 @@ impl AnnealingTemperature {
         self
     }
 
+    /// Extend this temperature curve with an additional sigmoid curve.
+    ///
+    /// # Examples
+    /// ```
+    /// # use mcm_finder_lib::solvers::{AnnealingTemperature, TempType};
+    /// let temp_curve = AnnealingTemperature::exponential(10_000.0, 5.0, 0.0003)
+    ///     .then_sigmoid(100.0/3.0, 0.4, 0.5, 10_000.0);
+    /// ```
+    pub fn then_sigmoid(mut self, a: f64, b: f64, c: f64, ntot: f64) -> Self {
+        let start = self.get_last_end();
+        assert!(a > 0.0, "a should be higher than zero.");
+        assert!(b > 0.0, "a should be higher than zero.");
+        assert!(c > 0.0 && c < 1.0, "c should be between zero and one.");
+        self.set_next_none(AnnealingTemperature::new(
+            start,
+            0.00001,
+            TempType::Sigmoid { a, b, c, ntot },
+        ));
+        self
+    }
+
     /// Extend this temperature curve by keeping it at the current temperature for
     /// the given amount of `steps`.
     ///
@@ -275,6 +316,13 @@ impl AnnealTempIter {
             TempType::Exponential { per_step } => self.temp -= self.temp * per_step,
             TempType::Logarithmic => self.temp = self.start / (1.0 + self.step as f64),
             TempType::Linear { slope } => self.temp -= slope,
+            TempType::Sigmoid { a, b, c, ntot } => {
+                if self.step >= ntot as usize {
+                    self.end = f64::INFINITY;
+                }
+                self.temp = self.start
+                    / (1.0 + f64::exp((a * (self.step as f64 - b * ntot)) / ntot).powf(c))
+            }
             TempType::Constant { steps } => {
                 self.temp = self.start;
                 if self.step == steps {

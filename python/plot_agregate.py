@@ -22,7 +22,7 @@ from plot_data import (
 )
 
 plt.rcParams["figure.constrained_layout.use"] = True
-plt.rcParams["figure.figsize"] = (9, 5)
+plt.rcParams["figure.figsize"] = (8, 5)
 
 EXPORT_FORMAT = "pdf"
 
@@ -139,6 +139,8 @@ def sa_shapes(save: bool = False) -> None:
     colors = cycle(plt.cm.tab10.colors)  # type: ignore
 
     def shapes(name):
+        if "sig" in name:
+            return "*"
         if "exp" in name:
             return "^"
         if "lin" in name:
