@@ -4,7 +4,7 @@ use std::{
     default,
     marker::Sized,
     num::NonZero,
-    ops::RangeBounds,
+    ops::{ControlFlow, RangeBounds},
     path::Path,
     time::Instant,
 };
@@ -31,7 +31,6 @@ use crate::{
 pub struct LogeMCM {
     pub mcm: MinimallyComplexModel,
     pub log_e: f64,
-    pub deep_log_e: f64,
 }
 
 impl LogeMCM {
@@ -39,7 +38,6 @@ impl LogeMCM {
         Self {
             mcm,
             log_e,
-            deep_log_e: log_e,
         }
     }
 
@@ -52,15 +50,6 @@ impl LogeMCM {
         Self {
             mcm,
             log_e,
-            deep_log_e: log_e,
-        }
-    }
-
-    pub fn set_deep_log_e(self, deep_log_e: f64) -> Self {
-        Self {
-            mcm: self.mcm,
-            log_e: self.log_e,
-            deep_log_e,
         }
     }
 }
@@ -165,7 +154,7 @@ impl GreedySolver {
             return Vec::new();
         }
 
-        let mut gen_best: Vec<LogeMCM> = vec![];
+        let mut next_gen: Vec<LogeMCM> = vec![];
         for original in original_vec {
             for basis in 1..=iccs_left {
                 for into in 0..basis {
@@ -175,23 +164,13 @@ impl GreedySolver {
                         log_e_cache,
                     );
 
-                    if gen_best
-                        .last()
-                        .is_none_or(|o| o.log_e.total_cmp(&candidate.log_e).is_lt())
-                        & gen_best.iter().all(|o| o.mcm != candidate.mcm)
-                    {
-                        if gen_best.len() >= beam_size {
-                            gen_best.pop();
-                        }
-                        gen_best.push(candidate);
-                        gen_best.sort_by(|a, b| a.log_e.total_cmp(&b.log_e).reverse());
-                    }
+                    add_to_next_gen(beam_size, &mut next_gen, candidate);
 
                     let _ = progress.update(1);
                 }
             }
         }
-        gen_best
+        next_gen
     }
 
     #[must_use]
@@ -217,17 +196,7 @@ impl GreedySolver {
 
                     gen_best = update_if_log_e_better(gen_best, &candidate);
 
-                    if next_gen
-                        .last()
-                        .is_none_or(|o| o.log_e.total_cmp(&candidate.log_e).is_lt())
-                        & next_gen.iter().all(|o| o.mcm != candidate.mcm)
-                    {
-                        if next_gen.len() >= beam_size {
-                            next_gen.pop();
-                        }
-                        next_gen.push(candidate);
-                        next_gen.sort_by(|a, b| a.log_e.total_cmp(&b.log_e).reverse());
-                    }
+                    add_to_next_gen(beam_size, &mut next_gen, candidate);
 
                     let _ = progress.update(1);
                 }
@@ -602,45 +571,33 @@ impl GreedySolver {
         beam_size: usize,
     ) -> Bar {
         let mut progress = tqdm!(total = iterator.len() * beam_size, disable = self.silent);
-        let mut current_gen = vec![(current_solution.clone(), 0.0)];
+        let mut current_gen = vec![LogeMCM {mcm: current_solution.clone(), log_e: 0.0}];
 
         for var in iterator {
             let mut next_gen = vec![];
-            for (current_solution, _) in current_gen.drain(..) {
-                let vec_rep = current_solution.to_vector();
+            for current_solution in current_gen.drain(..) {
+                let vec_rep = current_solution.mcm.to_vector();
                 let max_icc = vec_rep.iter().max().unwrap() + 1;
 
-                let candidates: Vec<(MinimallyComplexModel, f64)> = (1..=max_icc)
+                let candidates: Vec<LogeMCM> = (1..=max_icc)
                     .map(|c| {
                         let mut new_candidate = vec_rep.clone();
                         new_candidate[var] = c;
                         let mcm = MinimallyComplexModel::from_vector(new_candidate);
                         let log_e = mcm.log_e(&self.dataset, log_e_cache);
-                        (mcm, log_e)
+                        LogeMCM{mcm, log_e}
                     })
                     .collect();
 
                 for candidate in candidates {
-                    if next_gen
-                        .last()
-                        .is_none_or(|o: &(MinimallyComplexModel, f64)| {
-                            o.1.total_cmp(&candidate.1).is_lt()
-                        })
-                        & next_gen.iter().all(|o| o.0 != candidate.0)
-                    {
-                        if next_gen.len() >= beam_size {
-                            next_gen.pop();
-                        }
-                        next_gen.push(candidate);
-                        next_gen.sort_by(|a, b| a.1.total_cmp(&b.1).reverse());
-                    }
+                    add_to_next_gen(beam_size, &mut next_gen, candidate);
                 }
 
                 progress.update(1).unwrap();
             }
 
             current_gen = next_gen;
-            *current_solution = current_gen.first().unwrap().clone().0;
+            *current_solution = current_gen.first().unwrap().clone().mcm;
             let current_log_e = current_solution.log_e(&self.dataset, log_e_cache);
 
             progress.set_description(format!("Log E: {:.0}", current_log_e));
@@ -665,16 +622,16 @@ impl GreedySolver {
             total = self.dataset.variables() * beam_size,
             disable = self.silent
         );
-        let mut current_gen = vec![(current_solution.clone(), 0.0)];
+        let mut current_gen = vec![LogeMCM {mcm: current_solution.clone(), log_e: 0.0}];
 
         for _ in 0..self.dataset.variables() {
             let mut next_gen = vec![];
 
-            for (current_solution, _) in current_gen.drain(..) {
-                let vec_rep = current_solution.to_vector();
+            for current_solution in current_gen.drain(..) {
+                let vec_rep = current_solution.mcm.to_vector();
                 let max_icc = vec_rep.iter().max().unwrap() + 1;
 
-                let candidates: Vec<(MinimallyComplexModel, f64)> = vec_rep
+                let candidates: Vec<LogeMCM> = vec_rep
                     .clone()
                     .into_iter()
                     .enumerate()
@@ -685,31 +642,19 @@ impl GreedySolver {
                         new_candidate[x] = c;
                         let mcm = MinimallyComplexModel::from_vector(new_candidate);
                         let log_e = mcm.log_e(&self.dataset, log_e_cache);
-                        (mcm, log_e)
+                        LogeMCM { mcm, log_e }
                     })
                     .collect();
 
                 for candidate in candidates {
-                    if next_gen
-                        .last()
-                        .is_none_or(|o: &(MinimallyComplexModel, f64)| {
-                            o.1.total_cmp(&candidate.1).is_lt()
-                        })
-                        & next_gen.iter().all(|o| o.0 != candidate.0)
-                    {
-                        if next_gen.len() >= beam_size {
-                            next_gen.pop();
-                        }
-                        next_gen.push(candidate);
-                        next_gen.sort_by(|a, b| a.1.total_cmp(&b.1).reverse());
-                    }
+                    add_to_next_gen(beam_size, &mut next_gen, candidate);
                 }
 
                 progress.update(1).unwrap();
             }
 
             current_gen = next_gen;
-            *current_solution = current_gen.first().unwrap().clone().0;
+            *current_solution = current_gen.first().unwrap().clone().mcm;
             let current_log_e = current_solution.log_e(&self.dataset, log_e_cache);
             progress.set_description(format!("Log E: {:.0}", current_log_e));
             self.send(GreedyData::LogE(GreedyLogE {
@@ -747,7 +692,6 @@ impl GreedySolver {
         beam_size: usize,
     ) -> Bar {
         let pairs = self.get_variable_variance();
-        // pairs.iter().for_each(|p| println!("{p:?}"));
 
         self.solve_in_order(
             log_e_cache,
@@ -764,7 +708,6 @@ impl GreedySolver {
         beam_size: usize,
     ) -> Bar {
         let pairs = self.get_variable_variance();
-        // pairs.iter().for_each(|p| println!("{p:?}"));
 
         self.solve_in_order(
             log_e_cache,
@@ -774,6 +717,34 @@ impl GreedySolver {
         )
     }
 }
+
+fn add_to_next_gen(
+    beam_size: usize,
+    next_gen: &mut Vec<LogeMCM>,
+    candidate: LogeMCM,
+) {
+    // no duplicates
+    if next_gen
+        .iter()
+        .all(|o: &LogeMCM| o.mcm != candidate.mcm)
+    {
+        // guaranteed push if list is not full
+        if next_gen.len() >= beam_size {
+            let last_next = next_gen.last();
+            // if the worst solution of the full list is better, don't add the new one
+            if last_next
+                .is_some_and(|o: &LogeMCM| o.log_e.total_cmp(&candidate.log_e).is_ge())
+            {
+                return;
+            }
+            next_gen.pop();
+        }
+        next_gen.push(candidate);
+        // worst solution is always last
+        next_gen.sort_by(|a, b| a.log_e.total_cmp(&b.log_e).reverse());
+    }
+}
+
 fn count_calculations(length: &mut usize, parts_left: usize) {
     for basis in 1..=parts_left {
         for _ in 0..basis {
@@ -782,17 +753,9 @@ fn count_calculations(length: &mut usize, parts_left: usize) {
     }
 }
 
-fn update_deep_log_e_only(candidate: LogeMCM, deep_log_e: f64) -> LogeMCM {
-    if deep_log_e.total_cmp(&candidate.deep_log_e).is_gt() {
-        candidate.set_deep_log_e(deep_log_e)
-    } else {
-        candidate
-    }
-}
-
 fn update_if_log_e_better(gen_best: Option<LogeMCM>, candidate: &LogeMCM) -> Option<LogeMCM> {
     gen_best
-        .filter(|gen_best| gen_best.deep_log_e.total_cmp(&candidate.deep_log_e).is_ge())
+        .filter(|gen_best| gen_best.log_e.total_cmp(&candidate.log_e).is_ge())
         .or(Some(candidate.clone()))
 }
 
