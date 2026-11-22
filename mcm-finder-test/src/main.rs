@@ -243,8 +243,7 @@ fn tabu_test() -> Result<()> {
     const FOLDER: &str = "results/tabu_divergence";
 
     let iterator: Vec<_> = [
-        90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109,
-        110,
+        40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
     ]
     .into_iter()
     .map(|q| {
@@ -273,7 +272,7 @@ fn tabu_test() -> Result<()> {
         let solver = GreedySolver::from_file(dataset)?
             .set_sender(sender)
             .set_silent(true)
-            .set_initial_solver(InitialSolver::ConstructBeam { beam_size: 2 })
+            .set_initial_solver(InitialSolver::ConstructBeam { beam_size: 20 })
             .set_refinement_sequence(refinements.clone());
         let result = solver.solve();
         result
@@ -407,10 +406,10 @@ fn merge_beam() -> Result<()> {
 
 fn construct_beam_timing() -> Result<()> {
     let datasets = [
-        // (
-        //     Path::new("mcm-finder-lib/tests/data/MNIST11.sorted"),
-        //     "mnist11",
-        // ),
+        (
+            Path::new("mcm-finder-lib/tests/data/MNIST11.sorted"),
+            "mnist11",
+        ),
         (
             Path::new("mcm-finder-lib/tests/data/MNIST14.sorted"),
             "mnist14",

@@ -449,9 +449,10 @@ def tabu(save: bool = False) -> None:
 
     sorted_data = [x for x in data.items()]
     sorted_data = sort_datapoints(sorted_data)
+    colors = plt.cm.tab20.colors # type: ignore
 
     best: None | tuple[str, float] = None
-    for name, points in sorted_data:
+    for (name, points), color in zip(sorted_data, colors):
 
         log_e = np.array(points["log_e"])
         iccs = np.array(points["iccs"])
@@ -460,7 +461,7 @@ def tabu(save: bool = False) -> None:
         if not best or best_log_e > best[1]:
             best = (name, best_log_e)
 
-        plt.plot(iccs, log_e, "o", ms=9, mec="k", lw=2, label=name)
+        plt.plot(iccs, log_e, "o", color=color, ms=9, mec="k", lw=2, label=name)
     plt.legend(ncols=2)
     plt.xlabel("ICCs calculated")
     plt.ylabel("log(E)")
@@ -470,9 +471,9 @@ def tabu(save: bool = False) -> None:
         plt.savefig(f"./results/plots/tabu_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
 
-    colors = chain(plt.cm.tab20c.colors, plt.cm.tab20b.colors)  # type: ignore
+    # colors = chain(plt.cm.tab20c.colors, plt.cm.tab20b.colors)  # type: ignore
 
-    for filename in list_csvs(folder):
+    for (filename, color) in zip(list_csvs(folder), colors):
         with open(folder + "/" + filename, "r") as file:
             content = csv.reader(file.readlines())
         next(content)
@@ -484,14 +485,13 @@ def tabu(save: bool = False) -> None:
             if not solver == "Constructive":
                 log_e_list.append(float(log_e))
         plt.plot(
-            range(len(log_e_list)), log_e_list, "-", color=next(colors), label=name
+            range(len(log_e_list)), log_e_list, "-", color=color, label=name
         )
     plt.legend(ncols=4)
-    plt.xlabel("ICCs calculated")
+    plt.xlabel("step")
     plt.ylabel("log(E)")
     plt.title("Tabu list size trajectories")
-    plt.ylim((-2430000, -2380000))
-    add_runtime_axis("construct_beam")
+    plt.ylim((-2410000, -2380000))
     if save:
         plt.savefig(f"./results/plots/tabu_trajectory_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
