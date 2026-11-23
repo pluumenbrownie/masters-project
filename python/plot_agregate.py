@@ -449,7 +449,7 @@ def tabu(save: bool = False) -> None:
 
     sorted_data = [x for x in data.items()]
     sorted_data = sort_datapoints(sorted_data)
-    colors = plt.cm.tab20.colors # type: ignore
+    colors = plt.cm.tab20.colors  # type: ignore
 
     best: None | tuple[str, float] = None
     for (name, points), color in zip(sorted_data, colors):
@@ -473,7 +473,7 @@ def tabu(save: bool = False) -> None:
 
     # colors = chain(plt.cm.tab20c.colors, plt.cm.tab20b.colors)  # type: ignore
 
-    for (filename, color) in zip(list_csvs(folder), colors):
+    for filename, color in zip(list_csvs(folder), colors):
         with open(folder + "/" + filename, "r") as file:
             content = csv.reader(file.readlines())
         next(content)
@@ -484,9 +484,7 @@ def tabu(save: bool = False) -> None:
         for solver, size, log_e in content:
             if not solver == "Constructive":
                 log_e_list.append(float(log_e))
-        plt.plot(
-            range(len(log_e_list)), log_e_list, "-", color=color, label=name
-        )
+        plt.plot(range(len(log_e_list)), log_e_list, "-", color=color, label=name)
     plt.legend(ncols=4)
     plt.xlabel("step")
     plt.ylabel("log(E)")
@@ -594,8 +592,11 @@ def tabu_only(save: bool = False) -> None:
     sorted_data = sort_datapoints(sorted_data)
     cmap = mpl.colormaps["gist_rainbow"]
     colors = cmap(np.linspace(0, 1, len(sorted_data)))
+    norm = mpl.colors.Normalize(vmin=1, vmax=100)  # type: ignore
+    colorizer = mpl.colorizer.Colorizer(norm=norm, cmap="gist_rainbow")  # type: ignore
 
     best: None | tuple[str, float] = None
+    fig = plt.figure()
     for (name, points), color in zip(sorted_data, colors):
 
         log_e = np.array(points["log_e"])
@@ -610,12 +611,14 @@ def tabu_only(save: bool = False) -> None:
     plt.xlabel("ICCs calculated")
     plt.ylabel("log(E)")
     plt.title("Tabu only strategy")
+    fig.colorbar(mpl.colorizer.ColorizingArtist(colorizer), ax=plt.gca(), label="list size")  # type: ignore
     add_runtime_axis("construct_beam")
     if save:
         plt.savefig(f"./results/plots/tabu_only_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
+    fig = plt.figure()
     for filename, color in zip(list_csvs(folder), colors):
         with open(folder + "/" + filename, "r") as file:
             content = csv.reader(file.readlines())
@@ -643,6 +646,8 @@ def tabu_only(save: bool = False) -> None:
     plt.ylabel("log(E)")
     plt.title("Tabu only trajectories")
     plt.ylim((-2450000, -2380000))
+    plt.xlim((-100, len(log_e_list) + 100))
+    fig.colorbar(mpl.colorizer.ColorizingArtist(colorizer), ax=plt.gca(), label="list size")  # type: ignore
     add_runtime_axis("construct_beam")
     if save:
         plt.savefig(f"./results/plots/tabu_only_trajectory_{asctime()}.{EXPORT_FORMAT}")
@@ -669,8 +674,11 @@ def merge_beam(save: bool = False) -> None:
     sorted_data = sort_datapoints(sorted_data)
     cmap = mpl.colormaps["gist_rainbow"]
     colors = cmap(np.linspace(0, 1, len(sorted_data)))
+    norm = mpl.colors.Normalize(vmin=1, vmax=100)  # type: ignore
+    colorizer = mpl.colorizer.Colorizer(norm=norm, cmap="gist_rainbow")  # type: ignore
 
     best: None | tuple[str, float] = None
+    fig = plt.figure()
     for (name, points), color in zip(sorted_data, colors):
 
         log_e = np.array(points["log_e"])
@@ -685,6 +693,7 @@ def merge_beam(save: bool = False) -> None:
     plt.xlabel("ICCs calculated")
     plt.ylabel("log(E)")
     plt.title("Merge beam size")
+    fig.colorbar(mpl.colorizer.ColorizingArtist(colorizer), ax=plt.gca(), label="beam size")  # type: ignore
     add_runtime_axis("construct_beam")
     if save:
         plt.savefig(f"./results/plots/merge_beam_{asctime()}.{EXPORT_FORMAT}")
@@ -717,8 +726,11 @@ def construct_beam(save: bool = False) -> None:
     sorted_data = sort_datapoints(sorted_data)
     cmap = mpl.colormaps["gist_rainbow"]
     colors = cmap(np.linspace(0, 1, len(sorted_data)))
+    norm = mpl.colors.Normalize(vmin=1, vmax=100)  # type: ignore
+    colorizer = mpl.colorizer.Colorizer(norm=norm, cmap="gist_rainbow")  # type: ignore
 
     best: None | tuple[str, float] = None
+    fig = plt.figure()
     for (name, points), color in zip(sorted_data, colors):
 
         log_e = np.array(points["log_e"])
@@ -733,9 +745,57 @@ def construct_beam(save: bool = False) -> None:
     plt.xlabel("ICCs calculated")
     plt.ylabel("log(E)")
     plt.title("Constructive beam size")
+    fig.colorbar(mpl.colorizer.ColorizingArtist(colorizer), ax=plt.gca(), label="beam size")  # type: ignore
     add_runtime_axis("construct_beam")
     if save:
         plt.savefig(f"./results/plots/construct_beam_{asctime()}.{EXPORT_FORMAT}")
+    plt.show()
+    print(f"best: {best[0]} with {best[1]}")  # type: ignore
+
+
+@app.command()
+def local_beam(save: bool = False) -> None:
+    folder = "./results/local_beam"
+    data: dict[str, dict[str, list[float | int]]] = {}
+
+    for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
+        with open(folder + "/" + filename, "r") as file:
+            content = json.load(file)
+        name = filename[7:-5]
+        data.setdefault(name, {}).setdefault("log_e", []).append(
+            float(content["log_e"])
+        )
+        data.setdefault(name, {}).setdefault("iccs", []).append(
+            int(content["iccs_checked"])
+        )
+
+    sorted_data = [x for x in data.items()]
+    sorted_data = sort_datapoints(sorted_data)
+    cmap = mpl.colormaps["gist_rainbow"]
+    colors = cmap(np.linspace(0, 1, len(sorted_data)))
+    norm = mpl.colors.Normalize(vmin=1, vmax=100)  # type: ignore
+    colorizer = mpl.colorizer.Colorizer(norm=norm, cmap="gist_rainbow")  # type: ignore
+
+    best: None | tuple[str, float] = None
+    fig = plt.figure()
+    for (name, points), color in zip(sorted_data, colors):
+
+        log_e = np.array(points["log_e"])
+        iccs = np.array(points["iccs"])
+
+        best_log_e = log_e.max()
+        if not best or best_log_e > best[1]:
+            best = (name, best_log_e)
+
+        plt.plot(iccs, log_e, "o", color=color, ms=9, mec="k", lw=2)
+
+    plt.xlabel("ICCs calculated")
+    plt.ylabel("log(E)")
+    plt.title("Local beam size")
+    fig.colorbar(mpl.colorizer.ColorizingArtist(colorizer), ax=plt.gca(), label="beam size")  # type: ignore
+    add_runtime_axis("construct_beam")
+    if save:
+        plt.savefig(f"./results/plots/local_beam_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
@@ -878,9 +938,9 @@ def draw_group_boxes(
 @app.command()
 def parallel_tempering(save: bool = False) -> None:
     folders = [
-        "./results/parallel_tempering", 
+        "./results/parallel_tempering",
         # "./results/parallel_tempering_random_swaps"
-        ]
+    ]
     data: dict[str, dict[str, list[float | int]]] = {}
 
     best: None | tuple[str, float, str] = None

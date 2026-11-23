@@ -33,6 +33,7 @@ enum Commands {
     TabuDivergenceLower,
     PureTabu,
     MergeBeam,
+    LocalBeam,
     ConstructBeam,
     Annealing,
     AnnealingTiming,
@@ -59,6 +60,7 @@ fn main() -> Result<()> {
         Commands::TabuDivergenceLower => tabu_test_2()?,
         Commands::PureTabu => pure_tabu()?,
         Commands::MergeBeam => merge_beam()?,
+        Commands::LocalBeam => local_beam()?,
         Commands::ConstructBeam => construct_beam_timing()?,
         Commands::Annealing => annealing::annealing_length()?,
         Commands::AnnealingTiming => annealing::annealing_timing()?,
@@ -394,6 +396,45 @@ fn merge_beam() -> Result<()> {
             .set_sender(sender)
             .set_silent(true)
             .set_initial_solver(initial);
+        let result = solver.solve();
+        result
+            .save_json(format!("./{FOLDER}/result_{name}.json").into())
+            .into_diagnostic()?;
+        Ok(())
+    })?;
+
+    Ok(())
+}
+
+fn local_beam() -> Result<()> {
+    let dataset = Path::new("mcm-finder-lib/tests/data/MNIST11.sorted");
+    const FOLDER: &str = "results/local_beam";
+
+    let iterator: Vec<_> = (1..=100)
+        .into_iter()
+        .map(|q| {
+            (
+                vec![
+                    Refinements::LocalBeam { beam_size: q },
+                ],
+                format!("l_{q}"),
+            )
+        })
+        .collect();
+
+    par_tqdm!(iterator.into_par_iter()).try_for_each(|(refinement, name)| -> Result<()> {
+        let (collector, sender) = CollectorBuilder::<SolverEvent>::new()
+            .with_handler(mcm_finder_lib::logger::GreedyHandler::with_paths(
+                format!("./{FOLDER}/log_e_{name}.csv").into(),
+            ))
+            .build();
+        std::thread::spawn(|| collector.run());
+
+        let solver = GreedySolver::from_file(dataset)?
+            .set_sender(sender)
+            .set_silent(true)
+            .set_initial_solver(InitialSolver::None)
+            .set_refinement_sequence(refinement);
         let result = solver.solve();
         result
             .save_json(format!("./{FOLDER}/result_{name}.json").into())
