@@ -67,6 +67,7 @@ pub struct ParallelTemperingSolver<T: Dataset> {
     acception_fraction: f64,
     arbitrary_swaps: bool,
     count_non_cached: bool,
+    boost_variable: f64, 
     tabu_list: Option<NonZeroUsize>,
     silent: bool,
     sender: Option<SolverEventSender>,
@@ -351,6 +352,7 @@ impl<T: Dataset + Sync> Solver for ParallelTemperingSolver<T> {
             acception_fraction: 0.23,
             arbitrary_swaps: false,
             count_non_cached: false,
+            boost_variable: 2f64.powi(6),
             tabu_list: None,
             silent: false,
             sender: None,
@@ -385,6 +387,7 @@ impl<T: Dataset + Sync> Solver for ParallelTemperingSolver<T> {
                     &self.dataset,
                     nr,
                     self.count_non_cached,
+                    self.boost_variable,
                     self.tabu_list,
                     self.sender.clone(),
                 )
@@ -459,6 +462,7 @@ pub struct TemperPool {
     id: usize,
     mcm_id: usize,
     count_new_iccs: bool,
+    boost_variable: f64,
     tabu_list: Option<(usize, VecDeque<IndependentCompleteComponent>)>,
     sender: Option<SolverEventSender>,
 }
@@ -470,6 +474,7 @@ impl TemperPool {
         dataset: &T,
         id: usize,
         count_new_iccs: bool,
+        boost_variable: f64,
         tabu_size: Option<NonZeroUsize>,
         sender: Option<SolverEventSender>,
     ) -> Self {
@@ -483,6 +488,7 @@ impl TemperPool {
             id,
             mcm_id: id,
             count_new_iccs,
+            boost_variable,
             tabu_list: tabu_size.map(|s| (s.into(), VecDeque::with_capacity(s.into()))),
             sender,
         }
@@ -584,7 +590,7 @@ impl TemperPool {
 
         let probability = ((1.0 / other.temperature - 1.0 / self.temperature)
             * -(other_log_e - self_log_e)
-            / 2.0f64.powi(6))
+            / self.boost_variable)
         .exp()
         .min(1.0);
         let accepted = rng.random_bool(probability);

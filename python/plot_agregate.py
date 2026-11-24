@@ -43,13 +43,17 @@ def prove_annealing_time_dependence(save: bool = False):
     prove_time_dependence(save, "./results/simulated_annealing", "Annealing")
 
 
-def prove_time_dependence(save: bool, folder: str, name: str) -> None:
+def prove_time_dependence(
+    save: bool, folder: str, name: str, dataset: str = ""
+) -> None:
     time_seconds = []
     iccs_covered = []
 
     for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
         with open(folder + "/" + filename, "r") as file:
             content = json.load(file)
+        if dataset and dataset not in filename:
+            continue
         time_seconds.append(float(content["time_seconds"]))
         iccs_covered.append(int(content["iccs_checked"]))
 
@@ -66,6 +70,7 @@ def prove_time_dependence(save: bool, folder: str, name: str) -> None:
     plt.title(f"{name} time dependence")
     plt.legend()
     plt.xlim(*x_range)
+    name = "".join(["_" if l == " " else l for l in name])
     if save:
         plt.savefig(
             f"./results/plots/{name}_time_dependence_{asctime()}.{EXPORT_FORMAT}"
@@ -114,6 +119,71 @@ def prove_parallel_time_dependence(save: bool = False) -> None:
     )
 
 
+class AnnealingDeclutter:
+    def __init__(self, keys: list[str], values: list[str], names: list[str]) -> None:
+        self.keys = keys
+        self.values = values
+        self.names = names
+        self.first_plot = dict.fromkeys(self.keys, True)
+
+    def __call__(self, name: str) -> str:
+        for key, value, curve_name in zip(self.keys, self.values, self.names):
+            if key in name:
+                if self.first_plot[key]:
+                    plt.plot(
+                        [],
+                        [],
+                        value,
+                        color="#00000000",
+                        ms=9,
+                        mec="k",
+                        lw=2,
+                        label=curve_name,
+                    )
+                    self.first_plot[key] = False
+                return value
+        raise ValueError
+
+    def declutter(self, name: str) -> str:
+        tag = name[4:]
+        if "exp" in name:
+            return str(self.exp(tag))
+        elif "lin" in name:
+            return tag
+        elif "log" in name:
+            if "_" not in tag:
+                return "1e6 - " + str(float(tag))
+            else:
+                return tag[-1] + "e5 - " + str(float(tag[:2]))
+        elif "sig" in name:
+            return tag
+        return name
+
+    def sortable(self, name) -> tuple[str, float]:
+        tag = name[4:]
+        if "exp" in name:
+            decay = self.exp(tag)
+            return (name[0:3], -decay)
+        elif "lin" in name:
+            return (name[0:3], -float(tag))
+        elif "log" in name:
+            if "s" in name:
+                return (name[0:3], -float(tag[:2]))
+            return (name[0:3], 1 - float(tag[:2]))
+        elif "sig" in name:
+            return (name[0:3], float(tag))
+        return (name, 0.0)
+
+    def exp(self, tag) -> float:
+        decay = find_floats(tag)[0] * 0.001
+        if tag[0] == "0":
+            decay /= 10.0
+        return decay
+
+    def reset(self):
+        self.first_plot = dict.fromkeys(self.keys, True)
+
+
 @app.command()
 def sa_shapes(save: bool = False) -> None:
     folder = "./results/simulated_annealing_shapes"
@@ -134,25 +204,64 @@ def sa_shapes(save: bool = False) -> None:
 
     print(f"best: {best[0]} with {best[1]}")  # type: ignore
 
+    shapes = AnnealingDeclutter(
+        ["sig", "exp", "lin", "cus", "log"],
+        ["*", "^", "s", "x", "o"],
+        ["sigmoid", "exponential", "linear", "custom", "geometric"],
+    )
     sorted_data = [x for x in data.items()]
-    sorted_data = sorted(sorted_data, key=lambda x: x[0])
+    sorted_data = sorted(sorted_data, key=lambda x: shapes.sortable(x[0]))
     colors = cycle(plt.cm.tab10.colors)  # type: ignore
-
-    def shapes(name):
-        if "sig" in name:
-            return "*"
-        if "exp" in name:
-            return "^"
-        if "lin" in name:
-            return "s"
-        if "cus" in name:
-            return "x"
-        return "o"
 
     for (name, points), color in zip(sorted_data, colors):
         log_e = np.array(points["log_e"])
         iccs = np.array(points["iccs"])
-        plt.plot(iccs, log_e, shapes(name), label=str(name), color=color, alpha=0.75)
+        plt.plot(
+            iccs,
+            log_e,
+            shapes(name),
+            label=str(shapes.declutter(name)),
+            color=color,
+            alpha=0.75,
+        )
+
+        log_e_percentiles = np.percentile(log_e, [25, 50, 75])
+        iccs_percentiles = np.percentile(iccs, [25, 50, 75])
+        plt.errorbar(
+            iccs_percentiles[1],
+            log_e_percentiles[1],
+            xerr=[
+                [iccs_percentiles[1] - iccs_percentiles[0]],
+                [iccs_percentiles[2] - iccs_percentiles[1]],
+            ],
+            yerr=[
+                [log_e_percentiles[1] - log_e_percentiles[0]],
+                [log_e_percentiles[2] - log_e_percentiles[1]],
+            ],
+            fmt=shapes(name),
+            color=color,
+            ms=9,
+            mec="k",
+            capsize=4,
+            lw=2,
+        )
+
+    plt.legend(ncol=4)
+    plt.xlabel("ICCs calculated")
+    plt.ylabel("log(E)")
+    plt.title("Annealing shapes comparison")
+    add_runtime_axis("simulated_annealing")
+    if save:
+        plt.savefig(f"./results/plots/annealing_shapes_{asctime()}.{EXPORT_FORMAT}")
+    plt.show()
+    shapes.reset()
+
+    for (name, points), color in zip(sorted_data, colors):
+        if "lin" in name or "exp_10" in name:
+            continue
+        log_e = np.array(points["log_e"])
+        iccs = np.array(points["iccs"])
+        plt.plot(iccs, log_e, shapes(name), label=shapes.declutter(name), color=color, alpha=0.75)
 
         log_e_percentiles = np.percentile(log_e, [25, 50, 75])
         iccs_percentiles = np.percentile(iccs, [25, 50, 75])
@@ -178,10 +287,12 @@ def sa_shapes(save: bool = False) -> None:
     plt.legend(ncol=2)
     plt.xlabel("ICCs calculated")
     plt.ylabel("log(E)")
-    plt.title("Annealing shapes comparison")
+    plt.title("Annealing shapes best curves")
     add_runtime_axis("simulated_annealing")
     if save:
-        plt.savefig(f"./results/plots/annealing_shapes_{asctime()}.{EXPORT_FORMAT}")
+        plt.savefig(
+            f"./results/plots/annealing_shapes_best_curves_{asctime()}.{EXPORT_FORMAT}"
+        )
     plt.show()
 
 
@@ -703,7 +814,13 @@ def merge_beam(save: bool = False) -> None:
 
 @app.command()
 def prove_greedy_time_dependence(save: bool = False):
-    prove_time_dependence(save, "./results/construct_beam", "Greedy")
+    prove_time_dependence(save, "./results/construct_beam", "Greedy", dataset="mnist11")
+    prove_time_dependence(
+        save, "./results/construct_beam", "Greedy 196 variables", dataset="mnist14"
+    )
+    prove_time_dependence(
+        save, "./results/construct_beam", "Greedy 484 variables", dataset="mnist22"
+    )
 
 
 @app.command()
@@ -715,6 +832,8 @@ def construct_beam(save: bool = False) -> None:
         with open(folder + "/" + filename, "r") as file:
             content = json.load(file)
         name = filename[7:-5]
+        if "mnist11" not in name:
+            continue
         data.setdefault(name, {}).setdefault("log_e", []).append(
             float(content["log_e"])
         )
@@ -940,6 +1059,7 @@ def parallel_tempering(save: bool = False) -> None:
     folders = [
         "./results/parallel_tempering",
         # "./results/parallel_tempering_random_swaps"
+        # "./results/parallel_tempering_tabu",
     ]
     data: dict[str, dict[str, list[float | int]]] = {}
 
@@ -972,7 +1092,7 @@ def parallel_tempering(save: bool = False) -> None:
     shapes = MapToShape(
         ["t", "e", "g", "i", "l"],
         ["h", "o", "s", "^", "*"],
-        ["less pools", "exponential", "geometric", "inverse linear", "linear"],
+        ["tabu", "exponential", "geometric", "inverse linear", "linear"],
     )
 
     boxes: dict[str, tuple[list[float], list[float]]] = {}
@@ -1067,6 +1187,8 @@ def load_time_fit(folder: str):
     for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
         with open(folder + "/" + filename, "r") as file:
             content = json.load(file)
+        if folder == "./results/construct_beam" and not "mnist11" in filename:
+            continue
         time_seconds.append(float(content["time_seconds"]))
         iccs_covered.append(int(content["iccs_checked"]))
     return linregress(iccs_covered, time_seconds)
