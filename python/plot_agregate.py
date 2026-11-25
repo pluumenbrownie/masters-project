@@ -156,7 +156,7 @@ class AnnealingDeclutter:
             else:
                 return tag[-1] + "e5 - " + str(float(tag[:2]))
         elif "sig" in name:
-            return tag
+            return str(int(tag) * 1000)
         return name
 
     def sortable(self, name) -> tuple[str, float]:
@@ -288,6 +288,9 @@ def sa_shapes(save: bool = False) -> None:
     plt.xlabel("ICCs calculated")
     plt.ylabel("log(E)")
     plt.title("Annealing shapes best curves")
+    xlims = plt.xlim()
+    plt.hlines([-2400000], xlims[0], xlims[1], colors="#000000", linestyles="dashed")
+    plt.xlim(xlims)
     add_runtime_axis("simulated_annealing")
     if save:
         plt.savefig(
@@ -353,6 +356,40 @@ def sa_exp_decay(save: bool = False) -> None:
     add_runtime_axis("simulated_annealing")
     if save:
         plt.savefig(f"./results/plots/annealing_exp_decay_{asctime()}.{EXPORT_FORMAT}")
+    plt.show()
+
+
+@app.command()
+def plot_heating(save: bool = False) -> None:
+    folder = "./results/heating_test_3"
+    temp_plotted = False
+    fig, ax = plt.subplots(1, 1)
+    ax2 = ax.twinx()
+
+    for filename in filter(lambda name: name[-4:] == ".csv", os.listdir(folder)):
+        with open(folder + "/" + filename, "r") as file:
+            content = csv.reader(file.readlines())
+        log_e = []
+        temperature = []
+
+        next(content)
+        for line in content:
+            log_e.append(float(line[0]))
+            temperature.append(float(line[1]))
+
+        ax.plot(range(len(log_e)), log_e, ",", color="#1f77b4", alpha=0.1)
+        if not temp_plotted:
+            ax2.semilogy(range(len(temperature)), temperature, "r-", label="T")
+            temp_plotted = True
+
+    ax.set_xlabel("step")
+    ax.set_ylabel("log(E)")
+    ax2.set_ylabel("log(T)")
+    fig.suptitle("Log(E) of Simulated Annealing")
+    plt.legend()
+    ax.set_xlim(-50, len(log_e))
+    if save:
+        plt.savefig(f"./results/plots/simulated_annealing_{asctime()}.png")
     plt.show()
 
 

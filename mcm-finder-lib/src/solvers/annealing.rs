@@ -24,6 +24,7 @@ pub enum AnnealingStarter {
     Single,
     #[default]
     Trivial,
+    External { mcm: MinimallyComplexModel },
 }
 
 pub struct SimulatedAnnealingSolver<T> {
@@ -81,6 +82,7 @@ impl<T: Dataset> Solver for SimulatedAnnealingSolver<T> {
             AnnealingStarter::Trivial => {
                 MinimallyComplexModel::trivial(NonZero::new(self.dataset.variables()).unwrap())
             }
+            AnnealingStarter::External { ref mcm } => mcm.clone(),
         };
 
         let mut rng = rand::rng();

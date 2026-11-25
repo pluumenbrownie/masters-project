@@ -1,12 +1,14 @@
-use std::path::Path;
+use std::{fs::File, path::Path};
 
 use annolog::CollectorBuilder;
 use mcm_finder_lib::{
     dataset::VecDataset,
     logger::SolverEvent,
     solvers::{
-        AdaptiveAnnealingSolver, AnnealingStarter::Trivial, AnnealingTemperature,
-        SimulatedAnnealingSolver, Solver,
+        AdaptiveAnnealingSolver,
+        AnnealingStarter::{External, Trivial},
+        AnnealingTemperature, SimulatedAnnealingSolver, Solver, SolverReport,
+        TempType::Heating,
     },
 };
 
@@ -14,7 +16,7 @@ use kdam::par_tqdm;
 use miette::{IntoDiagnostic, Result};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
-use crate::gen_id;
+use crate::{Commands::HeatingTest, gen_id};
 
 pub(crate) fn annealing_length() -> Result<()> {
     let dataset = Path::new("mcm-finder-lib/tests/data/MNIST11.sorted");
@@ -161,19 +163,19 @@ pub(crate) fn annealing_shapes() -> Result<()> {
             "cus_02",
         ),
         (
-            AnnealingTemperature::sigmoid(3_000.0, 100.0/3.0, 0.3, 0.7, 50_000.0),
+            AnnealingTemperature::sigmoid(3_000.0, 100.0 / 3.0, 0.3, 0.7, 50_000.0),
             "sig_50",
         ),
         (
-            AnnealingTemperature::sigmoid(3_000.0, 100.0/3.0, 0.3, 0.7, 40_000.0),
+            AnnealingTemperature::sigmoid(3_000.0, 100.0 / 3.0, 0.3, 0.7, 40_000.0),
             "sig_40",
         ),
         (
-            AnnealingTemperature::sigmoid(3_000.0, 100.0/3.0, 0.3, 0.7, 30_000.0),
+            AnnealingTemperature::sigmoid(3_000.0, 100.0 / 3.0, 0.3, 0.7, 30_000.0),
             "sig_30",
         ),
         (
-            AnnealingTemperature::sigmoid(3_000.0, 100.0/3.0, 0.3, 0.7, 20_000.0),
+            AnnealingTemperature::sigmoid(3_000.0, 100.0 / 3.0, 0.3, 0.7, 20_000.0),
             "sig_20",
         ),
     ]
@@ -277,5 +279,40 @@ pub(crate) fn adaptive_annealing() -> Result<()> {
         Ok(())
     })?;
 
+    Ok(())
+}
+
+pub fn heating_test() -> Result<()> {
+    let input_file = "results/parallel_tempering/result_i_512_+1_0Q7II0Nl.json";
+    let folder = "results/heating_test_3";
+
+    let dataset = Path::new("mcm-finder-lib/tests/data/MNIST11.sorted");
+
+    let imported_result: SolverReport =
+        serde_json::from_reader(File::open(input_file).into_diagnostic()?).into_diagnostic()?;
+    println!("{imported_result}");
+
+    par_tqdm!((0..100).into_par_iter()).try_for_each(|_| -> Result<()> {
+        let id = gen_id();
+        let (collector, sender) = CollectorBuilder::<SolverEvent>::new()
+            .with_handler(mcm_finder_lib::logger::AnnealingHandler::with_paths(
+                format!("./{folder}/log_e_{id}.csv").into(),
+            ))
+            .build();
+        std::thread::spawn(|| collector.run());
+
+        let solver = SimulatedAnnealingSolver::<VecDataset>::from_file(dataset)?
+            .set_sender(sender)
+            .set_silent(true)
+            .set_starter(External {
+                mcm: imported_result.mcm.clone(),
+            })
+            .set_temperature(AnnealingTemperature::heating(0.5, 20_000, 0.0005));
+        let result = solver.solve();
+        result
+            .save_json(format!("./{folder}/result_{id}.json").into())
+            .into_diagnostic()?;
+        Ok(())
+    })?;
     Ok(())
 }

@@ -113,6 +113,7 @@ impl<T: Dataset> Solver for AdaptiveAnnealingSolver<T> {
             AnnealingStarter::Trivial => {
                 MinimallyComplexModel::trivial(NonZero::new(self.dataset.variables()).unwrap())
             }
+            AnnealingStarter::External { ref mcm } => mcm.clone(),
         };
 
         let mut rng = rand::rng();

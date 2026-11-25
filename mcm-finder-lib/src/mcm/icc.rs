@@ -1,18 +1,43 @@
 use std::{
     fmt::Display,
-    ops::{BitAnd, BitAndAssign, BitOrAssign, Deref, DerefMut},
+    ops::{BitAnd, BitAndAssign, BitOrAssign, Deref, DerefMut, Div},
     sync::OnceLock,
 };
 
 use fixedbitset::FixedBitSet;
-use serde::{Serialize, ser::SerializeStruct};
+use serde::{Deserialize, Deserializer, Serialize, ser::SerializeStruct};
 
 use crate::{dataset::Dataset, mcm::gamma_factor};
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
 pub struct IndependentCompleteComponent {
+    #[serde(deserialize_with = "deserialize_bits")]
     pub(crate) bits: FixedBitSet,
+
+    #[serde(skip)]
     pub(crate) log_e: OnceLock<f64>,
+}
+
+fn deserialize_bits<'de, D>(deserializer: D) -> Result<FixedBitSet, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let text = String::deserialize(deserializer)?;
+    let mut bits = FixedBitSet::with_capacity(text.len());
+
+    for (index, byte) in text.bytes().enumerate() {
+        match byte {
+            b'0' => {}
+            b'1' => bits.insert(index),
+            _ => {
+                return Err(serde::de::Error::custom(format!(
+                    "invalid bit at position {index}: expected '0' or '1'"
+                )));
+            }
+        }
+    }
+
+    Ok(bits)
 }
 
 impl IndependentCompleteComponent {

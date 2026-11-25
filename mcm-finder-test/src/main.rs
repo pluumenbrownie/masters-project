@@ -49,6 +49,7 @@ enum Commands {
     ParallelLessPools,
     ParallelRandomSwaps,
     Lahc,
+    HeatingTest,
 }
 
 fn main() -> Result<()> {
@@ -76,6 +77,7 @@ fn main() -> Result<()> {
         Commands::ParallelLessPools => parallel::parallel_tempering_less_pools()?,
         Commands::ParallelRandomSwaps => parallel::parallel_tempering_random_swaps()?,
         Commands::Lahc => lahc_hist_size()?,
+        Commands::HeatingTest => annealing::heating_test()?,
     };
 
     Ok(())

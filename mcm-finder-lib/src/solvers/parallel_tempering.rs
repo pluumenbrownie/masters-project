@@ -370,6 +370,7 @@ impl<T: Dataset + Sync> Solver for ParallelTemperingSolver<T> {
             AnnealingStarter::Trivial => {
                 MinimallyComplexModel::trivial(NonZero::new(self.dataset.variables()).unwrap())
             }
+            AnnealingStarter::External { ref mcm } => mcm.clone(),
         };
 
         let temperatures = self.calculate_temperatures(&log_e_cache, &mut starter);

@@ -5,6 +5,7 @@ pub enum TempType {
     Linear { slope: f64 },
     Sigmoid { a: f64, b: f64, c: f64, ntot: f64 },
     Constant { steps: usize },
+    Heating { per_step: f64, steps: usize }
 }
 
 #[derive(Debug, Clone)]
@@ -142,6 +143,11 @@ impl AnnealingTemperature {
     pub fn constant(start: f64, steps: usize) -> AnnealingTemperature {
         assert!(steps > 0, "Steps should be greater than zero.");
         AnnealingTemperature::new(start, start, TempType::Constant { steps })
+    }
+
+    /// A temperature curve which heats up a system
+    pub fn heating(start: f64, steps: usize, per_step: f64) -> AnnealingTemperature {
+        AnnealingTemperature::new(start, 0.0, TempType::Heating { per_step, steps })
     }
 
     /// Counts and returns the amount of steps in the resulting iterator.
@@ -325,6 +331,12 @@ impl AnnealTempIter {
             }
             TempType::Constant { steps } => {
                 self.temp = self.start;
+                if self.step == steps {
+                    self.end = f64::INFINITY;
+                };
+            }
+            TempType::Heating { per_step, steps } => {
+                self.temp += self.temp * per_step;
                 if self.step == steps {
                     self.end = f64::INFINITY;
                 };
