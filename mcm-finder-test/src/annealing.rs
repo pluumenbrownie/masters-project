@@ -65,6 +65,10 @@ pub(crate) fn annealing_shapes() -> Result<()> {
 
     let iterator: Vec<_> = [
         (
+            AnnealingTemperature::exponential(100_000.0, 0.0001, 0.00005),
+            "exp_005",
+        ),
+        (
             AnnealingTemperature::exponential(100_000.0, 0.0001, 0.0001),
             "exp_01",
         ),
