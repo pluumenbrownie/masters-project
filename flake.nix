@@ -53,6 +53,7 @@
                     typer
                     scipy
                     black
+                    lmfit
                   ]))
             ];
 

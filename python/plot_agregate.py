@@ -13,6 +13,10 @@ import os
 import re
 from scipy.stats import linregress  # type: ignore
 from itertools import cycle, chain
+from lmfit import models # type: ignore
+
+# https://lmfit.github.io/lmfit-py/model.html?highlight=result#lmfit.model.ModelResult
+# https://lmfit.github.io/lmfit-py/model.html?highlight=result#lmfit.model.Model
 
 from plot_data import (
     par_temp_pools,
@@ -25,6 +29,7 @@ plt.rcParams["figure.constrained_layout.use"] = True
 plt.rcParams["figure.figsize"] = (8, 5)
 
 EXPORT_FORMAT = "pdf"
+PERCENTILE_SETTINGS = [25, 50, 75]
 
 app = typer.Typer()
 
@@ -225,8 +230,8 @@ def sa_shapes(save: bool = False) -> None:
             alpha=0.75,
         )
 
-        log_e_percentiles = np.percentile(log_e, [25, 50, 75])
-        iccs_percentiles = np.percentile(iccs, [25, 50, 75])
+        log_e_percentiles = np.percentile(log_e, PERCENTILE_SETTINGS)
+        iccs_percentiles = np.percentile(iccs, PERCENTILE_SETTINGS)
         plt.errorbar(
             iccs_percentiles[1],
             log_e_percentiles[1],
@@ -256,15 +261,26 @@ def sa_shapes(save: bool = False) -> None:
     plt.show()
     shapes.reset()
 
+    medians = []
+    median_iccs = []
     for (name, points), color in zip(sorted_data, colors):
         if "lin" in name or "exp_10" in name:
             continue
         log_e = np.array(points["log_e"])
         iccs = np.array(points["iccs"])
-        plt.plot(iccs, log_e, shapes(name), label=shapes.declutter(name), color=color, alpha=0.75)
+        plt.plot(
+            iccs,
+            log_e,
+            shapes(name),
+            label=shapes.declutter(name),
+            color=color,
+            alpha=0.75,
+        )
 
-        log_e_percentiles = np.percentile(log_e, [25, 50, 75])
-        iccs_percentiles = np.percentile(iccs, [25, 50, 75])
+        log_e_percentiles = np.percentile(log_e, PERCENTILE_SETTINGS)
+        iccs_percentiles = np.percentile(iccs, PERCENTILE_SETTINGS)
+        medians.append(log_e_percentiles[1])
+        median_iccs.append(iccs_percentiles[1])
         plt.errorbar(
             iccs_percentiles[1],
             log_e_percentiles[1],
@@ -283,6 +299,7 @@ def sa_shapes(save: bool = False) -> None:
             capsize=4,
             lw=2,
         )
+    # fit_inverse_linear(medians, median_iccs)
 
     plt.legend(ncol=2)
     plt.xlabel("ICCs calculated")
@@ -328,8 +345,8 @@ def sa_exp_decay(save: bool = False) -> None:
         iccs = np.array(points["iccs"])
         plt.plot(iccs, log_e, "o", label=str(name), color=color, alpha=0.75)
 
-        log_e_percentiles = np.percentile(log_e, [25, 50, 75])
-        iccs_percentiles = np.percentile(iccs, [25, 50, 75])
+        log_e_percentiles = np.percentile(log_e, PERCENTILE_SETTINGS)
+        iccs_percentiles = np.percentile(iccs, PERCENTILE_SETTINGS)
         plt.errorbar(
             iccs_percentiles[1],
             log_e_percentiles[1],
@@ -426,16 +443,22 @@ def lahc_hist_size(save: bool = False) -> None:
     print(f"best: {best[0]} with {best[1]}")
 
     sorted_data = [x for x in data.items()]
-    sorted_data = sorted(sorted_data, key=lambda x: x[0])
+    sorted_data = sorted(sorted_data, key=lambda x: int(x[0]))
     colors = plt.cm.tab10.colors  # type: ignore
 
+    medians = []
+    median_iccs = []
+    hist_sizes = []
     for (name, points), color in zip(sorted_data, colors):
         log_e = np.array(points["log_e"])
         iccs = np.array(points["iccs"])
         plt.plot(iccs, log_e, "o", label=str(name), color=color, alpha=0.75)
 
-        log_e_percentiles = np.percentile(log_e, [25, 50, 75])
-        iccs_percentiles = np.percentile(iccs, [25, 50, 75])
+        log_e_percentiles = np.percentile(log_e, PERCENTILE_SETTINGS)
+        iccs_percentiles = np.percentile(iccs, PERCENTILE_SETTINGS)
+        medians.append(log_e_percentiles[1])
+        median_iccs.append(iccs_percentiles[1])
+        hist_sizes.append(int(name))
         plt.errorbar(
             iccs_percentiles[1],
             log_e_percentiles[1],
@@ -454,6 +477,7 @@ def lahc_hist_size(save: bool = False) -> None:
             capsize=4,
             lw=2,
         )
+    # fit_inverse_linear(medians, median_iccs)
 
     plt.legend()
     plt.xlabel("ICCs calculated")
@@ -483,6 +507,42 @@ def lahc_hist_size(save: bool = False) -> None:
     )
     if save:
         plt.savefig(f"./results/plots/lahc_hist_best_log_e_{asctime()}.{EXPORT_FORMAT}")
+    plt.show()
+    
+    for (name, points), color in zip(sorted_data, colors):
+        iccs = np.array(points["iccs"])
+        plt.plot([int(name) for _ in iccs], iccs, "o", label=str(name), color=color, alpha=0.75)
+
+        # log_e_percentiles = np.percentile(log_e, PERCENTILE_SETTINGS)
+        iccs_percentiles = np.percentile(iccs, PERCENTILE_SETTINGS)
+
+        plt.errorbar(
+            int(name),
+            iccs_percentiles[1],
+            yerr=[
+                [iccs_percentiles[1] - iccs_percentiles[0]],
+                [iccs_percentiles[2] - iccs_percentiles[1]],
+            ],
+            fmt="o",
+            color=color,
+            ms=9,
+            mec="k",
+            capsize=4,
+            lw=2,
+        )
+
+    x_range = [min(hist_sizes) * 0.995, max(hist_sizes) * 1.005]
+    fit = linregress(hist_sizes, median_iccs)
+    print(fit)
+    fitline = lambda x: fit.slope * x + fit.intercept
+    plt.plot(x_range, list(map(fitline, x_range)), "k--", label="linear fit")
+
+    plt.legend()
+    plt.xlabel("hist size")
+    plt.ylabel("ICCs calculated")
+    plt.title("History size runtime dependence")
+    if save:
+        plt.savefig(f"./results/plots/lahc_lin_fit_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
 
 
@@ -985,18 +1045,22 @@ def adaptive(save: bool = False) -> None:
     )
 
     shapes = MapToShape(
-        ["0.95", "0.9", "0.85", "0.8", "0.75"],
-        ["o", "s", "^", "*", "P"],
-        ["0.95", "0.90", "0.85", "0.80", "0.75"],
+        ["0.95", "0.85", "0.75"],
+        ["o", "^", "P"],
+        ["0.95", "0.85", "0.75"],
     )
 
+    medians = []
+    median_iccs = []
     for name, points in sorted_data:
         log_e = np.array(points["log_e"])
         iccs = np.array(points["iccs"])
         plt.plot(iccs, log_e, shapes(name), color=colors(name), alpha=0.75)
 
-        log_e_percentiles = np.percentile(log_e, [25, 50, 75])
-        iccs_percentiles = np.percentile(iccs, [25, 50, 75])
+        log_e_percentiles = np.percentile(log_e, PERCENTILE_SETTINGS)
+        iccs_percentiles = np.percentile(iccs, PERCENTILE_SETTINGS)
+        medians.append(log_e_percentiles[1])
+        median_iccs.append(iccs_percentiles[1])
         plt.errorbar(
             iccs_percentiles[1],
             log_e_percentiles[1],
@@ -1018,6 +1082,8 @@ def adaptive(save: bool = False) -> None:
     colors.plot_legend()
     shapes.plot_legend()
 
+    # fit_inverse_linear(medians, median_iccs)
+
     plt.legend()
     plt.xlabel("ICCs calculated")
     plt.ylabel("log(E)")
@@ -1037,6 +1103,22 @@ def adaptive(save: bool = False) -> None:
             f"./results/plots/adaptive_annealing_best_log_e_{asctime()}.{EXPORT_FORMAT}"
         )
     plt.show()
+
+def fit_inverse_linear(medians, median_iccs):
+    inv_model = models.Model(lambda x, a, c: a / (x ** 1) + c)
+    icc_array = np.array(median_iccs)
+    fit_result = inv_model.fit(medians, x=icc_array, a=-1e10, c=-2400000, )
+    icc_array.sort()
+    space = np.linspace(icc_array.min(), icc_array.max(), 1000)
+    plt.plot(space, fit_result.eval(x=space), "k--")
+    print(fit_result.fit_report())
+
+    invlin_model = models.Model(lambda x, a, b, c: a / (x + b) + c)
+    fit_result_lin = invlin_model.fit(medians, x=icc_array, a=-1e10, b=0, c=-2400000, )
+    icc_array.sort()
+    space = np.linspace(icc_array.min(), icc_array.max(), 1000)
+    plt.plot(space, fit_result.eval(x=space), "r--")
+    print(fit_result_lin.fit_report())
 
 
 STEPS = {"-1": 8192, "-0": 16384, "+1": 32768, "+2": 65536}
@@ -1145,8 +1227,8 @@ def parallel_tempering(save: bool = False) -> None:
 
         plt.plot(iccs, log_e, shapes(name), color=colors(name), alpha=0.75)
 
-        log_e_percentiles = np.percentile(log_e, [25, 50, 75])
-        iccs_percentiles = np.percentile(iccs, [25, 50, 75])
+        log_e_percentiles = np.percentile(log_e, PERCENTILE_SETTINGS)
+        iccs_percentiles = np.percentile(iccs, PERCENTILE_SETTINGS)
         plt.errorbar(
             iccs_percentiles[1],
             log_e_percentiles[1],
@@ -1274,8 +1356,8 @@ def collect_percentile_points(
     return [
         (
             name,
-            np.percentile(points["iccs"], [25, 50, 75]),
-            np.percentile(points["log_e"], [25, 50, 75]),
+            np.percentile(points["iccs"], PERCENTILE_SETTINGS),
+            np.percentile(points["log_e"], PERCENTILE_SETTINGS),
         )
         for name, points in data.items()
     ]
@@ -1351,10 +1433,10 @@ def plot_percentiles_all_datasets(
                 yerr=[[log_e_p[1] - log_e_p[0]], [log_e_p[2] - log_e_p[1]]],
                 fmt=point_shape,
                 color=point_color,
-                ms=9 if is_greedy else 7,
+                ms=7,
                 capsize=3,
                 lw=2 if is_greedy else 1.5,
-                alpha=1.0 if is_greedy else 0.85,
+                alpha=1.0,
                 label=label,
             )
 
