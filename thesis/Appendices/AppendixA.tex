@@ -1,25 +1,9 @@
 % Appendix A
 
-\chapter{Frequently Asked Questions} % Main appendix title
+\chapter{Additional Plots}\label{AppendixA}
 
-\label{AppendixA} % For referencing this appendix elsewhere, use \ref{AppendixA}
-
-\section{How do I change the colors of links?}
-
-The color of links can be changed to your liking using:
-
-{\small\verb!\hypersetup{urlcolor=red}!}, or
-
-{\small\verb!\hypersetup{citecolor=green}!}, or
-
-{\small\verb!\hypersetup{allcolor=blue}!}.
-
-\noindent If you want to completely hide the links, you can use:
-
-{\small\verb!\hypersetup{allcolors=.}!}, or even better: 
-
-{\small\verb!\hypersetup{hidelinks}!}.
-
-\noindent If you want to have obvious links in the PDF but not the printed text, use:
-
-{\small\verb!\hypersetup{colorlinks=false}!}.
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{./Figures/Adaptive_trace.pdf}
+  \caption{The history of the \loge{} during the best run of the adaptive annealing algorithm. This algorithm had a decay rate of 0.001 and a reset factor of 0.95. The blue line shows the \loge{}, and the red line the logarithm of the temperature.}\label{adaptTrace}
+\end{figure}

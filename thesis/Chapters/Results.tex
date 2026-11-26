@@ -101,8 +101,8 @@ Figure~\ref{mergeBeam} shows the results of merge algorithm runs with a beam siz
   \caption{The results of tabu search algorithms with tabu list sizes from one to 100. The beam size has been indicated with the color of each point. The algorithm is able to break through the visible plateau in some cases.}\label{tabuOnly}
 \end{figure}
 
-\subsection{Simulated Annealing}
-Figure~\ref{annShapes} shows a compilation of all of the simulated annealing temperature shapes available in the library. The temperature curve used has been indicated with the shape of the points. The codes in the legend show the important parameter(s) for each curve. For the exponential (exp) curves, the number indicates the decay constant. A leading zero stands in for a decimal point, so "exp_02" means an exponential decay with decay rate of 
+\section{Simulated Annealing}
+Figure~\ref{annShapes} shows a compilation of all of the simulated annealing temperature shapes available in the library. The temperature curve used has been indicated with the shape of the points. The colors numbers in the legend show the important parameter(s) for each curve. For the exponential curves, the number indicates the decay constant. For the linear curves, the number is the slope of the line. For the geometric curves, the first number is the starting temperature and the second the end temperature. Finally, for the sigmoid curves, the number indicates the total amount off points \(n_\text{tot}\).
 
 Two groups of points are visible in this figure: an arc which contains most temperature curves, and an arc below that which contains runs using the linear temperature curve. It is immediately clear that the linear curve runs severely underperform compared to the others, as this temperature curve consistently achieves lower \loge{} solutions compared to the others. From this it can be concluded that rapidly cooling temperature curves, such as the exponential curve, are needed to gain optimal results from this algorithm. 
 
@@ -112,10 +112,32 @@ Two groups of points are visible in this figure: an arc which contains most temp
   \caption{A compilation of all of the simulated annealing temperature shapes available in the library. The temperature curve used is shown by the shape of the points. }\label{annShapes}
 \end{figure}
 
-Figure~\ref{annBest} focusses on the best temperature curves from Figure~\ref{annShapes}. 
+Figure~\ref{annBest} focusses on the best temperature curves from Figure~\ref{annShapes}. The plot here can be divided into two parts: the left half, which contains a curve upwards, and the right part, where the groups of points plateaus out. In the left part, the three temperature curves perform similarly, but it appears that the exponential temperature curve is slightly outperformed by the logarithmic and sigmoid curves. When the medians of the points approaches the \loge{} -2410000 line, the results of the algorithms start to flatten off. A dashed line added at -2400000 reveals that the median of the light blue exponential cluster with a decay of 0.0001 is slightly higher than the other algorithm results, but the returns are small for the amount of compute invested. There also appears to be an effect where, as the results of an algorithm become better, the spread of results from that algorithm narrows, while the spread of the ICCs calculated per run broadens.  
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\textwidth]{./Figures/Annealing_shapes_best.pdf}
-  \caption{ The temperature curve used is shown by the shape of the points.}\label{annBest}
+  \caption{ The best temperature curves from Figure~\ref{annShapes}. The temperature curve used is shown by the shape of the points.}\label{annBest}
+\end{figure}
+
+% \section{Adaptive Annealing}
+Figure~\ref{adapt} shows the results from the adaptive annealing algorithm. This algorithm has been run with decay rates ranging from 0.004 down to 0.0005, which is shown by the colors, and with a reset fraction ranging from 0.75 up to 0.95, indicated by the shape of the points. The medians of all of the combinations between decay rates and reset fractions appear to follow the same curve. This plot has some features in common with the simulated annealing plot in Figure~\ref{annShapes}, such as the narrowing of the distribution of found results and the broadening of amount of ICCs calculated. This algorithm does not appear to plateau as fast as the standard simulated annealing, however. 
+
+Figure~\ref{lahc} shows the results from the late acceptance hill climbing algorithm. This algorithm was run with history sizes ranging from one, which corresponds to normal hill climbing, up to 100. The runs with a larger history size tend to run for longer, and also tend to find better solutions on average. Additionally, the point clouds exhibit the same phenomena of longer runs having a smaller spread in the \loge{} axis but a larger spread in the runtime. It also appears that, apart from the first one, there is a linear relation between the size of the history and the amount of ICCs calculated. Figure~\ref{lahcLinFit} shows the relation between the history size and the amount if ICCs calculated in a run. The dashed black line is the best fit through the medians of the ICCs calculated of each history size. The line has a slope of \(2805 \pm 45\) and an intercept of \(51200 \pm 2100\). 
+
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\textwidth]{./Figures/Adaptive.pdf}
+  \caption{Results from the adaptive annealing algorithm. The decay rate is indicated by the color, and the reset fraction by the shape.}\label{adapt}
+\end{figure}
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\textwidth]{./Figures/Lahc.pdf}
+  \caption{Results from the late acceptance hill climbing algorithm. The history list size is indicated by the color.}\label{lahc}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]{./Figures/Lahc_lin_fit.pdf}
+  \caption{The history list size of each late acceptance hill climbing run plotted against the amount of ICCs that run calculated the \loge{} of. The best fit line has a slope of \(2805 \pm 45\) and an intercept of \(51200 \pm 2100\).}\label{lahcLinFit}
 \end{figure}
