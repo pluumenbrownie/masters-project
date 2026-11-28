@@ -167,6 +167,13 @@ impl<T: Dataset + Sync> ParallelTemperingSolver<T> {
         self
     }
 
+    /// Sets a value which, when increased, makes temperature pools swaps more likely
+    /// when it is energetically unfavorable.
+    pub fn set_swap_acceptance_booster(mut self, fraction: f64) -> Self {
+        self.acception_fraction = fraction;
+        self
+    }
+
     /// Sets whether MCMs can attempt to swap between arbitrary pools, or only
     /// their direct neighbors.
     pub fn set_arbitrary_swaps(mut self, arbitrary: bool) -> Self {

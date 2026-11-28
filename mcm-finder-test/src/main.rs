@@ -48,6 +48,8 @@ enum Commands {
     ParallelHotter,
     ParallelLessPools,
     ParallelRandomSwaps,
+    ParallelChangePeaks,
+    ParallelBoostVariable,
     Lahc,
     HeatingTest,
 }
@@ -76,6 +78,14 @@ fn main() -> Result<()> {
         Commands::ParallelHotter => parallel::parallel_tempering_hotter()?,
         Commands::ParallelLessPools => parallel::parallel_tempering_less_pools()?,
         Commands::ParallelRandomSwaps => parallel::parallel_tempering_random_swaps()?,
+        Commands::ParallelChangePeaks => {
+            let result = rayon::join(
+            parallel::parallel_tempering_hotter_peak,
+            parallel::parallel_tempering_colder_peak);
+            result.0?;
+            result.1?;
+        }
+        Commands::ParallelBoostVariable => parallel::parallel_tempering_boost_variable()?,
         Commands::Lahc => lahc_hist_size()?,
         Commands::HeatingTest => annealing::heating_test()?,
     };
@@ -416,9 +426,7 @@ fn local_beam() -> Result<()> {
         .into_iter()
         .map(|q| {
             (
-                vec![
-                    Refinements::LocalBeam { beam_size: q },
-                ],
+                vec![Refinements::LocalBeam { beam_size: q }],
                 format!("l_{q}"),
             )
         })
