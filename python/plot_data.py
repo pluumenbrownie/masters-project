@@ -1,4 +1,5 @@
 import csv
+from math import ceil, log
 from typing import Annotated
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator, FixedLocator
@@ -22,20 +23,23 @@ def par_temp_pools(
     header, mcm_history = read_par_temp_ids(filepath_ids)
     log_e = read_par_temp_log_e(header, filepath_log_e)
 
-    fig, axes = plt.subplots(len(header), 1, figsize=(10, 10))
+    fig, axes = plt.subplots(ceil(len(header) / 2), 2, figsize=(11, 8))
     for mcm, pool_data, mcm_log_e in zip(range(len(header)), mcm_history, log_e):
 
-        axes[mcm].set_yticks(
-            [0, -len(header) + 1],
-            [round(float(header[0]), ndigits=3), round(float(header[-1]), ndigits=3)],
+        tick_spacing = np.linspace(0, -len(header) + 1, 12, dtype=np.int64).round()
+        axes[mcm//2, mcm%2].set_yticks(
+            tick_spacing,
+            [f"{float(header[-x]):#.3g}" for x in tick_spacing],
+            fontsize=7.9
         )
-        axes[mcm].yaxis.set_minor_locator(MultipleLocator(1))
-        axes[mcm].grid(axis="y", which="both")
-        axes[mcm].set(ylim=(-len(header) + 0.7, 0.3), xlim=(0, len(pool_data)))
-        axes[mcm].plot(range(len(pool_data)), pool_data, "b-", label="pool")
-        axes[mcm].set_ylabel("T")
+        axes[mcm//2, mcm%2].yaxis.set_minor_locator(MultipleLocator(1))
+        axes[mcm//2, mcm%2].grid(axis="y", which="both")
+        axes[mcm//2, mcm%2].set(ylim=(-len(header) + 0.7, 0.3), xlim=(0, len(pool_data)))
+        axes[mcm//2, mcm%2].plot(range(len(pool_data)), pool_data, "b-", label="pool")
+        axes[mcm//2, mcm%2].set_ylabel("pool Temp.")
+        axes[mcm//2, mcm%2].set_title(f"solution {mcm}", fontsize=10, pad=-10)
 
-        ax2 = axes[mcm].twinx()
+        ax2 = axes[mcm//2, mcm%2].twinx()
         ax2.plot(
             np.linspace(0, len(pool_data), num=len(mcm_log_e)),
             mcm_log_e,
@@ -45,10 +49,10 @@ def par_temp_pools(
         ax2.set_ylabel("log(E)")
 
         if not mcm == len(header) - 1:
-            axes[mcm].set(xticks=[])
+            axes[mcm//2, mcm%2].set(xticks=[])
         else:
-            axes[mcm].plot([], [], "r-", label="log E")
-            axes[mcm].legend()
+            axes[mcm//2, mcm%2].plot([], [], "r-", label="log E")
+            axes[mcm//2, mcm%2].legend()
 
     if save:
         plt.savefig(f"./results/par_temp_pools_{asctime()}.svg")

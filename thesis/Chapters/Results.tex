@@ -139,5 +139,46 @@ Figure~\ref{lahc} shows the results from the late acceptance hill climbing algor
 \begin{figure}[t]
   \centering
   \includegraphics[width=\textwidth]{./Figures/Lahc_lin_fit.pdf}
-  \caption{The history list size of each late acceptance hill climbing run plotted against the amount of ICCs that run calculated the \loge{} of. The best fit line has a slope of \(2805 \pm 45\) and an intercept of \(51200 \pm 2100\).}\label{lahcLinFit}
+  \caption{The history list size of each late acceptance hill climbing run plotted against the amount of ICCs that run calculated the \loge{} of. The best fit line through the median points has a slope of \(2805 \pm 45\) and an intercept of \(51200 \pm 2100\).}\label{lahcLinFit}
+\end{figure}
+
+\section{Parallel Tempering}
+The results from the parallel tempering algorithm are shown in Figure~\ref{parTemp}. The pool temperature curve is indicated by the shape of the points. The color of each point indicates how may Metropolis steps are performed between each swap attempt, where a run with double the amount of steps has half the amount of swap attempts to keep the total step count constant. The runs with the same amount of total steps are grouped in black dashed rectangles. Runs with a higher total amount of Metropolis steps achieve better results on average for a higher computational cost. This algorithm also shows the same effect of \loge{} narrowing and ICCs calculated broadening as was seen before in the annealing and hill climbing algorithms. 
+
+The most obvious thing which this data shows, however, is that the different temperature curves each give the same range of end results while differing significantly in the amount of ICCs that they calculate. The runtimes of the geometric and exponential curves are largely the same, while that of the linear curve is longer and the inverse linear curve somewhat shorter. It can also be seen that the amount of swaps in a run does not appear to have an effect on its final result. These observations may point towards our current implementation of the parallel tempering algorithm not working properly, as it is expected that a functional parallel tempering method would show some change in result based on the temperature curve used. 
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]{./Figures/Parallel_tempering.pdf}
+  \caption{Results from the parallel tempering algorithm. The pool temperature curve is indicated by the shape of the points. The color of each point indicates how may Metropolis steps are performed between each swap attempt. A run with double the amount of steps has half the amount of swap attempts to keep the amount of steps constant. The runs with the same amount of total steps are grouped with the black dashed rectangles.}\label{parTemp}
+\end{figure}
+
+Figure~\ref{parTempTrace} shows in which temperature pool each of the twelve potential solutions ends up after each shuffle attempt, for the best solution found via parallel tempering. The solution which became the best solution in the end is solution 7, and the figure shows that this solution candidate dropped down into the lowest temperature pool on the 64th swap and then stays there for the rest of the run. The solver barely used the other pools. If this phenomena occurs in every parallel tempering run, running the other pools would be pointless. This has been investigated in Figure~\ref{parStag}. This figure shows the stagnation fractions of each run, which is the fraction of the total run that the potential solution which ended the run in the lowest temperature pool stayed in that pool consecutively. This means that if a solution landed in the lowest pool halfway through the run, the stagnation fraction would be 0.5. In Figure~\ref{parStag}, the fractions of each temperature curve step count combination are sorted and plotted. 
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]{./Figures/Parallel_stagnation.pdf}
+  \caption{}\label{parStag}
+\end{figure}
+
+\begin{figure}[p]
+  \centering
+  \makebox[\textwidth][c]{\includegraphics[width=1.3\textwidth]{./Figures/Parallel_tempering_best_pools.pdf}}
+  \caption{The pool history of each potential solution in the best found result for parallel tempering. This run had 65,536 steps, with 128 steps between swap attempts.}\label{parTempTrace}
+\end{figure}
+
+This figure shows that the stagnation fraction is somewhat dependent on the total length of the run, as the curves for the longer runs tend to be higher than those corresponding to the shorter curves. Overall, almost twenty percent of all runs have a stagnation fraction of a half or higher. It is unknown to us if this is a reasonable amount of runs to exhibit this behavior, but it would seem that this is undesirable, as the parallel tempering algorithm is supposed to rely on the pool swapping behavior to generate solutions faster. If the swaps are irrelevant to the quality of the solutions found, this would obviate the entire swapping mechanism, and it may be better to run multiple of the other discussed algorithms in parallel, rather than one parallel tempering algorithm.
+
+\section{Overview}
+At this point, it may be best to combine all the algorithms so far into a single plot, such as in Figure~\ref{combo}. 
+
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\textwidth]{./Figures/Percentiles_all.pdf}
+  \caption{A combination plot of all the results of the algorithms discussed in this paper, with the obtained \loge{} plotted against the amount of ICCs calculated. Only the the medians and 25/75th percentiles are shown.}\label{combo}
+\end{figure}
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\textwidth]{./Figures/Percentiles_runtime.pdf}
+  \caption{A combination plot of all the results of the algorithms discussed in this paper, with the obtained \loge{} plotted against the extrapolated runtime. Only the the medians and 25/75th percentiles are shown.}\label{combo}
 \end{figure}
