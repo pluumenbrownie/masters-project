@@ -26,7 +26,8 @@ from plot_data import (
 )
 
 plt.rcParams["figure.constrained_layout.use"] = True
-plt.rcParams["figure.figsize"] = (8, 5)
+FIGSIZE = (8, 5)
+plt.rcParams["figure.figsize"] = FIGSIZE
 
 EXPORT_FORMAT = "pdf"
 PERCENTILE_SETTINGS = [25, 50, 75]
@@ -1177,6 +1178,9 @@ def draw_group_boxes(
 def parallel_tempering(save: bool = False) -> None:
     folders = [
         "./results/parallel_tempering",
+        "./results/parallel_tempering_boost_variable",
+        # "./results/parallel_tempering_hotter_peak",
+        # "./results/parallel_tempering_colder_peak",
         # "./results/parallel_tempering_random_swaps"
         # "./results/parallel_tempering_tabu",
     ]
@@ -1193,6 +1197,26 @@ def parallel_tempering(save: bool = False) -> None:
             data.setdefault(name, {}).setdefault("iccs", []).append(
                 int(content["iccs_checked"])
             )
+
+            with open(folder + "/mcm_id_" + filename[7:-5] + ".csv", "r") as file:
+                mcm_data = list(csv.reader(file.readlines()))
+            last_point = mcm_data.pop()
+            pool = last_point[-1]
+            counter = 1
+            total = len(mcm_data)
+            while True:
+                if not mcm_data.pop()[-1] == pool:
+                    break
+                counter += 1
+            data.setdefault(name, {}).setdefault("pool_stagnation", []).append(counter / total)
+
+            for s in ["32_", "64_", "128_", "256_", "512_", "1024_"]:
+                name = name.replace(s, "xxx_")
+            data.setdefault(name, {}).setdefault("log_e", []).append(best_log_e)
+            data.setdefault(name, {}).setdefault("iccs", []).append(
+                int(content["iccs_checked"])
+            )
+
             if not best or best_log_e > best[1]:
                 best = (filename[7:-5], best_log_e, filename)
     assert best
@@ -1209,13 +1233,15 @@ def parallel_tempering(save: bool = False) -> None:
     )
 
     shapes = MapToShape(
-        ["t", "e", "g", "i", "l"],
-        ["h", "o", "s", "^", "*"],
-        ["tabu", "exponential", "geometric", "inverse linear", "linear"],
+        ["e", "g", "i", "l"],
+        ["o", "s", "^", "*"],
+        ["exponential", "geometric", "inverse linear", "linear"],
     )
 
     boxes: dict[str, tuple[list[float], list[float]]] = {}
     for name, points in sorted_data:
+        if "xxx" in name:
+            continue
         log_e = np.array(points["log_e"])
         iccs = np.array(points["iccs"])
 
@@ -1225,7 +1251,7 @@ def parallel_tempering(save: bool = False) -> None:
             xs.extend(iccs.tolist())
             ys.extend(log_e.tolist())
 
-        plt.plot(iccs, log_e, shapes(name), color=colors(name), alpha=0.75)
+        plt.plot(iccs, log_e, shapes(name), color=colors(name), alpha=0.75, ms=5)
 
         log_e_percentiles = np.percentile(log_e, PERCENTILE_SETTINGS)
         iccs_percentiles = np.percentile(iccs, PERCENTILE_SETTINGS)
@@ -1242,7 +1268,7 @@ def parallel_tempering(save: bool = False) -> None:
             ],
             fmt=shapes(name),
             color=colors(name),
-            ms=9,
+            ms=7,
             mec="k",
             capsize=4,
             lw=2,
@@ -1258,6 +1284,56 @@ def parallel_tempering(save: bool = False) -> None:
     add_runtime_axis("parallel_tempering_timing")
     if save:
         plt.savefig(f"./results/plots/parallel_tempering_{asctime()}.{EXPORT_FORMAT}")
+    plt.show()
+
+    colors = MapToColor(
+        ["-1", "-0", "+1", "+2"],
+        plt.cm.tab10.colors[0:4],  # type: ignore
+        ["8,192 steps", "16,384 steps", "32,768 steps", "65,536 steps"],
+        # ["b_16", "b_128", "-1", "-0", "+1", "+2"],
+        # plt.cm.tab10.colors[0:6],  # type: ignore
+        # ["smaller boost", "bigger boost", "8,192 steps", "16,384 steps", "32,768 steps", "65,536 steps"],
+    )
+    for name, points in sorted_data:
+        if "xxx" not in name:
+            continue
+        log_e = np.array(points["log_e"])
+        iccs = np.array(points["iccs"])
+
+        tag = shuffle_tag(name)
+
+        plt.plot(iccs, log_e, shapes(name), color=colors(name), alpha=0.75, ms=5)
+
+        log_e_percentiles = np.percentile(log_e, PERCENTILE_SETTINGS)
+        iccs_percentiles = np.percentile(iccs, PERCENTILE_SETTINGS)
+        plt.errorbar(
+            iccs_percentiles[1],
+            log_e_percentiles[1],
+            xerr=[
+                [iccs_percentiles[1] - iccs_percentiles[0]],
+                [iccs_percentiles[2] - iccs_percentiles[1]],
+            ],
+            yerr=[
+                [log_e_percentiles[1] - log_e_percentiles[0]],
+                [log_e_percentiles[2] - log_e_percentiles[1]],
+            ],
+            fmt=shapes(name),
+            color=colors(name),
+            ms=7,
+            mec="k",
+            capsize=1,
+            lw=2,
+        )
+    colors.plot_legend()
+    shapes.plot_legend()
+
+    plt.legend()
+    plt.xlabel("ICCs calculated")
+    plt.ylabel("log(E)")
+    plt.title("Parallel tempering swap amount with swap counts merged")
+    add_runtime_axis("parallel_tempering_timing")
+    if save:
+        plt.savefig(f"./results/plots/parallel_tempering_merged_swaps_{asctime()}.{EXPORT_FORMAT}")
     plt.show()
 
     par_temp_pools(
@@ -1282,22 +1358,149 @@ def parallel_tempering(save: bool = False) -> None:
     plt.show()
 
 
+@app.command()
+def parallel_stagnation(save: bool = False) -> None:
+    folders = [
+        "./results/parallel_tempering",
+        # "./results/parallel_tempering_hotter_peak",
+        # "./results/parallel_tempering_colder_peak",
+        # "./results/parallel_tempering_random_swaps",
+        # "./results/parallel_tempering_tabu",
+    ]
+    data: dict[str, dict[str, list[float | int]]] = {}
+
+    for folder in folders:
+        for filename in filter(lambda name: name[-4:] == "json", os.listdir(folder)):
+            with open(folder + "/" + filename, "r") as file:
+                content = json.load(file)
+            name = filename[7:-14]
+            best_log_e = float(content["log_e"])
+            data.setdefault(name, {}).setdefault("log_e", []).append(best_log_e)
+            data.setdefault(name, {}).setdefault("iccs", []).append(
+                int(content["iccs_checked"])
+            )
+
+            with open(folder + "/mcm_id_" + filename[7:-5] + ".csv", "r") as file:
+                mcm_data = list(csv.reader(file.readlines()))
+            last_point = mcm_data.pop()
+            pool = last_point[-1]
+            counter = 1
+            total = len(mcm_data)
+            while True:
+                if not mcm_data.pop()[-1] == pool:
+                    break
+                counter += 1
+            data.setdefault(name, {}).setdefault("pool_stagnation", []).append(counter / total)
+
+            for s in ["32_", "64_", "128_", "256_", "512_", "1024_"]:
+                name = name.replace(s, "xxx_")
+            data.setdefault(name, {}).setdefault("log_e", []).append(best_log_e)
+            data.setdefault(name, {}).setdefault("iccs", []).append(
+                int(content["iccs_checked"])
+            )
+            data.setdefault(name, {}).setdefault("pool_stagnation", []).append(counter / total)
+
+    sorted_data = [x for x in data.items()]
+    sorted_data = sorted(sorted_data, key=lambda x: x[0])
+    cmap = mpl.colormaps["gist_rainbow"]
+    norm = mpl.colors.Normalize(vmin=0, vmax=1)  # type: ignore
+    colorizer = mpl.colorizer.Colorizer(norm=norm, cmap="gist_rainbow")  # type: ignore
+
+    shapes = MapToShape(
+        ["e", "g", "i", "l"],
+        ["o", "s", "^", "*"],
+        ["exponential", "geometric", "inverse linear", "linear"],
+    )
+    fig = plt.figure()
+    total, above_half = 0, 0
+    for name, points in sorted_data:
+        if "xxx" not in name:
+            continue
+        log_e = np.array(points["log_e"])
+        iccs = np.array(points["iccs"])
+        stagnations = np.array(points["pool_stagnation"])
+        median = np.percentile(stagnations, 50)
+        print(f"{name} = {median}")
+        total += len(stagnations)
+        above_half += sum([1 for x in stagnations if x>0.5])
+        
+        tag = shuffle_tag(name)
+
+        for le, ic, stag in zip(log_e, iccs, stagnations):
+            plt.plot(ic, le, shapes(name), color=cmap(stag), alpha=0.75, ms=5)
+    print(f"{above_half/total} above a half")
+    shapes.plot_legend()
+
+    plt.legend()
+    plt.xlabel("ICCs calculated")
+    plt.ylabel("log(E)")
+    plt.title("Parallel tempering stagnation fraction")
+    fig.colorbar(mpl.colorizer.ColorizingArtist(colorizer), ax=plt.gca(), label="stagnation fraction")  # type: ignore
+    add_runtime_axis("parallel_tempering_timing")
+    if save:
+        plt.savefig(f"./results/plots/parallel_stagnation_plot_{asctime()}.{EXPORT_FORMAT}")
+    plt.show()
+
+    colors = MapToColor(
+        # ["h", "c", "-1", "-0", "+1", "+2"],
+        # plt.cm.tab10.colors[0:6],  # type: ignore
+        # ["hotter","colder", "8,192 steps", "16,384 steps", "32,768 steps", "65,536 steps"],
+        ["-1", "-0", "+1", "+2"],
+        plt.cm.tab10.colors[0:4],  # type: ignore
+        ["8,192 steps", "16,384 steps", "32,768 steps", "65,536 steps"],
+    )
+    for name, points in sorted_data:
+        if "xxx" not in name:
+            continue
+        stagnations = np.array(points["pool_stagnation"])
+        stagnations.sort()
+        plt.plot(np.linspace(0, 1, len(stagnations)), stagnations, shapes(name)+"-", color=colors(name))
+    shapes.plot_legend()
+    colors.plot_legend()
+    plt.legend()
+    plt.ylabel("stagnation fraction")
+    plt.title("Stagnation fractions in order")
+    if save:
+        plt.savefig(f"./results/plots/parallel_stagnation_lines_{asctime()}.{EXPORT_FORMAT}")
+    plt.show()
+
+    for name, points in sorted_data:
+        if "xxx" not in name:
+            continue
+        stagnations = np.array(points["pool_stagnation"])
+        log_e = np.array(points["log_e"])
+        
+        plt.plot(log_e, stagnations, shapes(name), color=colors(name))
+    shapes.plot_legend()
+    colors.plot_legend()
+    plt.legend()
+    plt.xlabel("log(E)")
+    plt.ylabel("stagnation fraction")
+    plt.title("Stagnation fraction compared to log(E)")
+    if save:
+        plt.savefig(f"./results/plots/parallel_stagnation_log_e_{asctime()}.{EXPORT_FORMAT}")
+    plt.show()
+
+def strip_swaps(f: str):
+    f = f[7:-14]
+    for s in ["32_", "64_", "128_", "256_", "512_", "1024_"]:
+        f = f.replace(s, "xxx_")
+    return f
 # dataset folder -> (filename-to-group-name function, folder used for the runtime fit)
 PERCENTILE_DATASETS: dict[str, tuple[Any, str]] = {
     "greedy": (lambda f: f[15:-5], "construct_beam"),
     "simulated_annealing_shapes": (lambda f: f[7:-14], "simulated_annealing"),
-    "simulated_annealing_longer": (
-        lambda f: str(find_floats(f)[1]),
-        "simulated_annealing",
-    ),
+    # "simulated_annealing_longer": (
+    #     lambda f: str(find_floats(f)[1]),
+    #     "simulated_annealing",
+    # ),
     "lahc_hist_size": (
         lambda f: str(int(find_floats(f)[1])) + ("_a" if "_a_" in f else ""),
         "simulated_annealing",
     ),
     "adaptive_annealing": (lambda f: f[7:-14], "simulated_annealing"),
-    "parallel_tempering": (lambda f: f[7:-14], "parallel_tempering_timing"),
+    "parallel_tempering": (strip_swaps, "parallel_tempering_timing"),
 }
-
 
 def load_time_fit(folder: str):
     """Same linear fit (time_seconds vs ICCs) as prove_time_dependence."""
@@ -1438,6 +1641,7 @@ def plot_percentiles_all_datasets(
                 lw=2 if is_greedy else 1.5,
                 alpha=1.0,
                 label=label,
+                mec="w",
             )
 
     if greedy_plotted:
@@ -1447,9 +1651,13 @@ def plot_percentiles_all_datasets(
     plt.legend(ncol=2, fontsize="small")
     plt.xlabel("extrapolated runtime (s)" if runtime else "ICCs calculated")
     plt.ylabel("log(E)")
-    plt.title("Percentile points of all datasets")
+    if runtime:
+        plt.title("Percentile points of all datasets")
+    else:
+        plt.title("Percentile points runtime compensated")
     if ylim is not None:
         plt.ylim(ylim)
+        plt.xlim(left=0)
     if save:
         file_name = "percentiles_runtime" if runtime else "percentiles_all"
         plt.savefig(f"./results/plots/{file_name}{suffix}_{asctime()}.{EXPORT_FORMAT}")
